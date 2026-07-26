@@ -111,17 +111,17 @@ Done 2026-07-26. 40/40 tests green (`dotnet test --filter FullyQualifiedName~Due
 - Gotcha fixed en route: macOS `pwd` returns `/private/var/...` for `/var/...` temp paths — tests compare leaf names.
 
 ## Phase 3: Panes UI — shared layout
-Status: Not started
+Status: Complete
 
-- [ ] `PaneViewModel`: current dir, entries (sorted), selection (multi: Cmd/Ctrl-click toggle, Shift-click range), cursor, navigation history (back/forward/up), status line text ("N items", "n selected — size")
-- [ ] `MainViewModel`: left/right panes, active pane tracking, Tab switches
-- [ ] `PaneView`: path bar (tinted when active per tokens), column header row (click sorts, arrow indicator), virtualized 27px rows (mark square, name ellipsis, mono size, type, modified, perms), status bar
-- [ ] Row interactions: double-click / Enter opens dir or launches file with OS default app; Backspace and ↑ toolbar go up; typing letters jumps to match (type-ahead)
-- [ ] Toolbar per shared layout: ← → ↑ history buttons, search field (visual only this phase: icon, scope chip bound to active dir, placeholder, shortcut hint), New (folder) button
-- [ ] Keyboard: F2 rename (inline edit), F7 new folder, arrows/PageUp/Down/Home/End cursor movement
-- [ ] FileSystemWatcher per pane → debounced reload preserving selection/cursor
-- [ ] Neutral chrome for now (Win-like flush layout); chrome polish deferred to Phase 7
-- [ ] Headless UI tests: open dir shows entries; Tab moves active tint; Enter descends; sort toggles; rename works
+- [x] `PaneViewModel`: current dir, entries (sorted), selection (multi: Cmd/Ctrl-click toggle, Shift-click range), cursor, navigation history (back/forward/up), status line text ("N items", "n selected — size")
+- [x] `MainViewModel`: left/right panes, active pane tracking, Tab switches
+- [x] `PaneView`: path bar (tinted when active per tokens), column header row (click sorts, arrow indicator), virtualized 27px rows (mark square, name ellipsis, mono size, type, modified, perms), status bar
+- [x] Row interactions: double-click / Enter opens dir or launches file with OS default app; Backspace and ↑ toolbar go up; typing letters jumps to match (type-ahead)
+- [x] Toolbar per shared layout: ← → ↑ history buttons, search field (visual only this phase: icon, scope chip bound to active dir, placeholder, shortcut hint), New (folder) button
+- [x] Keyboard: F2 rename (inline edit), F7 new folder, arrows/PageUp/Down/Home/End cursor movement
+- [x] FileSystemWatcher per pane → debounced reload preserving selection/cursor
+- [x] Neutral chrome for now (Win-like flush layout); chrome polish deferred to Phase 7
+- [x] Headless UI tests: open dir shows entries; Tab moves active tint; Enter descends; sort toggles; rename works
 
 ### Verification Plan
 - `dotnet test` → all pass (incl. new headless tests)
@@ -129,7 +129,14 @@ Status: Not started
 - Manual: `dotnet run --project src/Duet`, navigate repo root, check 27px rows, active-pane tint follows Tab
 
 ### Phase Summary
-_(write when phase completes)_
+Done 2026-07-26, commit 4419007. 49/49 tests green, smoke exit 0. Key facts for later phases:
+- `PaneViewModel.Selection` is an Avalonia `SelectionModel<FileRowViewModel>` with `Source = Rows` set in the ctor (required for VM-level tests; ListBox adopts the same instance via `Selection="{Binding Selection}"`).
+- All pane keyboard handling lives in `MainWindow.OnPreviewKeyDown` (tunnel handler) acting on `Vm.ActivePane`, NOT in PaneView — headless focus is unreliable and orthodox managers route keys to the active pane anyway. Guarded by `IsTextInputFocused()` (skips when a TextBox has focus). Currently: Tab switch, Enter open, Backspace up, F2 rename, F7 new folder, printable chars → `PaneView.TypeAhead`.
+- Active pane switches on pointer-press/focus via `PaneView.Interacted` event wired in MainWindow.
+- Row template: custom `ListBoxItem` ControlTheme (27px, hover #f2f0ec, selected #dfe8f7); columns grid `*,14,74,14,88,14,112,14,76`; last column shows unix perms (or "RW" on Windows) and swaps to `TransferStatus` badge when set (Phase 4 hooks: `FileRowViewModel.TransferStatus`/`TransferStatusColor`).
+- Inline rename: TextBox in row template, focus-on-attach, Enter commit/Esc cancel/LostFocus commit.
+- Headless tests MUST use Skia: `TestAppBuilder` = `.UseSkia().UseHeadless(new(){UseHeadlessDrawing=false})`, else embedded IBM Plex Mono fails glyph creation.
+- Sort headers are VM computed props (`NameHeader` etc.) with ▲/▼ suffix.
 
 ## Phase 4: File operations UI + progress strip
 Status: Not started

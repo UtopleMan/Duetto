@@ -58,8 +58,20 @@ public partial class MainWindow : Window
                 pane.StartRename();
                 e.Handled = true;
                 return;
+            case Key.F5:
+                Vm.CopySelected();
+                e.Handled = true;
+                return;
+            case Key.F6:
+                Vm.MoveSelected();
+                e.Handled = true;
+                return;
             case Key.F7:
                 pane.NewFolder();
+                e.Handled = true;
+                return;
+            case Key.F8 or Key.Delete:
+                Vm.DeleteSelected();
                 e.Handled = true;
                 return;
         }

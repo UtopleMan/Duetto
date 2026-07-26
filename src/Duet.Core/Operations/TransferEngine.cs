@@ -100,6 +100,9 @@ public sealed class TransferSession : IDisposable
     public TransferFileStatus? StatusOf(string sourcePath) =>
         _states.TryGetValue(sourcePath, out var s) ? s.Status : null;
 
+    public TransferFileState? StateOf(string sourcePath) =>
+        _states.TryGetValue(sourcePath, out var s) ? s : null;
+
     public TransferSnapshot Snapshot()
     {
         lock (_gate)

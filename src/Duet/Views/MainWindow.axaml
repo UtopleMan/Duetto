@@ -67,6 +67,11 @@
       </DockPanel>
     </Border>
 
+    <!-- Copy/move progress strip (docked after the command bar so it sits above it) -->
+    <views:ProgressStrip DockPanel.Dock="Bottom"
+                         DataContext="{Binding ActiveTransfer}"
+                         IsVisible="{Binding Converter={x:Static ObjectConverters.IsNotNull}}" />
+
     <!-- Panes -->
     <Grid ColumnDefinitions="*,1,*">
       <views:PaneView Grid.Column="0" x:Name="LeftPane" DataContext="{Binding Left}" />
