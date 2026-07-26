@@ -148,7 +148,9 @@ public partial class MainWindow : Window
                 return;
             case Key.Tab when e.KeyModifiers == KeyModifiers.None:
                 Vm.SwitchPane();
-                ActivePaneView().List.Focus();
+                if (Vm.ActivePane.Rows.Count > 0 && Vm.ActivePane.Selection.SelectedItem is null)
+                    Vm.ActivePane.Selection.Select(0);
+                RefocusActiveList();
                 e.Handled = true;
                 return;
             case Key.Enter when e.KeyModifiers == KeyModifiers.None:
