@@ -91,7 +91,7 @@
                                   Content="{TemplateBinding Content}"
                                   ContentTemplate="{TemplateBinding ContentTemplate}"
                                   Padding="{TemplateBinding Padding}"
-                                  VerticalContentAlignment="Center"
+                                  VerticalContentAlignment="Stretch"
                                   HorizontalContentAlignment="Stretch" />
                 <Border Name="CursorBorder" BorderThickness="1" BorderBrush="Transparent"
                         IsHitTestVisible="False" />
@@ -109,8 +109,8 @@
       <ListBox.ItemTemplate>
         <DataTemplate x:DataType="vm:FileRowViewModel">
           <Border Background="{Binding IsMarked, Converter={x:Static vm:BoolBrushConverters.MarkedBg}}"
-                  Padding="12,0" VerticalAlignment="Stretch">
-          <Grid ColumnDefinitions="*,14,74,14,88,14,112,14,76" VerticalAlignment="Center">
+                  Padding="12,0">
+          <Grid ColumnDefinitions="*,14,74,14,88,14,112,14,76">
             <DockPanel Grid.Column="0" VerticalAlignment="Center">
               <Border DockPanel.Dock="Left" Width="11" Height="11" CornerRadius="2.5"
                       Background="{Binding MarkColor}" Margin="0,0,9,0" VerticalAlignment="Center" />
