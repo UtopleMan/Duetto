@@ -24,10 +24,12 @@
               <TextBlock Text="{Binding CommandBar.ExitText}" FontSize="10.5"
                          Foreground="{Binding CommandBar.ExitOk, Converter={x:Static vm:BoolBrushConverters.ExitPillText}}" />
             </Border>
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="12">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="12"
+                        VerticalAlignment="Center">
               <Button Content="Copy output" Click="OnCopyOutput"
                       Background="Transparent" BorderThickness="0" Padding="0" MinHeight="0"
-                      FontSize="11" Foreground="{StaticResource TextFaint}" />
+                      FontSize="11" Foreground="{StaticResource TextFaint}"
+                      VerticalAlignment="Center" />
               <TextBlock Text="Esc close" FontFamily="{StaticResource MonoFont}" FontSize="10.5"
                          Foreground="{StaticResource TextGhost}" VerticalAlignment="Center" />
             </StackPanel>
