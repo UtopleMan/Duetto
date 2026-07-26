@@ -63,9 +63,12 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     public bool CanGoForward => _forward.Count > 0;
     public bool CanGoUp => Path.GetDirectoryName(CurrentPath) is not null;
 
+    public DrivePopoverViewModel Drives { get; }
+
     public PaneViewModel(string initialPath)
     {
         _currentPath = initialPath;
+        Drives = new DrivePopoverViewModel(this);
         Selection.Source = Rows;
         Selection.SelectionChanged += (_, _) => UpdateStatus();
         Reload(preserveSelection: false);
