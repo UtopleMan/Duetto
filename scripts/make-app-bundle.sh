@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-APP=dist/Duet.app
+APP=dist/Duetto.app
 PUBLISH=dist/osx-arm64
 
 if [[ ! -x "$PUBLISH/Duet" ]]; then
@@ -40,8 +40,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>Duet</string>
-  <key>CFBundleDisplayName</key><string>Duet</string>
+  <key>CFBundleName</key><string>Duetto</string>
+  <key>CFBundleDisplayName</key><string>Duetto</string>
   <key>CFBundleIdentifier</key><string>dk.truecon.duet</string>
   <key>CFBundleVersion</key><string>1.0.0</string>
   <key>CFBundleShortVersionString</key><string>1.0.0</string>

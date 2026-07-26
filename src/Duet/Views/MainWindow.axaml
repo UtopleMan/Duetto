@@ -4,7 +4,7 @@
         xmlns:views="using:Duet.Views"
         x:Class="Duet.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Title="Duet"
+        Title="Duetto"
         Width="1180" Height="700"
         Background="{StaticResource WindowBg}">
   <DockPanel>
@@ -16,7 +16,7 @@
       <DockPanel>
         <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="9" Margin="12,0,0,0">
           <Border Width="12" Height="12" CornerRadius="3" Background="{StaticResource Accent}" VerticalAlignment="Center" />
-          <TextBlock Text="Duet" FontSize="12" FontWeight="Medium" Foreground="#3d3b34" VerticalAlignment="Center" />
+          <TextBlock Text="Duetto" FontSize="12" FontWeight="Medium" Foreground="#3d3b34" VerticalAlignment="Center" />
           <TextBlock Text="{Binding ActiveDirName}" FontFamily="{StaticResource MonoFont}" FontSize="11"
                      Foreground="{StaticResource TextFaint}" VerticalAlignment="Center" />
         </StackPanel>
