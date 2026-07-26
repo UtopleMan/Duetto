@@ -1,7 +1,10 @@
+using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
 using Duet.Core.FileSystem;
 using Duet.Tests.Core;
 using Duet.ViewModels;
+using Duet.Views;
 
 namespace Duet.Tests.Ui;
 
@@ -157,5 +160,21 @@ public class DrivePopoverTests
         using var vm = new MainViewModel(tmp.Path, tmp.Path);
         Assert.Equal("Open in left pane", vm.Left.Drives.HeaderText);
         Assert.Equal("Open in right pane", vm.Right.Drives.HeaderText);
+    }
+
+    [AvaloniaFact]
+    public void Path_bar_shows_volume_chip()
+    {
+        using var tmp = new TempDir();
+        using var vm = new MainViewModel(tmp.Path, tmp.Path);
+        var window = new MainWindow(vm);
+        window.Show();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var chip = window.GetVisualDescendants().OfType<PaneView>().First()
+            .FindControl<Button>("VolumeChip");
+        Assert.NotNull(chip);
+        Assert.True(chip!.IsVisible);
+        window.Close();
     }
 }

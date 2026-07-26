@@ -23,8 +23,11 @@ public partial class PaneView : UserControl
             if (_subscribedVm is { } old)
                 old.Reloaded -= OnVmReloaded;
             _subscribedVm = Vm;
-            if (_subscribedVm is { } vm)
-                vm.Reloaded += OnVmReloaded;
+            if (_subscribedVm is { } newVm)
+            {
+                newVm.Reloaded += OnVmReloaded;
+                newVm.Drives.CloseRequested += () => Dispatcher.UIThread.Post(HideDriveFlyout);
+            }
         };
 
         // ⌘/Ctrl-click toggles a mark, Shift-click marks a range — before the
@@ -147,5 +150,65 @@ public partial class PaneView : UserControl
     {
         if (sender is TextBox { DataContext: FileRowViewModel { IsEditing: true } row } && Vm is { } vm)
             vm.CommitRename(row);
+    }
+
+    private void OnVolumeChipClicked(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is not { } vm)
+            return;
+        Interacted?.Invoke(this);
+        vm.Drives.Refresh();
+        // Flyout opens automatically (Button.Flyout); focus the filter box for type-to-filter.
+        Dispatcher.UIThread.Post(() =>
+        {
+            DriveFilterBox.Focus();
+            if (DriveList.ItemCount > 0 && DriveList.SelectedIndex < 0)
+                DriveList.SelectedIndex = 0;
+        });
+    }
+
+    private void OnDriveRowActivated(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is { } vm && (e.Source as Control)?.DataContext is VolumeRowViewModel row)
+        {
+            vm.Drives.OpenVolume(row);
+            e.Handled = true;
+        }
+    }
+
+    private void OnDriveFilterKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (Vm is not { } vm)
+            return;
+        switch (e.Key)
+        {
+            case Key.Down:
+                DriveList.SelectedIndex = Math.Min(DriveList.SelectedIndex + 1, DriveList.ItemCount - 1);
+                e.Handled = true;
+                break;
+            case Key.Up:
+                DriveList.SelectedIndex = Math.Max(DriveList.SelectedIndex - 1, 0);
+                e.Handled = true;
+                break;
+            case Key.Enter when DriveList.SelectedItem is VolumeRowViewModel row:
+                vm.Drives.OpenVolume(row);
+                e.Handled = true;
+                break;
+            case Key.Escape:
+                HideDriveFlyout();
+                e.Handled = true;
+                break;
+            case Key.K when e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta):
+                vm.Drives.Connect();
+                e.Handled = true;
+                break;
+        }
+    }
+
+    /// <summary>x:Name fields inside Flyout content can be unreliable; go via the chip.</summary>
+    private void HideDriveFlyout()
+    {
+        (VolumeChip.Flyout as Avalonia.Controls.Primitives.FlyoutBase)?.Hide();
+        FocusList();
     }
 }
