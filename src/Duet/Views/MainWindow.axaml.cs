@@ -102,7 +102,11 @@ public partial class MainWindow : Window
     protected override void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
-        LeftPane.List.Focus();
+        // Cursor starts on the first row; focus is deferred to Background priority
+        // so it lands after Avalonia's own initial-focus pass instead of before it.
+        if (Vm.ActivePane.Rows.Count > 0 && Vm.ActivePane.Selection.SelectedItem is null)
+            Vm.ActivePane.Selection.Select(0);
+        RefocusActiveList(Avalonia.Threading.DispatcherPriority.Background);
     }
 
     private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
@@ -190,14 +194,14 @@ public partial class MainWindow : Window
     /// Navigation reloads replace the row containers; the focused item detaches
     /// asynchronously and would drop focus, so refocus after that cleanup runs.
     /// </summary>
-    private void RefocusActiveList() =>
+    private void RefocusActiveList(Avalonia.Threading.DispatcherPriority? priority = null) =>
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             var list = ActivePaneView().List;
             var container = list.SelectedIndex >= 0 ? list.ContainerFromIndex(list.SelectedIndex) : null;
             if (container is null || !container.Focus())
                 list.Focus();
-        });
+        }, priority ?? Avalonia.Threading.DispatcherPriority.Default);
 
     /// <summary>After an Insert-mark the cursor is the anchor row, which may be unselected.</summary>
     private void FocusAnchorRow() =>

@@ -175,6 +175,22 @@ public class PaneTests
     }
 
     [AvaloniaFact]
+    public void Startup_puts_cursor_on_first_row()
+    {
+        using var tmp = new TempDir();
+        tmp.File("a.txt", "x");
+        using var vm = new MainViewModel(tmp.Path, tmp.Path);
+        var window = new MainWindow(vm);
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var cursor = vm.Left.Selection.SelectedItem as FileRowViewModel;
+        Assert.NotNull(cursor);
+        Assert.True(cursor!.IsParentNav); // ".." is row 0 in a non-root dir
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public void Insert_marks_row_and_advances_cursor()
     {
         using var tmp = new TempDir();
