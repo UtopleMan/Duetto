@@ -261,3 +261,12 @@ Dev conveniences: `--smoke` (headless render-and-exit) and `--screenshot <path>`
 5. Distribute the zips / Duet.app directly — no installer, no runtime prerequisite on target machines. Windows/Linux binaries are cross-compiled and untested on real target OSes; run the exe once on a real Windows/Linux box before shipping broadly.
 6. For proper macOS distribution later: replace ad-hoc signing with a Developer ID cert + notarization; add `-p:PublishTrimmed` only after testing (Avalonia trimming is risky).
 7. No git remote configured — add one and push when ready: `git remote add origin <url> && git push -u origin main`.
+
+## Post-v1 iteration log (live user feedback, 2026-07-26)
+All shipped, tested, committed on main. Test count now 90.
+- ".." parent row: first row in every non-root dir; Enter/double-click goes up and selects the dir you came from; excluded from ops, rename, counts (`FileRowViewModel.IsParentNav`, `FileRowViewModel.ParentNav`).
+- Focus robustness (root causes found via `DUET_FOCUS_LOG` instrumentation): macOS wipes focus at window activation, and every watcher reload used to kill the focused row container. Fixes: `Activated` handler refocuses when focus is null; `PaneViewModel.Reloaded` event + `PaneView.OnVmReloaded` restores focus to the active pane only when focus died; all navigation (Enter/Backspace/Tab/double-click) refocuses via deferred `RefocusActiveList`.
+- Search bar doubles as address bar: `MainViewModel.TryNavigatePath` (absolute, relative, `~`); path-like queries (`SearchViewModel.IsPathLike`) never trigger the search overlay; Enter navigates dirs / reveals files.
+- PageUp/PageDown/Home/End move the cursor (`MainWindow.MoveCursorBy`, page = list height / 27px).
+- **Cursor/mark model split** (orthodox): cursor = single `Selection` (SelectionMode Single) drawn as 1px accent outline overlay; marks = `FileRowViewModel.IsMarked` drawn as full-row #dfe8f7 fill. Insert toggles mark + advances; Shift+↑/↓ mark while moving; Shift-click range (`MarkRangeTo`); ⌘/Ctrl-click toggle (`ToggleMarkAt`, tunnel PointerPressed in PaneView); Esc clears marks (after search/drawer priority). `SelectedRows` = marked rows, else cursor row. Status bar counts marks. Marks survive reloads (preserved by name).
+- Search scope chip vertically centered; disabled toolbar buttons transparent.
