@@ -199,13 +199,16 @@ public class PaneTests
         using var vm = new PaneViewModel(tmp.Path); // rows: .., aaa, bbb
 
         vm.Selection.Select(1);
-        vm.ToggleMarkAndAdvance(); // aaa was selected -> unmark, cursor to bbb
-        Assert.Empty(vm.SelectedRows);
+        vm.ToggleMarkAndAdvance(); // sole selection = cursor: keep aaa marked, advance
+        Assert.Equal(["aaa.txt"], vm.SelectedRows.Select(r => r.Name));
         Assert.Equal(2, vm.Selection.AnchorIndex);
 
-        vm.ToggleMarkAndAdvance(); // mark bbb, cursor stays on last row
-        Assert.Equal(["bbb.txt"], vm.SelectedRows.Select(r => r.Name));
+        vm.ToggleMarkAndAdvance(); // mark bbb too, cursor stays on last row
+        Assert.Equal(["aaa.txt", "bbb.txt"], vm.SelectedRows.Select(r => r.Name).Order());
         Assert.Equal(2, vm.Selection.AnchorIndex);
+
+        vm.ToggleMarkAndAdvance(); // bbb marked among several -> toggles off
+        Assert.Equal(["aaa.txt"], vm.SelectedRows.Select(r => r.Name));
     }
 
     [AvaloniaFact]

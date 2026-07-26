@@ -238,10 +238,13 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         var index = Math.Clamp(Selection.AnchorIndex, 0, Rows.Count - 1);
         if (!Rows[index].IsParentNav)
         {
-            if (Selection.IsSelected(index))
-                Selection.Deselect(index);
-            else
+            // The cursor row is always selected (cursor and mark share the
+            // selection model), so a sole selection is the cursor, not a mark:
+            // keep it marked and advance. Toggling off needs 2+ marked rows.
+            if (!Selection.IsSelected(index))
                 Selection.Select(index);
+            else if (Selection.SelectedItems.Count > 1)
+                Selection.Deselect(index);
         }
 
         Selection.AnchorIndex = Math.Min(index + 1, Rows.Count - 1);
