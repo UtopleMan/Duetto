@@ -3,7 +3,7 @@
              xmlns:vm="using:Duet.ViewModels"
              x:Class="Duet.Views.CommandBar"
              x:DataType="vm:MainViewModel">
-  <StackPanel>
+  <StackPanel x:Name="BarRoot" Classes.mac="{Binding IsMacChrome}">
     <!-- Output drawer -->
     <Border IsVisible="{Binding CommandBar.IsDrawerOpen}"
             BorderBrush="#cfccc4" BorderThickness="0,1,0,0">
@@ -48,14 +48,29 @@
       </StackPanel>
     </Border>
 
-    <!-- Prompt row -->
-    <Border Height="40" Background="{StaticResource ChromeBg}"
-            BorderBrush="{StaticResource HairlineDark}" BorderThickness="0,1,0,0">
+    <!-- Prompt row: win = light strip, gnome = dark terminal strip, mac = floating card -->
+    <Border x:Name="PromptRow" Height="40" Background="{StaticResource ChromeBg}"
+            BorderBrush="{StaticResource HairlineDark}" BorderThickness="0,1,0,0"
+            Classes.gnome="{Binding IsGnomeChrome}"
+            Classes.mac="{Binding IsMacChrome}">
       <DockPanel Margin="12,0" VerticalAlignment="Center">
-        <TextBlock DockPanel.Dock="Left" FontFamily="{StaticResource MonoFont}" FontSize="11.5"
-                   Foreground="{StaticResource Green}" FontWeight="Medium" VerticalAlignment="Center">
-          <Run Text="{Binding ActiveDirName}" /><Run Text=" $" />
-        </TextBlock>
+        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBlock IsVisible="{Binding IsGnomeChrome}" Text="{Binding UserAtHost}"
+                     FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                     Foreground="{StaticResource TermPrompt}" VerticalAlignment="Center" />
+          <TextBlock IsVisible="{Binding IsGnomeChrome}" Text="{Binding ActivePane.CurrentPath}"
+                     FontFamily="{StaticResource MonoFont}" FontSize="11.5" MaxWidth="260"
+                     TextTrimming="CharacterEllipsis"
+                     Foreground="{StaticResource TermPath}" VerticalAlignment="Center" />
+          <TextBlock IsVisible="{Binding IsGnomeChrome}" Text="$"
+                     FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                     Foreground="{StaticResource TermText}" VerticalAlignment="Center" />
+          <TextBlock IsVisible="{Binding !IsGnomeChrome}" x:Name="LightPrompt"
+                     FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                     Foreground="{StaticResource Green}" FontWeight="Medium" VerticalAlignment="Center">
+            <Run Text="{Binding ActiveDirName}" /><Run Text="{Binding PromptGlyph}" />
+          </TextBlock>
+        </StackPanel>
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="5"
                     IsVisible="{Binding !CommandBar.IsRunning}">
           <TextBlock Text="F5 copy" Classes="hint" />
@@ -90,6 +105,37 @@
     </Style>
     <Style Selector="TextBox#InputBox:pointerover /template/ Border#PART_BorderElement">
       <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <!-- GNOME: dark terminal strip -->
+    <Style Selector="Border#PromptRow.gnome">
+      <Setter Property="Background" Value="{StaticResource TermBg}" />
+      <Setter Property="Height" Value="42" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Border#PromptRow.gnome TextBox#InputBox">
+      <Setter Property="Foreground" Value="{StaticResource TermText}" />
+    </Style>
+    <Style Selector="Border#PromptRow.gnome TextBlock.hint">
+      <Setter Property="Foreground" Value="{StaticResource TermDim}" />
+    </Style>
+    <Style Selector="Border#PromptRow.gnome TextBlock.hint:pointerover">
+      <Setter Property="Foreground" Value="{StaticResource TermText}" />
+    </Style>
+
+    <Style Selector="StackPanel#BarRoot.mac">
+      <Setter Property="Background" Value="#e8e6e1" />
+    </Style>
+
+    <!-- macOS: white floating card (design 1b) -->
+    <Style Selector="Border#PromptRow.mac">
+      <Setter Property="Background" Value="{StaticResource PaneBg}" />
+      <Setter Property="Height" Value="38" />
+      <Setter Property="Margin" Value="14,8,14,14" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="BorderBrush" Value="#dad7d0" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BoxShadow" Value="0 1 3 0 #0d000000" />
     </Style>
   </UserControl.Styles>
 </UserControl>

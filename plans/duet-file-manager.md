@@ -183,21 +183,27 @@ Done 2026-07-26. 60/60 tests green, smoke exit 0. Notes:
 - MainWindow's `IsTextInputFocused()` guard keeps pane keys (incl. type-ahead) from firing while the command TextBox has focus.
 
 ## Phase 6: Scoped recursive search
-Status: Not started
+Status: Complete
 
-- [ ] Ctrl/Cmd+F focuses search field; scope chip always shows active pane folder; typing starts incremental search (debounced) below that folder
-- [ ] Right pane switches to results mode per tokens (header "Results for …" + elapsed, Name/Folder/Size/Modified columns, live count "18 matches in 1,204 files"); left pane untouched
-- [ ] Filter chips: Names (default) / + Contents toggle; Any size / Any date chips with simple menu (size: >1 MB, >100 MB…; date: today, this week, this month) — post-filter on results
-- [ ] Enter on a result reveals it in left pane (navigate + select); Esc clears search and restores right pane's previous dir; "Open as pane" pins results as right pane listing
-- [ ] Results are actionable: F5/F6/F8 work on selected results
-- [ ] Headless tests: search temp tree by name finds nested file; contents toggle finds text match; Esc restores; reveal-in-left navigates
+- [x] Ctrl/Cmd+F focuses search field; scope chip always shows active pane folder; typing starts incremental search (debounced) below that folder
+- [x] Right pane switches to results mode per tokens (header "Results for …" + elapsed, Name/Folder/Size/Modified columns, live count "18 matches in 1,204 files"); left pane untouched
+- [x] Filter chips: Names (default) / + Contents toggle; Any size / Any date chips with simple menu (size: >1 MB, >100 MB…; date: today, this week, this month) — post-filter on results
+- [x] Enter on a result reveals it in left pane (navigate + select); Esc clears search and restores right pane's previous dir; "Open as pane" pins results as right pane listing
+- [x] Results are actionable: F5/F6/F8 work on selected results
+- [x] Headless tests: search temp tree by name finds nested file; contents toggle finds text match; Esc restores; reveal-in-left navigates
 
 ### Verification Plan
 - `dotnet test` → pass
 - Manual: search "axaml"-like pattern in a real tree, verify streaming count, reveal, Esc restore
 
 ### Phase Summary
-_(write when phase completes)_
+Done 2026-07-26. 68/68 tests green. Notes:
+- `SearchViewModel(scopeProvider)`: 300 ms debounce on Query/filters; `StartSearchAsync()` public for tests. Results stream on the UI thread via `await foreach` over `SearchService.Search`. Scope captured from ActivePane at search start.
+- Results overlay the RIGHT pane (`Panel` in MainWindow grid col 2, `IsVisible="{Binding IsActive}"`), left pane untouched; reveal navigates LEFT pane + selects + activates it (design 1d).
+- F5/F6/F8 branch in MainViewModel: when `Search.IsActive`, they act on `Search.SelectedEntries` with destination = Left pane dir (no row badges — TransferViewModel accepts null source pane).
+- "Open as pane" = `PinResults()`: cancels streaming, sets `IsPinned`, clears query; empty-query search skips teardown while pinned; Esc/`Clear()` unpins.
+- Key routing (MainWindow preview): Cmd/Ctrl+F focuses SearchBox (before text-input guard); Esc → clear search, else close drawer; Enter → RevealSelected while searching. SearchBox-local: Esc clears + refocuses pane, Enter reveals first/selected result.
+- Filter chips styled `Border.chip`/`Button.chipbtn` (+`.active`); size/date via MenuFlyout click handlers.
 
 ## Phase 7: Three chromes + packaging
 Status: Not started

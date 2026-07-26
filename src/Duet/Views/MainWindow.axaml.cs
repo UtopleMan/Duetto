@@ -1,6 +1,9 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
+using Avalonia.Platform;
 using Duet.ViewModels;
 
 namespace Duet.Views;
@@ -19,12 +22,81 @@ public partial class MainWindow : Window
         Vm = vm;
         DataContext = vm;
         InitializeComponent();
+        ApplyChrome(vm.Chrome);
 
         LeftPane.Interacted += _ => vm.Activate(vm.Left);
         RightPane.Interacted += _ => vm.Activate(vm.Right);
 
         // Tab switches panes app-wide; tunnel so focus traversal never sees it.
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
+    }
+
+    private void ApplyChrome(ChromeKind chrome)
+    {
+        switch (chrome)
+        {
+            case ChromeKind.Win:
+            case ChromeKind.Gnome:
+                // Custom title bar replaces the native one.
+                ExtendClientAreaToDecorationsHint = true;
+                ExtendClientAreaChromeHints = ExtendClientAreaChromeHints.NoChrome;
+                ExtendClientAreaTitleBarHeightHint = -1;
+                break;
+
+            case ChromeKind.Mac:
+                // Native title bar; panes float as cards on a recessed desk (design 1b).
+                Desk.Background = Brush.Parse("#e8e6e1");
+                Desk.Padding = new Thickness(14, 12);
+                PanesGrid.ColumnDefinitions[1].Width = new GridLength(12);
+                PaneDivider.Background = Brushes.Transparent;
+                foreach (var card in new[] { LeftCard, RightCard })
+                {
+                    card.CornerRadius = new CornerRadius(9);
+                    card.BorderBrush = Brush.Parse("#dad7d0");
+                    card.BorderThickness = new Thickness(1);
+                    card.BoxShadow = BoxShadows.Parse("0 1 3 0 #0d000000");
+                }
+
+                UpdateMacTitle();
+                Vm.Left.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(PaneViewModel.DirName))
+                        UpdateMacTitle();
+                };
+                Vm.Right.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(PaneViewModel.DirName))
+                        UpdateMacTitle();
+                };
+                break;
+        }
+    }
+
+    private void UpdateMacTitle() => Title = $"{Vm.Left.DirName} · {Vm.Right.DirName}";
+
+    private void OnTitleBarPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            BeginMoveDrag(e);
+    }
+
+    private void OnMinimize(object? sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    private void OnMaximize(object? sender, RoutedEventArgs e) =>
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+    private void OnClose(object? sender, RoutedEventArgs e) => Close();
+
+    private void OnGnomeSearch(object? sender, RoutedEventArgs e)
+    {
+        SearchBox.Focus();
+        SearchBox.SelectAll();
+    }
+
+    private void OnPlaceClicked(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.DataContext is Place place)
+            Vm.NavigatePlace(place);
     }
 
     protected override void OnOpened(EventArgs e)

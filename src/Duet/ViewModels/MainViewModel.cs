@@ -4,10 +4,19 @@ using Duet.Core.Operations;
 
 namespace Duet.ViewModels;
 
+public sealed record Place(string Name, string Path, string Color);
+
 public partial class MainViewModel : ObservableObject, IDisposable
 {
     public PaneViewModel Left { get; }
     public PaneViewModel Right { get; }
+
+    public ChromeKind Chrome { get; }
+    public bool IsWinChrome => Chrome == ChromeKind.Win;
+    public bool IsMacChrome => Chrome == ChromeKind.Mac;
+    public bool IsGnomeChrome => Chrome == ChromeKind.Gnome;
+    public IReadOnlyList<Place> Places { get; }
+    public static string UserAtHost { get; } = $"{Environment.UserName}@{Environment.MachineName.Split('.')[0]}";
 
     [ObservableProperty]
     private TransferViewModel? _activeTransfer;
@@ -22,13 +31,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public PaneViewModel InactivePane => ActivePane == Left ? Right : Left;
     public string ActiveDirName => ActivePane.DirName;
     public static string SearchHint => OperatingSystem.IsMacOS() ? "⌘F" : "Ctrl F";
+    public string PromptGlyph => IsMacChrome ? " ❯" : " $";
 
-    public MainViewModel(string leftPath, string rightPath)
+    public MainViewModel(string leftPath, string rightPath, ChromeKind? chrome = null)
     {
+        Chrome = chrome ?? Program.Options.Chrome;
         Left = new PaneViewModel(leftPath);
         Right = new PaneViewModel(rightPath);
         _activePane = Left;
         Left.IsActive = true;
+        Places = BuildPlaces();
         CommandBar = new CommandBarViewModel(() => ActivePane.CurrentPath);
         CommandBar.CommandFinished += () =>
         {
@@ -67,6 +79,55 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     [RelayCommand]
     public void SwitchPane() => Activate(InactivePane);
+
+    [RelayCommand]
+    public void NavigatePlace(Place place) => ActivePane.NavigateTo(place.Path);
+
+    private static List<Place> BuildPlaces()
+    {
+        const string folder = "#c8992f";
+        const string volume = "#2f6fd0";
+        const string muted = "#b6b3a8";
+        var places = new List<Place>();
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        void Add(string name, string path, string color)
+        {
+            if (Directory.Exists(path))
+                places.Add(new Place(name, path, color));
+        }
+
+        Add("Home", home, folder);
+        Add("Documents", Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), folder);
+        Add("Downloads", Path.Combine(home, "Downloads"), folder);
+        Add("Pictures", Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), folder);
+        if (OperatingSystem.IsMacOS())
+            Add("Trash", Path.Combine(home, ".Trash"), muted);
+        else if (OperatingSystem.IsLinux())
+            Add("Trash", Path.Combine(home, ".local/share/Trash/files"), muted);
+
+        try
+        {
+            if (OperatingSystem.IsMacOS())
+            {
+                foreach (var vol in Directory.EnumerateDirectories("/Volumes"))
+                    Add(Path.GetFileName(vol), vol, volume);
+            }
+            else
+            {
+                foreach (var drive in DriveInfo.GetDrives().Where(d =>
+                             d is { IsReady: true, DriveType: DriveType.Fixed or DriveType.Removable or DriveType.Network }))
+                    Add(drive.Name, drive.RootDirectory.FullName, volume);
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+
+        return places;
+    }
 
     [RelayCommand]
     public void CopySelected() => StartTransfer(TransferMode.Copy);
