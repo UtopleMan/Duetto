@@ -61,22 +61,28 @@ Duetto.sln
 Chrome resolution: default from `OperatingSystem.IsWindows()/IsMacOS()/IsLinux()`, overridden by `--chrome win|mac|gnome` argument.
 
 ## Phase 1: Repo + solution scaffold
-Status: Not started
+Status: Complete
 
-- [ ] `git init` in repo root; `.gitignore` for .NET (bin/obj/publish/.DS_Store)
-- [ ] Create `Duetto.sln` with `src/Duet.Core` (net9.0 classlib), `src/Duet` (Avalonia 11 app, net9.0), `tests/Duet.Tests` (xunit, refs both)
-- [ ] Add packages: Avalonia 11.x, Avalonia.Desktop, Avalonia.Themes.Fluent (base only; styling is custom), Avalonia.Fonts.Inter (optional), CommunityToolkit.Mvvm, Avalonia.Headless.XUnit in tests
-- [ ] Bundle IBM Plex Mono Regular+Medium TTFs in `src/Duet/Assets/Fonts`, register as embedded font family
-- [ ] `Program.cs` parses `--chrome`; empty MainWindow shows and closes cleanly
-- [ ] Initial commit
+- [x] `git init` in repo root; `.gitignore` for .NET (bin/obj/publish/.DS_Store)
+- [x] Create solution with `src/Duet.Core` (classlib), `src/Duet` (Avalonia app), `tests/Duet.Tests` (xunit, refs both)
+- [x] Add packages: Avalonia, Avalonia.Desktop, Avalonia.Themes.Fluent, Avalonia.Diagnostics, CommunityToolkit.Mvvm, Avalonia.Headless.XUnit in tests
+- [x] Bundle IBM Plex Mono Regular/Medium/SemiBold/Bold TTFs in `src/Duet/Assets/Fonts`, register as embedded font family
+- [x] `Program.cs` parses `--chrome`; empty MainWindow shows and closes cleanly
+- [x] Initial commit
 
 ### Verification Plan
-- `dotnet build Duetto.sln` → succeeds, 0 warnings-as-errors
+- `dotnet build Duetto.slnx` → succeeds, 0 warnings-as-errors
 - `dotnet test` → passes (placeholder test)
-- `timeout 15 dotnet run --project src/Duet -- --smoke` (app supports `--smoke`: renders one frame then exits 0)
+- `dotnet run --project src/Duet -- --smoke` renders window then exits 0 within ~1 s (no `timeout` cmd on this Mac — background + `kill -0` poll)
 
 ### Phase Summary
-_(write when phase completes)_
+Done 2026-07-26, commit 77e65fd. **Deviations from original plan (all environment-driven):**
+- Target framework is **net10.0**, not net9.0 — machine has only .NET SDK/runtime 10.0.301; net9.0 would not run locally.
+- Solution file is **`Duetto.slnx`** (SDK 10 `dotnet new sln` emits the new XML format), not `.sln`.
+- Avalonia pinned to **11.3.18** across all Avalonia packages. Avalonia 12.1.0 exists on NuGet but Avalonia.Diagnostics tops out at 11.3.18; mixing majors breaks. CommunityToolkit.Mvvm 8.4.2.
+- App entry: `AppOptions.Parse` handles `--chrome win|mac|gnome` (default from `OperatingSystem.Is*`) and `--smoke` (closes 400 ms after `Opened` via `DispatcherTimer.RunOnce`, exit 0). Options exposed as `Program.Options`.
+- Fonts: IBM Plex Mono 4 weights from google/fonts (OFL), resource key `MonoFont` in `App.axaml` (`avares://Duet/Assets/Fonts#IBM Plex Mono`).
+- `Duet.csproj` uses compiled bindings by default (`AvaloniaUseCompiledBindingsByDefault=true`).
 
 ## Phase 2: Core domain (Duet.Core, test-first)
 Status: Not started
