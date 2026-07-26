@@ -83,7 +83,8 @@ public static class VolumeCatalog
 
     private static string DisplayName(VolumeSource s, VolumePlatform platform)
     {
-        if (!string.IsNullOrWhiteSpace(s.Label))
+        // Unix DriveInfo.VolumeLabel echoes the mount path; treat that as no label.
+        if (!string.IsNullOrWhiteSpace(s.Label) && !IsMountEcho(s.Label, s.MountPath))
             return s.Label;
         if (platform == VolumePlatform.Mac && IsRoot(s.MountPath))
             return "Macintosh HD";
@@ -106,6 +107,9 @@ public static class VolumeCatalog
             _ => false,
         };
     }
+
+    private static bool IsMountEcho(string label, string mount) =>
+        string.Equals(label.TrimEnd('/', '\\'), mount.TrimEnd('/', '\\'), StringComparison.OrdinalIgnoreCase);
 
     private static bool IsRoot(string mount) =>
         mount == "/" || (mount.Length == 3 && mount[1] == ':' && (mount[2] == '\\' || mount[2] == '/'));

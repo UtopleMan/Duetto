@@ -26,6 +26,23 @@ public class VolumeCatalogTests
     }
 
     [Fact]
+    public void Build_mac_root_ignores_mount_path_echoed_as_label()
+    {
+        // Unix DriveInfo.VolumeLabel returns the mount path itself; it is not a real label.
+        var volumes = VolumeCatalog.Build([Src("/", label: "/")], VolumePlatform.Mac);
+        Assert.Equal("Macintosh HD", Assert.Single(volumes).Name);
+    }
+
+    [Fact]
+    public void Build_mount_dir_name_wins_over_mount_path_echoed_as_label()
+    {
+        var volumes = VolumeCatalog.Build(
+            [Src("/Volumes/Backups", label: "/Volumes/Backups")],
+            VolumePlatform.Mac);
+        Assert.Equal("Backups", Assert.Single(volumes).Name);
+    }
+
+    [Fact]
     public void Build_windows_root_name_falls_back_to_drive_letter()
     {
         var volumes = VolumeCatalog.Build([Src(@"C:\", label: null)], VolumePlatform.Windows);
