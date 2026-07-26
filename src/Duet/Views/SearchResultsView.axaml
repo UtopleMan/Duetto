@@ -45,7 +45,6 @@
              ItemsSource="{Binding Results}"
              Selection="{Binding Selection}"
              SelectionMode="Multiple"
-             ScrollViewer.AllowAutoHide="False"
              DoubleTapped="OnResultDoubleTapped">
       <ListBox.ItemContainerTheme>
         <ControlTheme TargetType="ListBoxItem">

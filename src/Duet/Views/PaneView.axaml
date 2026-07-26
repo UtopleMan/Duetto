@@ -73,7 +73,6 @@
              ItemsSource="{Binding Rows}"
              Selection="{Binding Selection}"
              SelectionMode="Single"
-             ScrollViewer.AllowAutoHide="False"
              DoubleTapped="OnRowDoubleTapped"
              GotFocus="OnListFocused">
       <ListBox.ItemContainerTheme>
