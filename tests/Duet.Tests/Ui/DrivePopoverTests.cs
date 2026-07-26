@@ -104,4 +104,40 @@ public class DrivePopoverTests
         Assert.Equal("#c07a3a", new VolumeRowViewModel(new("b", "/", 100, 24, "x", false), false).BarColor);
         Assert.Equal("#b8443c", new VolumeRowViewModel(new("c", "/", 100, 5, "x", false), false).BarColor);
     }
+
+    [AvaloniaFact]
+    public void Chip_splits_path_into_volume_and_tail()
+    {
+        using var tmp = new TempDir();
+        var mount = tmp.Dir("stick");
+        var inside = tmp.Dir("stick/photos");
+        using var pane = new PaneViewModel(inside);
+        pane.Drives.ListVolumes = () => [new VolumeInfo("Stick", mount, 1000, 500, "x · 1000 B", true)];
+
+        Assert.Equal(OperatingSystem.IsWindows() ? $"{mount} Stick" : "Stick", pane.VolumeChipText);
+        Assert.Equal(Path.DirectorySeparatorChar + "photos", pane.PathTailText);
+
+        pane.NavigateTo(mount);
+        Assert.Equal("", pane.PathTailText);
+    }
+
+    [AvaloniaFact]
+    public void Chip_falls_back_to_full_path_without_volumes()
+    {
+        using var tmp = new TempDir();
+        using var pane = new PaneViewModel(tmp.Path);
+        pane.Drives.ListVolumes = () => [];
+
+        Assert.Equal(tmp.Path, pane.VolumeChipText);
+        Assert.Equal("", pane.PathTailText);
+    }
+
+    [AvaloniaFact]
+    public void Main_view_model_labels_pane_sides()
+    {
+        using var tmp = new TempDir();
+        using var vm = new MainViewModel(tmp.Path, tmp.Path);
+        Assert.Equal("Open in left pane", vm.Left.Drives.HeaderText);
+        Assert.Equal("Open in right pane", vm.Right.Drives.HeaderText);
+    }
 }

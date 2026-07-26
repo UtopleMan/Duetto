@@ -38,6 +38,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Chrome = chrome ?? Program.Options.Chrome;
         Left = new PaneViewModel(leftPath);
         Right = new PaneViewModel(rightPath);
+        Left.Drives.PaneSide = "left";
+        Right.Drives.PaneSide = "right";
         _activePane = Left;
         Left.IsActive = true;
         Places = BuildPlaces();

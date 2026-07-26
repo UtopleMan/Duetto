@@ -17,7 +17,7 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     private DispatcherTimer? _reloadDebounce;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(DirName))]
+    [NotifyPropertyChangedFor(nameof(DirName), nameof(VolumeChipText), nameof(PathTailText))]
     private string _currentPath;
 
     [ObservableProperty]
@@ -58,6 +58,27 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     public string DirName => Path.GetFileName(CurrentPath.TrimEnd(Path.DirectorySeparatorChar)) is { Length: > 0 } name
         ? name
         : CurrentPath;
+
+    public string VolumeChipText
+    {
+        get
+        {
+            if (Drives.VolumeFor(CurrentPath) is not { } volume)
+                return CurrentPath;
+            return OperatingSystem.IsWindows() ? $"{volume.MountPath} {volume.Name}" : volume.Name;
+        }
+    }
+
+    public string PathTailText
+    {
+        get
+        {
+            if (Drives.VolumeFor(CurrentPath) is not { } volume)
+                return "";
+            var mount = volume.MountPath.TrimEnd('/', '\\');
+            return CurrentPath.Length > mount.Length ? CurrentPath[mount.Length..] : "";
+        }
+    }
 
     public bool CanGoBack => _back.Count > 0;
     public bool CanGoForward => _forward.Count > 0;
