@@ -162,20 +162,25 @@ Done 2026-07-26. 54/54 tests green. Notes:
 - Delete (F8/Del) trashes synchronously — instant for the move-to-trash implementations used.
 
 ## Phase 5: Command bar + output drawer
-Status: Not started
+Status: Complete
 
-- [ ] `CommandBar` per tokens: green mono `cwd-name $` prompt (basename of active pane dir), input, dim hover-brightening hints (F5/F6/F8/Tab)
-- [ ] Enter runs via `ShellRunner` in active pane cwd; drawer opens above prompt: header (command, exit pill green/red with duration, Copy output, Esc close, drag handle), dark body with streamed lines, autoscroll, max-height ~50% window then scroll
-- [ ] ↑/↓ cycles history; Esc closes drawer (first press) / clears input (second); panes refresh after command exits
-- [ ] Focus rules: command bar focus doesn't steal pane keyboard nav — clicking prompt or typing into it focuses; Tab still switches panes when list focused
-- [ ] Headless tests: run `echo hello` → drawer shows "hello", exit 0 pill; failing command shows nonzero exit; history recall
+- [x] `CommandBar` per tokens: green mono `cwd-name $` prompt (basename of active pane dir), input, dim hover-brightening hints (F5/F6/F8/Tab)
+- [x] Enter runs via `ShellRunner` in active pane cwd; drawer opens above prompt: header (command, exit pill green/red with duration, Copy output, Esc close, drag handle), dark body with streamed lines, autoscroll, max-height ~50% window then scroll
+- [x] ↑/↓ cycles history; Esc closes drawer (first press) / clears input (second); panes refresh after command exits
+- [x] Focus rules: command bar focus doesn't steal pane keyboard nav — clicking prompt or typing into it focuses; Tab still switches panes when list focused
+- [x] Headless tests: run `echo hello` → drawer shows "hello", exit 0 pill; failing command shows nonzero exit; history recall
 
 ### Verification Plan
 - `dotnet test` → pass
 - Manual: `git status --short`, `ls -la` from bar; output styled per spec; Esc closes
 
 ### Phase Summary
-_(write when phase completes)_
+Done 2026-07-26. 60/60 tests green, smoke exit 0. Notes:
+- `CommandBarViewModel(cwdProvider)` owned by MainViewModel; `CommandFinished` reloads both panes. `RunAsync` streams lines via `Dispatcher.UIThread.Post` (tests must `RunJobs()` before asserting Output).
+- Esc semantics: first press closes drawer, second clears input (`Escape()`); handled in `CommandBar.OnInputKeyDown`, which also does Enter=run, ↑/↓=history.
+- Exit pill colors via `BoolBrushConverters` (FuncValueConverter statics referenced with `{x:Static vm:BoolBrushConverters.*}`).
+- Drawer body max-height 260, autoscroll on CollectionChanged; stderr lines amber #d9b45c, stdout #d8d5cc.
+- MainWindow's `IsTextInputFocused()` guard keeps pane keys (incl. type-ahead) from firing while the command TextBox has focus.
 
 ## Phase 6: Scoped recursive search
 Status: Not started
