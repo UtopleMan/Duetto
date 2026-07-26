@@ -13,9 +13,38 @@ public partial class PaneView : UserControl
     private string _typeAhead = "";
     private DateTime _typeAheadAt = DateTime.MinValue;
 
+    private PaneViewModel? _subscribedVm;
+
     public PaneView()
     {
         InitializeComponent();
+        DataContextChanged += (_, _) =>
+        {
+            if (_subscribedVm is { } old)
+                old.Reloaded -= OnVmReloaded;
+            _subscribedVm = Vm;
+            if (_subscribedVm is { } vm)
+                vm.Reloaded += OnVmReloaded;
+        };
+    }
+
+    /// <summary>
+    /// Reload replaces every row container; if the focused one died with it,
+    /// keyboard focus becomes null. Restore it to this pane when it is active.
+    /// </summary>
+    private void OnVmReloaded() => Dispatcher.UIThread.Post(() =>
+    {
+        if (Vm is { IsActive: true } &&
+            TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is null)
+            FocusList();
+    });
+
+    /// <summary>Focuses the selected row container, falling back to the list.</summary>
+    public void FocusList()
+    {
+        var container = RowList.SelectedIndex >= 0 ? RowList.ContainerFromIndex(RowList.SelectedIndex) : null;
+        if (container is null || !container.Focus())
+            RowList.Focus();
     }
 
     private PaneViewModel? Vm => DataContext as PaneViewModel;

@@ -46,6 +46,9 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     public ObservableCollection<FileRowViewModel> Rows { get; } = [];
     public SelectionModel<FileRowViewModel> Selection { get; } = new() { SingleSelect = false };
 
+    /// <summary>Raised after Reload rebuilds Rows — the view restores keyboard focus.</summary>
+    public event Action? Reloaded;
+
     /// <summary>Replaceable for tests; production launches with the OS default app.</summary>
     public Action<string> LaunchFile { get; set; } = static path =>
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
@@ -174,6 +177,7 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CanGoBack));
         OnPropertyChanged(nameof(CanGoForward));
         OnPropertyChanged(nameof(CanGoUp));
+        Reloaded?.Invoke();
     }
 
     public IReadOnlyList<FileRowViewModel> SelectedRows =>

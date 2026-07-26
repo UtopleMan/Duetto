@@ -29,6 +29,14 @@ public partial class MainWindow : Window
 
         // Tab switches panes app-wide; tunnel so focus traversal never sees it.
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
+
+        // macOS clears keyboard focus at the moment the window activates, wiping
+        // anything focused while it was still inactive — restore it here.
+        Activated += (_, _) =>
+        {
+            if (FocusManager?.GetFocusedElement() is null)
+                RefocusActiveList();
+        };
     }
 
     private void ApplyChrome(ChromeKind chrome)
@@ -195,13 +203,9 @@ public partial class MainWindow : Window
     /// asynchronously and would drop focus, so refocus after that cleanup runs.
     /// </summary>
     private void RefocusActiveList(Avalonia.Threading.DispatcherPriority? priority = null) =>
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-        {
-            var list = ActivePaneView().List;
-            var container = list.SelectedIndex >= 0 ? list.ContainerFromIndex(list.SelectedIndex) : null;
-            if (container is null || !container.Focus())
-                list.Focus();
-        }, priority ?? Avalonia.Threading.DispatcherPriority.Default);
+        Avalonia.Threading.Dispatcher.UIThread.Post(
+            () => ActivePaneView().FocusList(),
+            priority ?? Avalonia.Threading.DispatcherPriority.Default);
 
     /// <summary>After an Insert-mark the cursor is the anchor row, which may be unselected.</summary>
     private void FocusAnchorRow() =>
