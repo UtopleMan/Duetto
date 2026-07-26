@@ -26,6 +26,27 @@ public partial class PaneView : UserControl
             if (_subscribedVm is { } vm)
                 vm.Reloaded += OnVmReloaded;
         };
+
+        // ⌘/Ctrl-click toggles a mark, Shift-click marks a range — before the
+        // ListBox turns the click into a plain cursor move.
+        RowList.AddHandler(PointerPressedEvent, OnRowPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+    }
+
+    private void OnRowPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (Vm is not { } vm || (e.Source as Control)?.DataContext is not FileRowViewModel row)
+            return;
+        var mods = e.KeyModifiers;
+        if (mods.HasFlag(KeyModifiers.Meta) || mods.HasFlag(KeyModifiers.Control))
+        {
+            vm.ToggleMarkAt(row);
+            e.Handled = true;
+        }
+        else if (mods.HasFlag(KeyModifiers.Shift))
+        {
+            vm.MarkRangeTo(row);
+            e.Handled = true;
+        }
     }
 
     /// <summary>

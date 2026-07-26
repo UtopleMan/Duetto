@@ -13,6 +13,10 @@ public partial class FileRowViewModel : ObservableObject
     [ObservableProperty]
     private bool _isEditing;
 
+    /// <summary>Marked for operations (Insert/⌘-click). Independent of the cursor.</summary>
+    [ObservableProperty]
+    private bool _isMarked;
+
     [ObservableProperty]
     private string _editName;
 

@@ -44,7 +44,9 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     private string _statusText = "";
 
     public ObservableCollection<FileRowViewModel> Rows { get; } = [];
-    public SelectionModel<FileRowViewModel> Selection { get; } = new() { SingleSelect = false };
+
+    /// <summary>The cursor: exactly one row. Marks live on <see cref="FileRowViewModel.IsMarked"/>.</summary>
+    public SelectionModel<FileRowViewModel> Selection { get; } = new() { SingleSelect = true };
 
     /// <summary>Raised after Reload rebuilds Rows — the view restores keyboard focus.</summary>
     public event Action? Reloaded;
@@ -143,9 +145,10 @@ public partial class PaneViewModel : ObservableObject, IDisposable
 
     public void Reload(bool preserveSelection)
     {
-        var selectedNames = preserveSelection
-            ? Selection.SelectedItems.OfType<FileRowViewModel>().Select(r => r.Name).ToHashSet()
+        var markedNames = preserveSelection
+            ? Rows.Where(r => r.IsMarked).Select(r => r.Name).ToHashSet()
             : [];
+        var cursorName = preserveSelection ? CursorRow?.Name : null;
 
         List<FileEntry> entries;
         try
@@ -164,13 +167,12 @@ public partial class PaneViewModel : ObservableObject, IDisposable
             Rows.Add(new FileRowViewModel(entry));
 
         Selection.Clear();
-        if (selectedNames.Count > 0)
+        for (var i = 0; i < Rows.Count; i++)
         {
-            for (var i = 0; i < Rows.Count; i++)
-            {
-                if (selectedNames.Contains(Rows[i].Name))
-                    Selection.Select(i);
-            }
+            if (markedNames.Contains(Rows[i].Name))
+                Rows[i].IsMarked = true;
+            if (cursorName is not null && Rows[i].Name == cursorName)
+                Selection.Select(i);
         }
 
         UpdateStatus();
@@ -180,8 +182,67 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         Reloaded?.Invoke();
     }
 
-    public IReadOnlyList<FileRowViewModel> SelectedRows =>
-        Selection.SelectedItems.OfType<FileRowViewModel>().Where(r => !r.IsParentNav).ToList();
+    public FileRowViewModel? CursorRow => Selection.SelectedItem;
+    public bool HasMarks => Rows.Any(r => r.IsMarked);
+
+    /// <summary>Operation targets: the marked rows, or the cursor row when nothing is marked.</summary>
+    public IReadOnlyList<FileRowViewModel> SelectedRows
+    {
+        get
+        {
+            var marked = Rows.Where(r => r.IsMarked && !r.IsParentNav).ToList();
+            if (marked.Count > 0)
+                return marked;
+            return CursorRow is { IsParentNav: false } cursor ? [cursor] : [];
+        }
+    }
+
+    public void ToggleMarkAt(FileRowViewModel row)
+    {
+        if (row.IsParentNav)
+            return;
+        row.IsMarked = !row.IsMarked;
+        var index = Rows.IndexOf(row);
+        if (index >= 0)
+            Selection.Select(index);
+        UpdateStatus();
+    }
+
+    /// <summary>Shift-click: marks every row between the cursor and the target, cursor moves to target.</summary>
+    public void MarkRangeTo(FileRowViewModel row)
+    {
+        var to = Rows.IndexOf(row);
+        if (to < 0)
+            return;
+        var from = Math.Max(0, Selection.SelectedIndex);
+        for (var i = Math.Min(from, to); i <= Math.Max(from, to); i++)
+        {
+            if (!Rows[i].IsParentNav)
+                Rows[i].IsMarked = true;
+        }
+
+        Selection.Select(to);
+        UpdateStatus();
+    }
+
+    /// <summary>Shift+arrow: toggles the cursor row's mark, then moves the cursor.</summary>
+    public void MarkCursorAndMove(int delta)
+    {
+        if (Rows.Count == 0)
+            return;
+        var index = Math.Clamp(Selection.SelectedIndex, 0, Rows.Count - 1);
+        if (!Rows[index].IsParentNav)
+            Rows[index].IsMarked = !Rows[index].IsMarked;
+        Selection.Select(Math.Clamp(index + delta, 0, Rows.Count - 1));
+        UpdateStatus();
+    }
+
+    public void ClearMarks()
+    {
+        foreach (var row in Rows)
+            row.IsMarked = false;
+        UpdateStatus();
+    }
 
     public FileRowViewModel? StartRename()
     {
@@ -228,26 +289,17 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Orthodox Insert-mark: toggles the cursor row's selection and moves the
-    /// cursor down one. The ".." row is never marked, only stepped over.
+    /// Orthodox Insert-mark: toggles the cursor row's mark and moves the cursor
+    /// down one. The ".." row is never marked, only stepped over.
     /// </summary>
     public void ToggleMarkAndAdvance()
     {
         if (Rows.Count == 0)
             return;
-        var index = Math.Clamp(Selection.AnchorIndex, 0, Rows.Count - 1);
+        var index = Math.Clamp(Selection.SelectedIndex, 0, Rows.Count - 1);
         if (!Rows[index].IsParentNav)
-        {
-            // The cursor row is always selected (cursor and mark share the
-            // selection model), so a sole selection is the cursor, not a mark:
-            // keep it marked and advance. Toggling off needs 2+ marked rows.
-            if (!Selection.IsSelected(index))
-                Selection.Select(index);
-            else if (Selection.SelectedItems.Count > 1)
-                Selection.Deselect(index);
-        }
-
-        Selection.AnchorIndex = Math.Min(index + 1, Rows.Count - 1);
+            Rows[index].IsMarked = !Rows[index].IsMarked;
+        Selection.Select(Math.Min(index + 1, Rows.Count - 1));
         UpdateStatus();
     }
 
@@ -275,14 +327,14 @@ public partial class PaneViewModel : ObservableObject, IDisposable
 
     private void UpdateStatus()
     {
-        var selected = Selection.SelectedItems.OfType<FileRowViewModel>().Where(r => !r.IsParentNav).ToList();
+        var marked = Rows.Where(r => r.IsMarked && !r.IsParentNav).ToList();
         var itemCount = Rows.Count(r => !r.IsParentNav);
         var text = itemCount == 1 ? "1 item" : $"{itemCount} items";
-        if (selected.Count > 0)
+        if (marked.Count > 0)
         {
-            var bytes = selected.Where(r => !r.IsDirectory).Sum(r => r.Entry.SizeBytes);
+            var bytes = marked.Where(r => !r.IsDirectory).Sum(r => r.Entry.SizeBytes);
             var size = bytes > 0 ? $" — {FormatUtil.HumanSize(bytes)}" : "";
-            text += $" · {selected.Count} selected{size}";
+            text += $" · {marked.Count} selected{size}";
         }
 
         StatusText = text;

@@ -7,6 +7,9 @@ namespace Duet.ViewModels;
 public static class BoolBrushConverters
 {
     public static readonly IValueConverter ExitPillBg = Make("#e7f3ec", "#f5e6e4");
+
+    /// <summary>Marked-row fill: design selection blue, else transparent.</summary>
+    public static readonly IValueConverter MarkedBg = Make("#dfe8f7", "#00000000");
     public static readonly IValueConverter ExitPillBorder = Make("#cfe6d9", "#eed7d4");
     public static readonly IValueConverter ExitPillText = Make("#2f8f5b", "#a03c3c");
 

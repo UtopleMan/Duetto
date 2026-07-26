@@ -72,35 +72,40 @@
              Background="{StaticResource PaneBg}"
              ItemsSource="{Binding Rows}"
              Selection="{Binding Selection}"
-             SelectionMode="Multiple"
+             SelectionMode="Single"
              DoubleTapped="OnRowDoubleTapped"
              GotFocus="OnListFocused">
       <ListBox.ItemContainerTheme>
         <ControlTheme TargetType="ListBoxItem">
           <Setter Property="Height" Value="27" />
-          <Setter Property="Padding" Value="12,0" />
+          <Setter Property="Padding" Value="0" />
           <Setter Property="Background" Value="Transparent" />
           <Setter Property="Template">
             <ControlTemplate>
-              <ContentPresenter Name="PART_ContentPresenter"
-                                Background="{TemplateBinding Background}"
-                                Content="{TemplateBinding Content}"
-                                ContentTemplate="{TemplateBinding ContentTemplate}"
-                                Padding="{TemplateBinding Padding}"
-                                VerticalContentAlignment="Center"
-                                HorizontalContentAlignment="Stretch" />
+              <!-- Cursor = accent outline on the selected container; marks fill inside the row template. -->
+              <Border Name="CursorBorder" Background="{TemplateBinding Background}"
+                      BorderThickness="1.5" BorderBrush="Transparent">
+                <ContentPresenter Name="PART_ContentPresenter"
+                                  Content="{TemplateBinding Content}"
+                                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                                  Padding="{TemplateBinding Padding}"
+                                  VerticalContentAlignment="Center"
+                                  HorizontalContentAlignment="Stretch" />
+              </Border>
             </ControlTemplate>
           </Setter>
           <Style Selector="^:pointerover">
             <Setter Property="Background" Value="{StaticResource RowHover}" />
           </Style>
-          <Style Selector="^:selected">
-            <Setter Property="Background" Value="{StaticResource SelectionBg}" />
+          <Style Selector="^:selected /template/ Border#CursorBorder">
+            <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
           </Style>
         </ControlTheme>
       </ListBox.ItemContainerTheme>
       <ListBox.ItemTemplate>
         <DataTemplate x:DataType="vm:FileRowViewModel">
+          <Border Background="{Binding IsMarked, Converter={x:Static vm:BoolBrushConverters.MarkedBg}}"
+                  Padding="10.5,0" VerticalAlignment="Stretch">
           <Grid ColumnDefinitions="*,14,74,14,88,14,112,14,76" VerticalAlignment="Center">
             <DockPanel Grid.Column="0" VerticalAlignment="Center">
               <Border DockPanel.Dock="Left" Width="11" Height="11" CornerRadius="2.5"
@@ -142,6 +147,7 @@
                          HorizontalAlignment="Right" VerticalAlignment="Center" />
             </Panel>
           </Grid>
+          </Border>
         </DataTemplate>
       </ListBox.ItemTemplate>
     </ListBox>

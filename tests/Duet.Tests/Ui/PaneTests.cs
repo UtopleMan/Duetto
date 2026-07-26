@@ -168,7 +168,7 @@ public class PaneTests
         tmp.File("real.txt", "x");
         using var vm = new PaneViewModel(tmp.Path);
 
-        vm.Selection.Select(0); // ".."
+        vm.Selection.Select(0); // cursor on ".."
         Assert.Empty(vm.SelectedRows);
         Assert.Null(vm.StartRename());
         Assert.Equal("1 item", vm.StatusText);
@@ -199,15 +199,15 @@ public class PaneTests
         using var vm = new PaneViewModel(tmp.Path); // rows: .., aaa, bbb
 
         vm.Selection.Select(1);
-        vm.ToggleMarkAndAdvance(); // sole selection = cursor: keep aaa marked, advance
+        vm.ToggleMarkAndAdvance(); // marks aaa, cursor to bbb
         Assert.Equal(["aaa.txt"], vm.SelectedRows.Select(r => r.Name));
-        Assert.Equal(2, vm.Selection.AnchorIndex);
+        Assert.Equal(2, vm.Selection.SelectedIndex);
 
-        vm.ToggleMarkAndAdvance(); // mark bbb too, cursor stays on last row
+        vm.ToggleMarkAndAdvance(); // marks bbb too, cursor stays on last row
         Assert.Equal(["aaa.txt", "bbb.txt"], vm.SelectedRows.Select(r => r.Name).Order());
-        Assert.Equal(2, vm.Selection.AnchorIndex);
+        Assert.Equal(2, vm.Selection.SelectedIndex);
 
-        vm.ToggleMarkAndAdvance(); // bbb marked among several -> toggles off
+        vm.ToggleMarkAndAdvance(); // bbb marked -> toggles off
         Assert.Equal(["aaa.txt"], vm.SelectedRows.Select(r => r.Name));
     }
 
@@ -218,13 +218,49 @@ public class PaneTests
         tmp.File("aaa.txt", "x");
         using var vm = new PaneViewModel(tmp.Path); // rows: .., aaa
 
-        vm.Selection.AnchorIndex = 0;
+        vm.Selection.Select(0);
         vm.ToggleMarkAndAdvance(); // ".." skipped, cursor to aaa
-        Assert.Empty(vm.SelectedRows);
-        Assert.Equal(1, vm.Selection.AnchorIndex);
+        Assert.False(vm.HasMarks);
+        Assert.Equal(1, vm.Selection.SelectedIndex);
 
         vm.ToggleMarkAndAdvance();
-        Assert.Equal(["aaa.txt"], vm.SelectedRows.Select(r => r.Name));
+        Assert.True(vm.Rows[1].IsMarked);
+    }
+
+    [AvaloniaFact]
+    public void Cursor_without_marks_is_the_operation_target()
+    {
+        using var tmp = new TempDir();
+        tmp.File("aaa.txt", "x");
+        tmp.File("bbb.txt", "x");
+        using var vm = new PaneViewModel(tmp.Path);
+
+        vm.SelectByName("bbb.txt"); // cursor only, nothing marked
+        Assert.False(vm.HasMarks);
+        Assert.Equal(["bbb.txt"], vm.SelectedRows.Select(r => r.Name));
+    }
+
+    [AvaloniaFact]
+    public void Shift_move_marks_and_range_and_clear()
+    {
+        using var tmp = new TempDir();
+        tmp.File("aaa.txt", "x");
+        tmp.File("bbb.txt", "x");
+        tmp.File("ccc.txt", "x");
+        using var vm = new PaneViewModel(tmp.Path); // .., aaa, bbb, ccc
+
+        vm.Selection.Select(1);
+        vm.MarkCursorAndMove(1); // marks aaa, cursor bbb
+        vm.MarkCursorAndMove(1); // marks bbb, cursor ccc
+        Assert.Equal(["aaa.txt", "bbb.txt"], vm.SelectedRows.Select(r => r.Name).Order());
+
+        vm.ClearMarks();
+        Assert.False(vm.HasMarks);
+
+        vm.Selection.Select(1);
+        vm.MarkRangeTo(vm.Rows[3]); // range aaa..ccc
+        Assert.Equal(["aaa.txt", "bbb.txt", "ccc.txt"], vm.SelectedRows.Select(r => r.Name).Order());
+        Assert.Equal(3, vm.Selection.SelectedIndex);
     }
 
     [AvaloniaFact]

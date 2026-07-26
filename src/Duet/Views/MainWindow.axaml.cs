@@ -185,7 +185,24 @@ public partial class MainWindow : Window
                 return;
             case Key.Insert:
                 pane.ToggleMarkAndAdvance();
-                FocusAnchorRow();
+                ActivePaneView().List.ScrollIntoView(pane.Selection.SelectedIndex);
+                RefocusActiveList();
+                e.Handled = true;
+                return;
+            case Key.Down when e.KeyModifiers == KeyModifiers.Shift:
+                pane.MarkCursorAndMove(1);
+                ActivePaneView().List.ScrollIntoView(pane.Selection.SelectedIndex);
+                RefocusActiveList();
+                e.Handled = true;
+                return;
+            case Key.Up when e.KeyModifiers == KeyModifiers.Shift:
+                pane.MarkCursorAndMove(-1);
+                ActivePaneView().List.ScrollIntoView(pane.Selection.SelectedIndex);
+                RefocusActiveList();
+                e.Handled = true;
+                return;
+            case Key.Escape when pane.HasMarks:
+                pane.ClearMarks();
                 e.Handled = true;
                 return;
             case Key.PageUp:
@@ -244,16 +261,6 @@ public partial class MainWindow : Window
     private int VisiblePageSize() =>
         Math.Max(1, (int)(ActivePaneView().List.Bounds.Height / 27) - 1);
 
-    /// <summary>After an Insert-mark the cursor is the anchor row, which may be unselected.</summary>
-    private void FocusAnchorRow() =>
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-        {
-            var list = ActivePaneView().List;
-            var anchor = Vm.ActivePane.Selection.AnchorIndex;
-            var container = anchor >= 0 ? list.ContainerFromIndex(anchor) : null;
-            if (container is null || !container.Focus())
-                list.Focus();
-        });
 
     private bool IsTextInputFocused() =>
         FocusManager?.GetFocusedElement() is TextBox;
