@@ -94,6 +94,7 @@ public class DrivePopoverTests
 
         Assert.True(closed);
         Assert.NotEqual(tmp.Path, pane.CurrentPath); // pane left the ejected mount
+        Assert.Equal(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), pane.CurrentPath);
     }
 
     [AvaloniaFact]

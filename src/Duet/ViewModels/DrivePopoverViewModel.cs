@@ -72,7 +72,10 @@ public partial class DrivePopoverViewModel : ObservableObject
         _loaded = true;
         Current = VolumeCatalog.FindByPath(_all, _pane.CurrentPath);
         ErrorText = "";
-        FilterText = "";
+        // Reset the backing field directly: the property setter's change callback
+        // would run RebuildRows a second time on this popover-open hot path.
+        _filterText = "";
+        OnPropertyChanged(nameof(FilterText));
         RebuildRows();
     }
 
