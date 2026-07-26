@@ -36,7 +36,10 @@ public partial class PaneView : UserControl
     private void OnRowDoubleTapped(object? sender, TappedEventArgs e)
     {
         if (Vm is { } vm && (e.Source as Control)?.DataContext is FileRowViewModel row)
+        {
             vm.Open(row);
+            Dispatcher.UIThread.Post(() => RowList.Focus());
+        }
     }
 
     private void OnSortName(object? sender, RoutedEventArgs e) => Vm?.SortBy(SortColumn.Name);

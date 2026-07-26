@@ -79,6 +79,8 @@ public class PaneTests
 
         Assert.Equal(Path.Combine(tmp.Path, "sub"), vm.Left.CurrentPath);
         Assert.Equal(["..", "inner.txt"], vm.Left.Rows.Select(r => r.Name));
+        // Focus refocus after reload can't be asserted headlessly (Focus() is
+        // rejected without an active window); covered by RefocusActiveList.
         window.Close();
     }
 

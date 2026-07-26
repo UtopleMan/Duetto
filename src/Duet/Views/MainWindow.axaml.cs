@@ -141,10 +141,12 @@ public partial class MainWindow : Window
                 return;
             case Key.Enter when e.KeyModifiers == KeyModifiers.None:
                 pane.OpenCursor();
+                RefocusActiveList();
                 e.Handled = true;
                 return;
             case Key.Back:
                 pane.Up();
+                RefocusActiveList();
                 e.Handled = true;
                 return;
             case Key.F2:
@@ -178,6 +180,19 @@ public partial class MainWindow : Window
     }
 
     public PaneView ActivePaneView() => Vm.ActivePane == Vm.Left ? LeftPane : RightPane;
+
+    /// <summary>
+    /// Navigation reloads replace the row containers; the focused item detaches
+    /// asynchronously and would drop focus, so refocus after that cleanup runs.
+    /// </summary>
+    private void RefocusActiveList() =>
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            var list = ActivePaneView().List;
+            var container = list.SelectedIndex >= 0 ? list.ContainerFromIndex(list.SelectedIndex) : null;
+            if (container is null || !container.Focus())
+                list.Focus();
+        });
 
     private bool IsTextInputFocused() =>
         FocusManager?.GetFocusedElement() is TextBox;
