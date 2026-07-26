@@ -177,4 +177,18 @@ public class DrivePopoverTests
         Assert.True(chip!.IsVisible);
         window.Close();
     }
+
+    [AvaloniaFact]
+    public void Connect_command_raises_request()
+    {
+        using var tmp = new TempDir();
+        using var pane = new PaneViewModel(tmp.Path);
+        var popover = Popover(pane, Root);
+        var requested = false;
+        popover.ConnectRequested += () => requested = true;
+
+        popover.Connect();
+
+        Assert.True(requested);
+    }
 }

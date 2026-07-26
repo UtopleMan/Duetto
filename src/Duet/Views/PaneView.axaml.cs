@@ -27,6 +27,12 @@ public partial class PaneView : UserControl
             {
                 newVm.Reloaded += OnVmReloaded;
                 newVm.Drives.CloseRequested += () => Dispatcher.UIThread.Post(HideDriveFlyout);
+                newVm.Drives.ConnectRequested += () => Dispatcher.UIThread.Post(() =>
+                {
+                    HideDriveFlyout();
+                    if (TopLevel.GetTopLevel(this) is Window owner)
+                        new ConnectStubWindow().ShowDialog(owner);
+                });
             }
         };
 
