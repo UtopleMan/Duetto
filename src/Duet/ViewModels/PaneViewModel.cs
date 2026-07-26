@@ -223,6 +223,27 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Orthodox Insert-mark: toggles the cursor row's selection and moves the
+    /// cursor down one. The ".." row is never marked, only stepped over.
+    /// </summary>
+    public void ToggleMarkAndAdvance()
+    {
+        if (Rows.Count == 0)
+            return;
+        var index = Math.Clamp(Selection.AnchorIndex, 0, Rows.Count - 1);
+        if (!Rows[index].IsParentNav)
+        {
+            if (Selection.IsSelected(index))
+                Selection.Deselect(index);
+            else
+                Selection.Select(index);
+        }
+
+        Selection.AnchorIndex = Math.Min(index + 1, Rows.Count - 1);
+        UpdateStatus();
+    }
+
     public void SelectByName(string name)
     {
         for (var i = 0; i < Rows.Count; i++)

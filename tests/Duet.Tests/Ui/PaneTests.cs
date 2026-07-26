@@ -175,6 +175,40 @@ public class PaneTests
     }
 
     [AvaloniaFact]
+    public void Insert_marks_row_and_advances_cursor()
+    {
+        using var tmp = new TempDir();
+        tmp.File("aaa.txt", "x");
+        tmp.File("bbb.txt", "x");
+        using var vm = new PaneViewModel(tmp.Path); // rows: .., aaa, bbb
+
+        vm.Selection.Select(1);
+        vm.ToggleMarkAndAdvance(); // aaa was selected -> unmark, cursor to bbb
+        Assert.Empty(vm.SelectedRows);
+        Assert.Equal(2, vm.Selection.AnchorIndex);
+
+        vm.ToggleMarkAndAdvance(); // mark bbb, cursor stays on last row
+        Assert.Equal(["bbb.txt"], vm.SelectedRows.Select(r => r.Name));
+        Assert.Equal(2, vm.Selection.AnchorIndex);
+    }
+
+    [AvaloniaFact]
+    public void Insert_steps_over_parent_row_without_marking()
+    {
+        using var tmp = new TempDir();
+        tmp.File("aaa.txt", "x");
+        using var vm = new PaneViewModel(tmp.Path); // rows: .., aaa
+
+        vm.Selection.AnchorIndex = 0;
+        vm.ToggleMarkAndAdvance(); // ".." skipped, cursor to aaa
+        Assert.Empty(vm.SelectedRows);
+        Assert.Equal(1, vm.Selection.AnchorIndex);
+
+        vm.ToggleMarkAndAdvance();
+        Assert.Equal(["aaa.txt"], vm.SelectedRows.Select(r => r.Name));
+    }
+
+    [AvaloniaFact]
     public void Launches_file_with_default_app_hook()
     {
         using var tmp = new TempDir();

@@ -169,6 +169,11 @@ public partial class MainWindow : Window
                 Vm.DeleteSelected();
                 e.Handled = true;
                 return;
+            case Key.Insert:
+                pane.ToggleMarkAndAdvance();
+                FocusAnchorRow();
+                e.Handled = true;
+                return;
         }
 
         if (!string.IsNullOrEmpty(e.KeySymbol) && !char.IsControl(e.KeySymbol[0]) &&
@@ -190,6 +195,17 @@ public partial class MainWindow : Window
         {
             var list = ActivePaneView().List;
             var container = list.SelectedIndex >= 0 ? list.ContainerFromIndex(list.SelectedIndex) : null;
+            if (container is null || !container.Focus())
+                list.Focus();
+        });
+
+    /// <summary>After an Insert-mark the cursor is the anchor row, which may be unselected.</summary>
+    private void FocusAnchorRow() =>
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            var list = ActivePaneView().List;
+            var anchor = Vm.ActivePane.Selection.AnchorIndex;
+            var container = anchor >= 0 ? list.ContainerFromIndex(anchor) : null;
             if (container is null || !container.Focus())
                 list.Focus();
         });
