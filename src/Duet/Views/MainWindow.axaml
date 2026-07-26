@@ -48,24 +48,8 @@
       </DockPanel>
     </Border>
 
-    <!-- Command bar placeholder (Phase 5) -->
-    <Border DockPanel.Dock="Bottom" Height="40" Background="{StaticResource ChromeBg}"
-            BorderBrush="{StaticResource HairlineDark}" BorderThickness="0,1,0,0">
-      <DockPanel Margin="12,0" VerticalAlignment="Center">
-        <TextBlock DockPanel.Dock="Left" FontFamily="{StaticResource MonoFont}" FontSize="11.5"
-                   Foreground="{StaticResource Green}" FontWeight="Medium" VerticalAlignment="Center">
-          <Run Text="{Binding ActiveDirName}" /><Run Text=" $" />
-        </TextBlock>
-        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="5">
-          <TextBlock Text="F5 copy" Classes="hint" />
-          <TextBlock Text="F6 move" Classes="hint" />
-          <TextBlock Text="F8 delete" Classes="hint" />
-          <TextBlock Text="Tab switch pane" Classes="hint" />
-        </StackPanel>
-        <TextBlock Text="Type a shell command…" Margin="10,0" FontFamily="{StaticResource MonoFont}"
-                   FontSize="12" Foreground="{StaticResource TextGhost}" VerticalAlignment="Center" />
-      </DockPanel>
-    </Border>
+    <!-- Command bar + output drawer -->
+    <views:CommandBar DockPanel.Dock="Bottom" x:Name="CommandBarView" />
 
     <!-- Copy/move progress strip (docked after the command bar so it sits above it) -->
     <views:ProgressStrip DockPanel.Dock="Bottom"
@@ -80,15 +64,4 @@
     </Grid>
   </DockPanel>
 
-  <Window.Styles>
-    <Style Selector="TextBlock.hint">
-      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
-      <Setter Property="FontSize" Value="10.5" />
-      <Setter Property="Foreground" Value="{StaticResource TextHint}" />
-      <Setter Property="VerticalAlignment" Value="Center" />
-    </Style>
-    <Style Selector="TextBlock.hint:pointerover">
-      <Setter Property="Foreground" Value="{StaticResource TextMid}" />
-    </Style>
-  </Window.Styles>
 </Window>

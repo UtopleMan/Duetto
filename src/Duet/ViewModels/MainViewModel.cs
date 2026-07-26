@@ -12,6 +12,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private TransferViewModel? _activeTransfer;
 
+    public CommandBarViewModel CommandBar { get; }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActiveDirName))]
     private PaneViewModel _activePane;
@@ -25,6 +27,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Right = new PaneViewModel(rightPath);
         _activePane = Left;
         Left.IsActive = true;
+        CommandBar = new CommandBarViewModel(() => ActivePane.CurrentPath);
+        CommandBar.CommandFinished += () =>
+        {
+            Left.Reload(preserveSelection: true);
+            Right.Reload(preserveSelection: true);
+        };
 
         Left.PropertyChanged += (_, e) =>
         {

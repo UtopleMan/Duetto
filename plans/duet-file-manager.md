@@ -139,22 +139,27 @@ Done 2026-07-26, commit 4419007. 49/49 tests green, smoke exit 0. Key facts for 
 - Sort headers are VM computed props (`NameHeader` etc.) with ▲/▼ suffix.
 
 ## Phase 4: File operations UI + progress strip
-Status: Not started
+Status: Complete
 
-- [ ] F5 copy / F6 move selected entries from active pane to other pane's dir via `TransferEngine`; F8/Delete → TrashService with no dialog (trash is undoable)
-- [ ] `ProgressStrip` between panes and command bar per tokens: title, current file + throughput, Pause/Cancel, two-tone bar, "x of y files done · n skipped — same name, newer at destination · Review skipped"
-- [ ] Per-file status column in panes during transfer (done/%/queued/skipped; dest shows `.part` writing row)
-- [ ] "Review skipped" opens flyout listing skipped files + reason
-- [ ] Window title/subtitle reflects operation in mac/GNOME chromes later; for now strip only
-- [ ] App remains fully interactive during transfer (engine on background task, UI updates via dispatcher)
-- [ ] Headless tests: copy N files updates strip counts; conflict file skipped and listed; cancel stops mid-set
+- [x] F5 copy / F6 move selected entries from active pane to other pane's dir via `TransferEngine`; F8/Delete → TrashService with no dialog (trash is undoable)
+- [x] `ProgressStrip` between panes and command bar per tokens: title, current file + throughput, Pause/Cancel, two-tone bar, "x of y files done · n skipped — same name, newer at destination · Review skipped"
+- [x] Per-file status column in panes during transfer (done/%/queued/skipped; dest shows `.part` writing row)
+- [x] "Review skipped" opens flyout listing skipped files + reason
+- [x] Window title/subtitle reflects operation in mac/GNOME chromes later; for now strip only
+- [x] App remains fully interactive during transfer (engine on background task, UI updates via dispatcher)
+- [x] Headless tests: copy N files updates strip counts; conflict file skipped and listed; cancel stops mid-set
 
 ### Verification Plan
 - `dotnet test` → pass
 - Manual: copy a big folder between temp dirs; strip shows progress, pause/cancel work, skipped review lists conflicts
 
 ### Phase Summary
-_(write when phase completes)_
+Done 2026-07-26. 54/54 tests green. Notes:
+- `TransferViewModel` polls `Session.Snapshot()` on a 100 ms DispatcherTimer (`UpdateNow()` public for deterministic tests). Auto-dismisses 1.5 s after completion when nothing was skipped; otherwise Cancel button becomes "Dismiss" and the strip stays for review. `Dismissed` event clears row badges and reloads both panes.
+- Two-tone progress bar implemented with star-width Grid columns updated in `ProgressStrip` code-behind (`UpdateBar`); no custom drawing.
+- `TransferSession.StateOf(path)` added to Duet.Core for per-row percent badges.
+- Strip is docked *after* the command bar in MainWindow's DockPanel so it renders above it (DockPanel outermost-first ordering).
+- Delete (F8/Del) trashes synchronously — instant for the move-to-trash implementations used.
 
 ## Phase 5: Command bar + output drawer
 Status: Not started
