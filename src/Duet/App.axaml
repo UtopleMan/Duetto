@@ -67,5 +67,8 @@
     <Style Selector="Button.toolbtn:disabled">
       <Setter Property="Foreground" Value="{StaticResource TextHint}" />
     </Style>
+    <Style Selector="Button.toolbtn:disabled /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
   </Application.Styles>
 </Application>

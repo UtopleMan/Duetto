@@ -206,24 +206,30 @@ Done 2026-07-26. 68/68 tests green. Notes:
 - Filter chips styled `Border.chip`/`Button.chipbtn` (+`.active`); size/date via MenuFlyout click handlers.
 
 ## Phase 7: Three chromes + packaging
-Status: Not started
+Status: Complete
 
-- [ ] `IChrome` abstraction (window decorations mode, title bar content, toolbar composition, pane framing, command bar skin, optional Places rail)
-- [ ] `WinChrome` (1a): custom title bar 34px with app mark + caption buttons (— ▢ ✕, red close hover), flush panes + hairline, light command strip with F-hints
-- [ ] `MacChrome` (1b): native title bar w/ traffic lights (ExtendClientAreaToDecorationsHint), centered "left · right" title, floating rounded toolbar, panes as shadowed cards on `#e8e6e1` desk, command bar card with `❯`
-- [ ] `GnomeChrome` (1c): 46px header bar (round buttons, title/subtitle stack), 186px Places rail (Home/Documents/Downloads/Pictures/Trash + volumes; amber dots; navigates active pane), dark `#26251f` command strip with `user@host path $`, search filter chips row
-- [ ] RID default + `--chrome` override wired; all three render correctly via override on macOS
-- [ ] Publish: `dotnet publish -c Release -r {osx-arm64|win-x64|linux-x64} --self-contained -p:PublishSingleFile=true` profiles; trimming only if Avalonia-safe, else skip
-- [ ] `scripts/make-app-bundle.sh` builds `dist/Duet.app` (Info.plist, icns generated from simple blue-square mark, osx-arm64 binary), plus zips of all three binaries in `dist/`
-- [ ] Headless render test per chrome (instantiate each chrome, assert key elements present)
+- [x] `IChrome` abstraction (window decorations mode, title bar content, toolbar composition, pane framing, command bar skin, optional Places rail)
+- [x] `WinChrome` (1a): custom title bar 34px with app mark + caption buttons (— ▢ ✕, red close hover), flush panes + hairline, light command strip with F-hints
+- [x] `MacChrome` (1b): native title bar w/ traffic lights (ExtendClientAreaToDecorationsHint), centered "left · right" title, floating rounded toolbar, panes as shadowed cards on `#e8e6e1` desk, command bar card with `❯`
+- [x] `GnomeChrome` (1c): 46px header bar (round buttons, title/subtitle stack), 186px Places rail (Home/Documents/Downloads/Pictures/Trash + volumes; amber dots; navigates active pane), dark `#26251f` command strip with `user@host path $`, search filter chips row
+- [x] RID default + `--chrome` override wired; all three render correctly via override on macOS
+- [x] Publish: `dotnet publish -c Release -r {osx-arm64|win-x64|linux-x64} --self-contained -p:PublishSingleFile=true` profiles; trimming only if Avalonia-safe, else skip
+- [x] `scripts/make-app-bundle.sh` builds `dist/Duet.app` (Info.plist, icns generated from simple blue-square mark, osx-arm64 binary), plus zips of all three binaries in `dist/`
+- [x] Headless render test per chrome (instantiate each chrome, assert key elements present)
 
 ### Verification Plan
 - `dotnet run --project src/Duet -- --chrome win --smoke` / `--chrome gnome --smoke` / `--chrome mac --smoke` all exit 0
-- All three publish commands succeed; `file dist/*/Duet` shows correct arch; `dist/Duet.app` launches via `open dist/Duet.app`
+- `./scripts/publish-all.sh` succeeds; `file dist/*/Duet*` shows Mach-O arm64 / PE32+ x86-64 / ELF x86-64; `dist/osx-arm64/Duet --smoke` exits 0; `plutil -lint dist/Duet.app/Contents/Info.plist` OK; `open dist/Duet.app` (needs unlocked screen)
 - `dotnet test` full suite green
 
 ### Phase Summary
-_(write when phase completes)_
+Done 2026-07-26. 72/72 tests, all three chrome smokes exit 0, three publishes + Duet.app built (zips ~40 MB each in dist/). Implementation notes:
+- No separate IChrome classes — chrome is data: `MainViewModel.Chrome` (`ChromeKind`, ctor param, defaults to `Program.Options.Chrome`) with `IsWinChrome/IsMacChrome/IsGnomeChrome` bools driving `IsVisible` and `Classes.*` bindings; per-chrome window tweaks in `MainWindow.ApplyChrome`.
+- Win + GNOME: `ExtendClientAreaToDecorationsHint=true` + `NoChrome`; custom bars call `BeginMoveDrag`; caption/round buttons wired to Minimize/Maximize/Close. Mac: native title bar, `Title = "left · right"` kept in sync, panes become rounded cards on the `#e8e6e1` desk via code-behind (corner radius, border, shadow, 12px gap column).
+- GNOME Places rail: `MainViewModel.Places` built from special folders + `/Volumes` (mac) or `DriveInfo` (other); click navigates the active pane. GNOME toolbar hides nav buttons (header has ← ↑); command strip is dark with `user@host path $` prompt (`UserAtHost` static).
+- Command bar skins via classes on `Border#PromptRow` (`.gnome` dark, `.mac` floating card) in CommandBar.axaml; `PromptGlyph` = "❯" on mac, "$" elsewhere.
+- Packaging: `scripts/publish-all.sh` (single-file, self-contained, IncludeNativeLibrariesForSelfExtract, no trimming — Avalonia-unsafe), `scripts/make-app-bundle.sh` (+`make-icon.py`, stdlib-only PNG → sips/iconutil icns, ad-hoc codesign). dist/ is gitignored.
+- RID-locking = runtime OS detection (`AppOptions.DefaultChrome`); each published binary picks its OS chrome, `--chrome` overrides anywhere.
 
 ## Phase 8: Polish + final verification
 Status: Not started

@@ -13,10 +13,16 @@ public sealed class AppOptions
     public ChromeKind Chrome { get; init; } = DefaultChrome();
     public bool Smoke { get; init; }
 
+    /// <summary>Render one frame headlessly, save it as PNG here, exit.</summary>
+    public string? Screenshot { get; init; }
+
+    public bool Headless => Smoke || Screenshot is not null;
+
     public static AppOptions Parse(string[] args)
     {
         var chrome = DefaultChrome();
         var smoke = false;
+        string? screenshot = null;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -33,10 +39,13 @@ public sealed class AppOptions
                 case "--smoke":
                     smoke = true;
                     break;
+                case "--screenshot" when i + 1 < args.Length:
+                    screenshot = args[++i];
+                    break;
             }
         }
 
-        return new AppOptions { Chrome = chrome, Smoke = smoke };
+        return new AppOptions { Chrome = chrome, Smoke = smoke, Screenshot = screenshot };
     }
 
     private static ChromeKind DefaultChrome() =>

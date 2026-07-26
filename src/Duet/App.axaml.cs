@@ -17,7 +17,16 @@ public class App : Application
             var window = new MainWindow();
             desktop.MainWindow = window;
 
-            if (Program.Options.Smoke)
+            if (Program.Options.Screenshot is { } path)
+            {
+                window.Opened += (_, _) => DispatcherTimer.RunOnce(() =>
+                {
+                    var frame = Avalonia.Headless.HeadlessWindowExtensions.CaptureRenderedFrame(window);
+                    frame?.Save(path);
+                    desktop.Shutdown(frame is null ? 1 : 0);
+                }, TimeSpan.FromMilliseconds(600));
+            }
+            else if (Program.Options.Smoke)
             {
                 window.Opened += (_, _) =>
                     DispatcherTimer.RunOnce(() => desktop.Shutdown(0), TimeSpan.FromMilliseconds(400));

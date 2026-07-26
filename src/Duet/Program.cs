@@ -17,8 +17,8 @@ internal static class Program
     public static AppBuilder BuildAvaloniaApp()
     {
         var builder = AppBuilder.Configure<App>();
-        // Smoke mode renders headlessly so it works on locked screens and CI.
-        return Options.Smoke
+        // Smoke/screenshot modes render headlessly so they work on locked screens and CI.
+        return Options.Headless
             ? builder.UseSkia().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
             : builder.UsePlatformDetect().LogToTrace();
     }
