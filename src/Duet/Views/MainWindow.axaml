@@ -114,9 +114,10 @@
                        Foreground="{StaticResource TextGhost}" VerticalAlignment="Center" />
             <Border DockPanel.Dock="Left" Background="{StaticResource ChipBg}"
                     BorderBrush="{StaticResource ChipBorder}" BorderThickness="1"
-                    CornerRadius="4" Padding="6,2" Margin="9,0">
+                    CornerRadius="4" Padding="6,2" Margin="9,0"
+                    VerticalAlignment="Center">
               <TextBlock FontFamily="{StaticResource MonoFont}" FontSize="10.5"
-                         Foreground="{StaticResource TextMid}">
+                         Foreground="{StaticResource TextMid}" VerticalAlignment="Center">
                 <Run Text="in " /><Run Text="{Binding ActiveDirName}" /><Run Text="/" />
               </TextBlock>
             </Border>
