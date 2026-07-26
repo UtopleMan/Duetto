@@ -71,6 +71,16 @@ public class VolumeEjectorTests
     }
 
     [Fact]
+    public async Task EjectAsync_reports_exit_code_when_stderr_is_empty()
+    {
+        var result = await VolumeEjector.EjectAsync("/media/usb",
+            (_, _) => Task.FromResult((3, "")),
+            VolumePlatform.Linux);
+        Assert.False(result.Success);
+        Assert.Equal("umount exited with code 3", result.Error);
+    }
+
+    [Fact]
     public async Task EjectAsync_windows_fails_cleanly()
     {
         var result = await VolumeEjector.EjectAsync(@"D:\",

@@ -61,7 +61,8 @@ public static class VolumeEjector
         try
         {
             using var process = new Process { StartInfo = psi };
-            process.Start();
+            if (!process.Start())
+                return (127, $"{fileName} failed to start");
             var stdErr = await process.StandardError.ReadToEndAsync().ConfigureAwait(false);
             await process.WaitForExitAsync().ConfigureAwait(false);
             return (process.ExitCode, stdErr);
@@ -69,6 +70,10 @@ public static class VolumeEjector
         catch (Win32Exception e)
         {
             return (127, e.Message); // tool not installed — caller falls through to the next command
+        }
+        catch (IOException e)
+        {
+            return (127, e.Message); // missing tool can surface as IOException on Linux/macOS
         }
     }
 }
