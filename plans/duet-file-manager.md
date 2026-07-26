@@ -85,24 +85,30 @@ Done 2026-07-26, commit 77e65fd. **Deviations from original plan (all environmen
 - `Duet.csproj` uses compiled bindings by default (`AvaloniaUseCompiledBindingsByDefault=true`).
 
 ## Phase 2: Core domain (Duet.Core, test-first)
-Status: Not started
+Status: Complete
 
-- [ ] `FileEntry` (name, full path, isDir, size, type label, modified, unix perms string + Win RW summary) and `DirectoryLister.List(path)` (dirs first; hidden files included; permission errors non-fatal)
-- [ ] `EntrySorter` — sort by any column asc/desc, dirs always grouped first
-- [ ] `FormatUtil` — human sizes ("9.2 KB", "6.7 GB", "—" for dirs), date formats ("26 Jul 2026" long / "26 Jul" short), type labels from extension (Folder, Text, YAML, C# Source, Markdown, Image, Video, Archive, PDF…)
-- [ ] `FileOps` — rename, new folder ("New folder", "New folder 2", …)
-- [ ] `TrashService` — macOS: Finder via `osascript` (fallback rename-into `~/.Trash`); Linux: freedesktop `~/.local/share/Trash` (files/ + info/ .trashinfo); Windows: `SHFileOperationW` P/Invoke with FOF_ALLOWUNDO
-- [ ] `TransferEngine` — copy/move file sets with: per-file + total progress (bytes, count, speed, ETA), `.part` temp name then atomic rename, pause/resume, cancel, auto-skip when dest exists with same name and newer mtime, skipped list with reason; move = copy+delete across volumes, rename within volume
-- [ ] `SearchService` — recursive from scope dir; name substring match (case-insensitive); optional contents match (text files, streaming read); yields results incrementally with elapsed time; cancellable; skips unreadable dirs
-- [ ] `ShellRunner` — run command via `$SHELL -c` / `cmd.exe /c` in given cwd, stream stdout+stderr lines with stream tag, capture exit code + duration; in-memory history
-- [ ] xunit tests for all of the above against temp directories (no mocks of the real FS)
+- [x] `FileEntry` (name, full path, isDir, size, type label, modified, unix perms string + Win RW summary) and `DirectoryLister.List(path)` (hidden files included; permission errors non-fatal)
+- [x] `EntrySorter` — sort by any column asc/desc, dirs always grouped first
+- [x] `FormatUtil` — human sizes, date formats, type labels, unix perms string
+- [x] `FileOps` — rename, new folder ("New folder", "New folder 2", …)
+- [x] `TrashService` — macOS: move into `~/.Trash` w/ uniquified name; Linux: freedesktop Trash/files + info/.trashinfo; Windows: `SHFileOperationW` FOF_ALLOWUNDO
+- [x] `TransferEngine` — per-file + total progress, `.part` then atomic rename + mtime copy, pause/resume/cancel, auto-skip dest-same-name-newer, overwrite dest-older, skipped list with reason; move deletes source files then empty dirs depth-first
+- [x] `SearchService` — recursive, name substring + optional contents (≤4 MB, NUL-sniff binary skip, chunk-overlap match), dir-name matches too, streaming via Channel/IAsyncEnumerable, cancellable, skips unreadable dirs, live SearchStats
+- [x] `ShellRunner` — `$SHELL -c` / `cmd.exe /c`, streams tagged stdout/stderr lines, exit code + duration, history w/o consecutive dupes
+- [x] xunit tests for all of the above against temp directories (no mocks of the real FS)
 
 ### Verification Plan
-- `dotnet test --filter FullyQualifiedName~Duet.Tests.Core` → all pass
-- Trash test on macOS: create temp file, `TrashService.Trash`, assert gone from source (Trash-side assert best-effort)
+- `dotnet test --filter "FullyQualifiedName~Duet.Tests.Core"` → all pass
+- Trash test on macOS: create temp file, `TrashService.Trash`, assert gone from source + present in `~/.Trash`
 
 ### Phase Summary
-_(write when phase completes)_
+Done 2026-07-26. 40/40 tests green (`dotnet test --filter FullyQualifiedName~Duet.Tests.Core`). API surface for the UI phases:
+- `DirectoryLister.List(path)` → `IReadOnlyList<FileEntry>`; `EntrySorter.Sort(entries, SortColumn, ascending)`; `FormatUtil.{HumanSize,DateLong,DateShort,TypeLabel}`.
+- `TransferEngine.Start(sourcePaths, destDir, TransferMode)` → `TransferSession` with `Changed` event (worker thread! marshal to dispatcher), `Snapshot()` (immutable `TransferSnapshot`), `Pause/Resume/Cancel`, `StatusOf(sourcePath)`, `Completion` task. Skip reason constant `TransferEngine.SkipReasonNewer`.
+- `TrashService.Trash(path)` → trashed path (null on Windows).
+- `SearchService.Search(scopeDir, query, includeContents, SearchStats, ct)` → `IAsyncEnumerable<SearchHit>` (`Entry` + `RelativeFolder`); stats update live from worker thread.
+- `new ShellRunner().RunAsync(command, cwd, onLine, ct)` → `ShellResult(ExitCode, Duration)`; `onLine` fires on threadpool threads.
+- Gotcha fixed en route: macOS `pwd` returns `/private/var/...` for `/var/...` temp paths — tests compare leaf names.
 
 ## Phase 3: Panes UI — shared layout
 Status: Not started

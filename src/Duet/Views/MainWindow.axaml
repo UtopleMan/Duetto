@@ -1,11 +1,89 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Duet.ViewModels"
+        xmlns:views="using:Duet.Views"
         x:Class="Duet.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
         Title="Duet"
         Width="1180" Height="700"
-        Background="#faf9f7">
-  <TextBlock Text="Duet"
-             HorizontalAlignment="Center" VerticalAlignment="Center"
-             FontFamily="{StaticResource MonoFont}"
-             FontSize="14" Foreground="#7c7a70" />
+        Background="{StaticResource WindowBg}">
+  <DockPanel>
+    <!-- Toolbar -->
+    <Border DockPanel.Dock="Top" Height="46" Background="{StaticResource ToolbarBg}"
+            BorderBrush="{StaticResource Hairline}" BorderThickness="0,0,0,1">
+      <DockPanel Margin="12,0" VerticalAlignment="Center">
+        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="2">
+          <Button Classes="toolbtn" Content="←" Command="{Binding ActivePane.BackCommand}"
+                  IsEnabled="{Binding ActivePane.CanGoBack}" />
+          <Button Classes="toolbtn" Content="→" Command="{Binding ActivePane.ForwardCommand}"
+                  IsEnabled="{Binding ActivePane.CanGoForward}" />
+          <Button Classes="toolbtn" Content="↑" Command="{Binding ActivePane.UpCommand}"
+                  IsEnabled="{Binding ActivePane.CanGoUp}" />
+        </StackPanel>
+        <Border DockPanel.Dock="Left" Width="1" Height="20" Background="{StaticResource HairlineDark}" Margin="10,0" />
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2" Margin="10,0,0,0">
+          <Button Classes="toolbtn" Width="NaN" Padding="10,0" FontSize="12" Content="New"
+                  Command="{Binding ActivePane.NewFolderCommand}" />
+        </StackPanel>
+        <!-- Search field (visual scope chip; functional in Phase 6) -->
+        <Border x:Name="SearchShell" Height="30" Background="{StaticResource PaneBg}"
+                BorderBrush="{StaticResource InputBorder}" BorderThickness="1" CornerRadius="7">
+          <DockPanel Margin="10,0">
+            <TextBlock DockPanel.Dock="Left" Text="⌕" FontSize="12"
+                       Foreground="{StaticResource TextGhost}" VerticalAlignment="Center" />
+            <Border DockPanel.Dock="Left" Background="{StaticResource ChipBg}"
+                    BorderBrush="{StaticResource ChipBorder}" BorderThickness="1"
+                    CornerRadius="4" Padding="6,2" Margin="9,0">
+              <TextBlock FontFamily="{StaticResource MonoFont}" FontSize="10.5"
+                         Foreground="{StaticResource TextMid}">
+                <Run Text="in " /><Run Text="{Binding ActiveDirName}" /><Run Text="/" />
+              </TextBlock>
+            </Border>
+            <TextBlock DockPanel.Dock="Right" Text="⌘F" FontFamily="{StaticResource MonoFont}"
+                       FontSize="10.5" Foreground="{StaticResource TextHint}" VerticalAlignment="Center" />
+            <TextBlock Text="Search everything below this folder…" FontSize="12.5"
+                       Foreground="{StaticResource TextGhost}" VerticalAlignment="Center" />
+          </DockPanel>
+        </Border>
+      </DockPanel>
+    </Border>
+
+    <!-- Command bar placeholder (Phase 5) -->
+    <Border DockPanel.Dock="Bottom" Height="40" Background="{StaticResource ChromeBg}"
+            BorderBrush="{StaticResource HairlineDark}" BorderThickness="0,1,0,0">
+      <DockPanel Margin="12,0" VerticalAlignment="Center">
+        <TextBlock DockPanel.Dock="Left" FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                   Foreground="{StaticResource Green}" FontWeight="Medium" VerticalAlignment="Center">
+          <Run Text="{Binding ActiveDirName}" /><Run Text=" $" />
+        </TextBlock>
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="5">
+          <TextBlock Text="F5 copy" Classes="hint" />
+          <TextBlock Text="F6 move" Classes="hint" />
+          <TextBlock Text="F8 delete" Classes="hint" />
+          <TextBlock Text="Tab switch pane" Classes="hint" />
+        </StackPanel>
+        <TextBlock Text="Type a shell command…" Margin="10,0" FontFamily="{StaticResource MonoFont}"
+                   FontSize="12" Foreground="{StaticResource TextGhost}" VerticalAlignment="Center" />
+      </DockPanel>
+    </Border>
+
+    <!-- Panes -->
+    <Grid ColumnDefinitions="*,1,*">
+      <views:PaneView Grid.Column="0" x:Name="LeftPane" DataContext="{Binding Left}" />
+      <Border Grid.Column="1" Background="{StaticResource HairlineDark}" />
+      <views:PaneView Grid.Column="2" x:Name="RightPane" DataContext="{Binding Right}" />
+    </Grid>
+  </DockPanel>
+
+  <Window.Styles>
+    <Style Selector="TextBlock.hint">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="10.5" />
+      <Setter Property="Foreground" Value="{StaticResource TextHint}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.hint:pointerover">
+      <Setter Property="Foreground" Value="{StaticResource TextMid}" />
+    </Style>
+  </Window.Styles>
 </Window>

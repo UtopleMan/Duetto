@@ -1,0 +1,156 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Duet.ViewModels"
+             x:Class="Duet.Views.PaneView"
+             x:DataType="vm:PaneViewModel"
+             x:Name="Root">
+  <UserControl.Styles>
+    <!-- Path bar: tinted when the pane is active -->
+    <Style Selector="Border#PathBar">
+      <Setter Property="Background" Value="{StaticResource ChromeBg}" />
+    </Style>
+    <Style Selector="Border#PathBar.active">
+      <Setter Property="Background" Value="{StaticResource ActivePathBg}" />
+    </Style>
+    <Style Selector="TextBlock#PathText">
+      <Setter Property="Foreground" Value="{StaticResource TextDim}" />
+    </Style>
+    <Style Selector="Border#PathBar.active TextBlock#PathText">
+      <Setter Property="Foreground" Value="{StaticResource Accent}" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+
+    <Style Selector="Button.colheader">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="30,24,*,26">
+    <!-- Path bar -->
+    <Border Grid.Row="0" x:Name="PathBar"
+            BorderBrush="{StaticResource Hairline}" BorderThickness="0,0,0,1"
+            Classes.active="{Binding IsActive}">
+      <DockPanel Margin="12,0" VerticalAlignment="Center">
+        <TextBlock DockPanel.Dock="Right" Text="ACTIVE"
+                   IsVisible="{Binding IsActive}"
+                   FontSize="10.5" LetterSpacing="0.7"
+                   Foreground="{StaticResource AccentDim}"
+                   VerticalAlignment="Center" />
+        <TextBlock x:Name="PathText" Text="{Binding CurrentPath}"
+                   FontFamily="{StaticResource MonoFont}" FontSize="11"
+                   TextTrimming="CharacterEllipsis"
+                   VerticalAlignment="Center" />
+      </DockPanel>
+    </Border>
+
+    <!-- Column headers -->
+    <Border Grid.Row="1" Background="{StaticResource WindowBg}"
+            BorderBrush="{StaticResource HairlineLight}" BorderThickness="0,0,0,1">
+      <Grid Margin="12,0" ColumnDefinitions="*,14,74,14,88,14,112,14,76">
+        <Button Grid.Column="0" Classes="colheader" Click="OnSortName">
+          <TextBlock Text="{Binding NameHeader}" FontSize="10.5" LetterSpacing="0.5" Foreground="{StaticResource HeaderText}" />
+        </Button>
+        <Button Grid.Column="2" Classes="colheader" Click="OnSortSize">
+          <TextBlock Text="{Binding SizeHeader}" FontSize="10.5" LetterSpacing="0.5" Foreground="{StaticResource HeaderText}" HorizontalAlignment="Right" />
+        </Button>
+        <Button Grid.Column="4" Classes="colheader" Click="OnSortType">
+          <TextBlock Text="{Binding TypeHeader}" FontSize="10.5" LetterSpacing="0.5" Foreground="{StaticResource HeaderText}" />
+        </Button>
+        <Button Grid.Column="6" Classes="colheader" Click="OnSortModified">
+          <TextBlock Text="{Binding ModifiedHeader}" FontSize="10.5" LetterSpacing="0.5" Foreground="{StaticResource HeaderText}" />
+        </Button>
+        <TextBlock Grid.Column="8" Text="{Binding AccessHeader}" FontSize="10.5" LetterSpacing="0.5" Foreground="{StaticResource HeaderText}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+
+    <!-- Rows -->
+    <ListBox Grid.Row="2" x:Name="RowList"
+             Background="{StaticResource PaneBg}"
+             ItemsSource="{Binding Rows}"
+             Selection="{Binding Selection}"
+             SelectionMode="Multiple"
+             DoubleTapped="OnRowDoubleTapped"
+             GotFocus="OnListFocused">
+      <ListBox.ItemContainerTheme>
+        <ControlTheme TargetType="ListBoxItem">
+          <Setter Property="Height" Value="27" />
+          <Setter Property="Padding" Value="12,0" />
+          <Setter Property="Background" Value="Transparent" />
+          <Setter Property="Template">
+            <ControlTemplate>
+              <ContentPresenter Name="PART_ContentPresenter"
+                                Background="{TemplateBinding Background}"
+                                Content="{TemplateBinding Content}"
+                                ContentTemplate="{TemplateBinding ContentTemplate}"
+                                Padding="{TemplateBinding Padding}"
+                                VerticalContentAlignment="Center"
+                                HorizontalContentAlignment="Stretch" />
+            </ControlTemplate>
+          </Setter>
+          <Style Selector="^:pointerover">
+            <Setter Property="Background" Value="{StaticResource RowHover}" />
+          </Style>
+          <Style Selector="^:selected">
+            <Setter Property="Background" Value="{StaticResource SelectionBg}" />
+          </Style>
+        </ControlTheme>
+      </ListBox.ItemContainerTheme>
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="vm:FileRowViewModel">
+          <Grid ColumnDefinitions="*,14,74,14,88,14,112,14,76" VerticalAlignment="Center">
+            <DockPanel Grid.Column="0" VerticalAlignment="Center">
+              <Border DockPanel.Dock="Left" Width="11" Height="11" CornerRadius="2.5"
+                      Background="{Binding MarkColor}" Margin="0,0,9,0" VerticalAlignment="Center" />
+              <Panel>
+                <TextBlock Text="{Binding Name}"
+                           IsVisible="{Binding !IsEditing}"
+                           FontSize="12.5" Foreground="{StaticResource TextBody}"
+                           FontWeight="{Binding NameWeight}"
+                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                <TextBox Text="{Binding EditName}"
+                         IsVisible="{Binding IsEditing}"
+                         FontSize="12.5" MinHeight="0" Padding="4,2"
+                         VerticalAlignment="Center"
+                         AttachedToVisualTree="OnEditBoxAttached"
+                         KeyDown="OnEditBoxKeyDown"
+                         LostFocus="OnEditBoxLostFocus" />
+              </Panel>
+            </DockPanel>
+            <TextBlock Grid.Column="2" Text="{Binding SizeText}"
+                       FontFamily="{StaticResource MonoFont}" FontSize="11"
+                       Foreground="{StaticResource TextDim}"
+                       HorizontalAlignment="Right" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="4" Text="{Binding TypeText}"
+                       FontSize="11.5" Foreground="{StaticResource TextDim}"
+                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="6" Text="{Binding ModifiedText}"
+                       FontSize="11.5" Foreground="{StaticResource TextDim}" VerticalAlignment="Center" />
+            <Panel Grid.Column="8">
+              <TextBlock Text="{Binding AccessColText}"
+                         IsVisible="{Binding TransferStatus, Converter={x:Static StringConverters.IsNullOrEmpty}}"
+                         FontFamily="{StaticResource MonoFont}" FontSize="10.5"
+                         Foreground="{StaticResource TextGhost}"
+                         HorizontalAlignment="Right" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding TransferStatus}"
+                         IsVisible="{Binding TransferStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                         FontFamily="{StaticResource MonoFont}" FontSize="10"
+                         Foreground="{Binding TransferStatusColor}"
+                         HorizontalAlignment="Right" VerticalAlignment="Center" />
+            </Panel>
+          </Grid>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+
+    <!-- Status bar -->
+    <Border Grid.Row="3" Background="{StaticResource ToolbarBg}"
+            BorderBrush="{StaticResource HairlineLight}" BorderThickness="0,1,0,0">
+      <TextBlock Text="{Binding StatusText}" Margin="12,0" FontSize="11"
+                 Foreground="{StaticResource TextDim}" VerticalAlignment="Center" />
+    </Border>
+  </Grid>
+</UserControl>
