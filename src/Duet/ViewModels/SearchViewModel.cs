@@ -109,7 +109,11 @@ public partial class SearchViewModel : ObservableObject
         Selection.Source = Results;
     }
 
-    partial void OnQueryChanged(string value) => ScheduleSearch();
+    partial void OnQueryChanged(string value)
+    {
+        DebugLog.Write($"search: query changed to '{value}'");
+        ScheduleSearch();
+    }
     partial void OnIncludeContentsChanged(bool value) => ScheduleSearch();
     partial void OnSizeFilterChanged(SizeFilter value) => ScheduleSearch();
     partial void OnDateFilterChanged(DateFilter value) => ScheduleSearch();
@@ -186,6 +190,7 @@ public partial class SearchViewModel : ObservableObject
         var clock = Stopwatch.StartNew();
         MatchText = "0 matches";
 
+        DebugLog.Write($"search: start '{query}' below {ScopeDir} contents={IncludeContents}");
         try
         {
             await foreach (var hit in SearchService.Search(ScopeDir, query, IncludeContents, stats, cts.Token))
@@ -198,9 +203,15 @@ public partial class SearchViewModel : ObservableObject
 
             MatchText = $"{Results.Count} {(Results.Count == 1 ? "match" : "matches")} in {stats.FilesScanned:n0} files";
             ElapsedText = $"{clock.Elapsed.TotalSeconds.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)} s";
+            DebugLog.Write($"search: done '{query}' {Results.Count} hits, {stats.FilesScanned} files scanned");
         }
         catch (OperationCanceledException)
         {
+            DebugLog.Write($"search: cancelled '{query}'");
+        }
+        catch (Exception e)
+        {
+            DebugLog.Write($"search: FAILED '{query}': {e}");
         }
         finally
         {

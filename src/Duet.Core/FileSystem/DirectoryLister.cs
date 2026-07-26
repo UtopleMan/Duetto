@@ -11,17 +11,23 @@ public static class DirectoryLister
     {
         var dir = new DirectoryInfo(path);
         var entries = new List<FileEntry>();
-        foreach (var info in dir.EnumerateFileSystemInfos())
+        // Guard every MoveNext: macOS TCC can deny individual entries mid-iteration.
+        using var iterator = dir.EnumerateFileSystemInfos().GetEnumerator();
+        while (true)
         {
             try
             {
-                entries.Add(ToEntry(info));
+                if (!iterator.MoveNext())
+                    break;
+                entries.Add(ToEntry(iterator.Current));
             }
             catch (IOException)
             {
+                break;
             }
             catch (UnauthorizedAccessException)
             {
+                break;
             }
         }
 

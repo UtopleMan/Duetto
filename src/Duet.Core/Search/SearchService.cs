@@ -50,10 +50,30 @@ public static class SearchService
             void Walk(DirectoryInfo dir, string relative)
             {
                 ct.ThrowIfCancellationRequested();
-                IEnumerable<FileSystemInfo> children;
+                // macOS can also deny access mid-iteration (TCC-protected entries),
+                // so every MoveNext needs guarding, not just the initial call.
+                var children = new List<FileSystemInfo>();
                 try
                 {
-                    children = dir.EnumerateFileSystemInfos();
+                    using var iterator = dir.EnumerateFileSystemInfos().GetEnumerator();
+                    while (true)
+                    {
+                        try
+                        {
+                            if (!iterator.MoveNext())
+                                break;
+                        }
+                        catch (UnauthorizedAccessException)
+                        {
+                            break;
+                        }
+                        catch (IOException)
+                        {
+                            break;
+                        }
+
+                        children.Add(iterator.Current);
+                    }
                 }
                 catch (UnauthorizedAccessException)
                 {

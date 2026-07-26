@@ -54,6 +54,31 @@ public class SearchServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Unreadable_subdirectory_does_not_abort_search()
+    {
+        if (OperatingSystem.IsWindows())
+            return; // chmod-based denial is unix-only
+        _tmp.File("visible/find-me.txt", "x");
+        var locked = _tmp.Dir("locked");
+        File.WriteAllText(Path.Combine(locked, "find-me-too.txt"), "x");
+        File.SetUnixFileMode(locked, UnixFileMode.None);
+        try
+        {
+            var stats = new SearchStats();
+            var hits = new List<SearchHit>();
+            await foreach (var hit in SearchService.Search(_tmp.Path, "find-me", includeContents: false, stats))
+                hits.Add(hit);
+
+            Assert.Contains(hits, h => h.Entry.Name == "find-me.txt");
+        }
+        finally
+        {
+            File.SetUnixFileMode(locked,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+    }
+
+    [Fact]
     public async Task Cancellation_stops_enumeration()
     {
         for (var i = 0; i < 50; i++)
