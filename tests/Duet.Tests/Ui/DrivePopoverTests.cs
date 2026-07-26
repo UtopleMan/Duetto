@@ -122,6 +122,24 @@ public class DrivePopoverTests
     }
 
     [AvaloniaFact]
+    public void Tail_is_empty_at_mount_root_with_trailing_separator()
+    {
+        // Simulates a Windows drive root: DriveInfo mounts keep the trailing
+        // separator ("D:\") and the pane path at the root carries it too.
+        using var tmp = new TempDir();
+        var mount = tmp.Dir("stick");
+        var inside = tmp.Dir("stick/photos");
+        using var pane = new PaneViewModel(mount + Path.DirectorySeparatorChar);
+        pane.Drives.ListVolumes = () =>
+            [new VolumeInfo("Stick", mount + Path.DirectorySeparatorChar, 1000, 500, "x · 1000 B", true)];
+
+        Assert.Equal("", pane.PathTailText);
+
+        pane.NavigateTo(inside);
+        Assert.Equal(Path.DirectorySeparatorChar + "photos", pane.PathTailText);
+    }
+
+    [AvaloniaFact]
     public void Chip_falls_back_to_full_path_without_volumes()
     {
         using var tmp = new TempDir();

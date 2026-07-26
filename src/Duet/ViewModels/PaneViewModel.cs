@@ -76,7 +76,8 @@ public partial class PaneViewModel : ObservableObject, IDisposable
             if (Drives.VolumeFor(CurrentPath) is not { } volume)
                 return "";
             var mount = volume.MountPath.TrimEnd('/', '\\');
-            return CurrentPath.Length > mount.Length ? CurrentPath[mount.Length..] : "";
+            var trimmedCurrent = CurrentPath.TrimEnd('/', '\\');
+            return trimmedCurrent.Length > mount.Length ? CurrentPath[mount.Length..] : "";
         }
     }
 
