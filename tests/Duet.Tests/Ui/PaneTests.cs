@@ -225,6 +225,39 @@ public class PaneTests
     }
 
     [AvaloniaFact]
+    public void PageDown_Home_End_move_cursor()
+    {
+        using var tmp = new TempDir();
+        for (var i = 0; i < 50; i++)
+            tmp.File($"f-{i:d2}.txt", "x");
+        using var vm = new MainViewModel(tmp.Path, tmp.Path);
+        var window = new MainWindow(vm);
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        vm.Left.Selection.Clear();
+        vm.Left.Selection.Select(0);
+        window.KeyPressQwerty(PhysicalKey.PageDown, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        var afterPage = vm.Left.Selection.SelectedIndex;
+        Assert.True(afterPage > 0, $"cursor did not move (index {afterPage})");
+        Assert.True(afterPage < vm.Left.Rows.Count - 1, "page jumped straight to end");
+
+        window.KeyPressQwerty(PhysicalKey.End, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(vm.Left.Rows.Count - 1, vm.Left.Selection.SelectedIndex);
+
+        window.KeyPressQwerty(PhysicalKey.Home, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(0, vm.Left.Selection.SelectedIndex);
+
+        window.KeyPressQwerty(PhysicalKey.PageUp, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(0, vm.Left.Selection.SelectedIndex); // clamped at top
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public void Launches_file_with_default_app_hook()
     {
         using var tmp = new TempDir();

@@ -188,6 +188,22 @@ public partial class MainWindow : Window
                 FocusAnchorRow();
                 e.Handled = true;
                 return;
+            case Key.PageUp:
+                MoveCursorBy(-VisiblePageSize());
+                e.Handled = true;
+                return;
+            case Key.PageDown:
+                MoveCursorBy(VisiblePageSize());
+                e.Handled = true;
+                return;
+            case Key.Home when e.KeyModifiers == KeyModifiers.None:
+                MoveCursorBy(int.MinValue / 2);
+                e.Handled = true;
+                return;
+            case Key.End when e.KeyModifiers == KeyModifiers.None:
+                MoveCursorBy(int.MaxValue / 2);
+                e.Handled = true;
+                return;
         }
 
         if (!string.IsNullOrEmpty(e.KeySymbol) && !char.IsControl(e.KeySymbol[0]) &&
@@ -208,6 +224,25 @@ public partial class MainWindow : Window
         Avalonia.Threading.Dispatcher.UIThread.Post(
             () => ActivePaneView().FocusList(),
             priority ?? Avalonia.Threading.DispatcherPriority.Default);
+
+    /// <summary>Moves the cursor (single selection) by a row delta, clamped to the list.</summary>
+    private void MoveCursorBy(int delta)
+    {
+        var pane = Vm.ActivePane;
+        if (pane.Rows.Count == 0)
+            return;
+        var list = ActivePaneView().List;
+        var current = list.SelectedIndex >= 0 ? list.SelectedIndex : Math.Max(0, pane.Selection.AnchorIndex);
+        var next = (int)Math.Clamp((long)current + delta, 0, pane.Rows.Count - 1);
+        pane.Selection.Clear();
+        pane.Selection.Select(next);
+        list.ScrollIntoView(next);
+        RefocusActiveList();
+    }
+
+    /// <summary>Rows visible in the active list at the 27px row height, minus one for context.</summary>
+    private int VisiblePageSize() =>
+        Math.Max(1, (int)(ActivePaneView().List.Bounds.Height / 27) - 1);
 
     /// <summary>After an Insert-mark the cursor is the anchor row, which may be unselected.</summary>
     private void FocusAnchorRow() =>
