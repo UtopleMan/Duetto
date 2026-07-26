@@ -206,10 +206,18 @@ public partial class MainWindow : Window
                 ActivePaneView().List.Focus();
                 e.Handled = true;
                 break;
-            case Key.Enter when Vm.Search.Results.Count > 0:
-                if (Vm.Search.Selection.SelectedItem is null)
-                    Vm.Search.Selection.Select(0);
-                Vm.Search.RevealSelected();
+            case Key.Enter:
+                if (Vm.TryNavigatePath(SearchBox.Text ?? ""))
+                {
+                    RefocusActiveList();
+                }
+                else if (Vm.Search.Results.Count > 0)
+                {
+                    if (Vm.Search.Selection.SelectedItem is null)
+                        Vm.Search.Selection.Select(0);
+                    Vm.Search.RevealSelected();
+                }
+
                 e.Handled = true;
                 break;
         }

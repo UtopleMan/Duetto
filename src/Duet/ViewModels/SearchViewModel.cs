@@ -146,11 +146,19 @@ public partial class SearchViewModel : ObservableObject
         Query = "";
     }
 
+    /// <summary>
+    /// Path-like input ("/…", "~…", "C:\…", or anything with a separator) is an
+    /// address, not a query — Enter navigates instead, and no search runs.
+    /// </summary>
+    public static bool IsPathLike(string text) =>
+        text.StartsWith('~') || Path.IsPathRooted(text) ||
+        text.Contains(Path.DirectorySeparatorChar) || text.Contains(Path.AltDirectorySeparatorChar);
+
     /// <summary>Runs the search immediately (debounce bypassed; used by the timer and tests).</summary>
     public async Task StartSearchAsync()
     {
         var query = Query.Trim();
-        if (query.Length == 0)
+        if (query.Length == 0 || IsPathLike(query))
         {
             if (!IsPinned)
             {

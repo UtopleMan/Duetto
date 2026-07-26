@@ -83,6 +83,50 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     public void NavigatePlace(Place place) => ActivePane.NavigateTo(place.Path);
 
+    /// <summary>
+    /// Address-bar navigation from the search field: resolves ~, relative, and
+    /// absolute paths against the active pane. Directories open; files are
+    /// revealed (parent opened, file selected). Returns false if nothing exists.
+    /// </summary>
+    public bool TryNavigatePath(string input)
+    {
+        var text = input.Trim();
+        if (text.Length == 0)
+            return false;
+
+        if (text == "~")
+            text = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        else if (text.StartsWith("~/") || text.StartsWith(@"~\"))
+            text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), text[2..]);
+
+        string candidate;
+        try
+        {
+            candidate = Path.GetFullPath(Path.IsPathRooted(text) ? text : Path.Combine(ActivePane.CurrentPath, text));
+        }
+        catch (Exception e) when (e is ArgumentException or PathTooLongException or NotSupportedException)
+        {
+            return false;
+        }
+
+        if (Directory.Exists(candidate))
+        {
+            ActivePane.NavigateTo(candidate);
+            Search.Clear();
+            return true;
+        }
+
+        if (File.Exists(candidate) && Path.GetDirectoryName(candidate) is { } parent)
+        {
+            ActivePane.NavigateTo(parent);
+            ActivePane.SelectByName(Path.GetFileName(candidate));
+            Search.Clear();
+            return true;
+        }
+
+        return false;
+    }
+
     private static List<Place> BuildPlaces()
     {
         const string folder = "#c8992f";
