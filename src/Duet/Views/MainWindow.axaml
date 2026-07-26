@@ -1,0 +1,11 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Duet.Views.MainWindow"
+        Title="Duet"
+        Width="1180" Height="700"
+        Background="#faf9f7">
+  <TextBlock Text="Duet"
+             HorizontalAlignment="Center" VerticalAlignment="Center"
+             FontFamily="{StaticResource MonoFont}"
+             FontSize="14" Foreground="#7c7a70" />
+</Window>

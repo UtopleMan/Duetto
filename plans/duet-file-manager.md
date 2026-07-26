@@ -1,0 +1,212 @@
+# Duet — two-pane file manager (Avalonia / C#)
+
+Build Duet v1 from the Claude design spec "Duet File Manager.dc.html" (project
+9547189c-a040-4169-8fed-38dc0d79972e on claude.ai/design): an orthodox two-pane
+file manager for Windows/macOS/Linux with a scoped recursive search, a bottom
+shell command bar with an output drawer, non-modal copy progress, and one shared
+layout wrapped in three per-OS chromes.
+
+## For Future Agents
+As work proceeds: mark checkboxes `- [x]` as items complete; when a phase is done,
+set its status to `Complete` and write its **Phase Summary** (what was done, key
+decisions, anything needed to continue with zero context); run the phase's
+**Verification Plan** and record the result before moving on. When all phases are
+done, fill in **Final Recap** and **Deployment Plan**.
+
+## Locked decisions (user-confirmed 2026-07-26)
+- Solution name **Duetto**, app name **Duet**. Repo root `/Users/dude/Sources/UtopleMan/duetto`, git-initialized in Phase 1.
+- .NET 9, Avalonia 11, CommunityToolkit.Mvvm (source generators). Tests: xunit + Avalonia.Headless.
+- **In scope:** two panes + file ops (copy/move/delete/rename/new folder), progress strip, command bar + output drawer, scoped recursive search.
+- **Out of scope:** remote (SFTP/S3/SMB), tabs per pane, dark theme, overwrite-conflict dialog.
+- Delete goes to **OS Trash** (macOS Trash / Recycle Bin / freedesktop trash), not permanent.
+- Copy conflicts: **auto-skip when destination has same name and is newer**, count shown in progress strip, "Review skipped" lists them. No dialog.
+- Three **RID-locked chromes**: win-x64 → 1a "Unified Slate", osx-arm64 → 1b "Paper Panes", linux-x64 → 1c "Rail" (with Places sidebar). `--chrome win|mac|gnome` CLI override for previewing any chrome on any OS.
+- Deliverables: `dotnet publish` self-contained single-file per RID (osx-arm64, win-x64, linux-x64) **plus a macOS `Duet.app` bundle**.
+- Shell for command bar: `$SHELL -c` (fallback `/bin/sh`) on Unix, `cmd.exe /c` on Windows. Runs in active pane's cwd.
+- Keyboard: F5 copy, F6 move, F7 new folder, F8 delete, Tab switch pane, Ctrl/Cmd+F focus search, Esc clears search / closes drawer, Enter open, Backspace/↑-button go up.
+- Panes auto-refresh via FileSystemWatcher. Column headers click-sortable.
+- No CI (no git remote yet).
+
+## Design tokens (from spec — no need to re-fetch it)
+- Palette: window bg `#faf9f7`/`#f6f5f2`, chrome `#f0eeea`, hairline `#e2dfd8`/`#dcd9d2`, text `#22211d`/`#33322c`, dim text `#7c7a70`/`#8c8a80`, faint `#a8a69c`/`#c2bfb5`.
+- Accent blue `#2f6fd0` (focus, selection, active), selection row bg `#dfe8f7`, active path bar bg `#e9eef8` (mac variant `#eef2fa`), chip bg `#eef1f7` border `#dbe3f2`.
+- Folder mark amber `#c8992f`, file mark `#b6b3a8` (11×11 rounded squares, radius 2.5px). Progress/success green `#2f8f5b` (light `#8fd0ab`), skipped amber `#b08020`, danger `#d94040`/`#a03c3c`.
+- Terminal: bg `#26251f` (input row `#1c1b16`), prompt green `#7fd6a0`, path blue `#8ca8d8`, text `#f0eeea`, dim `#6b695f`.
+- Type: OS system font for UI; IBM Plex Mono (bundle it) for paths, sizes, perms, chips, command bar. Row height 27px, file rows 12.5px text, headers 10.5px uppercase letter-spacing .05em, path bars 11px mono, status bars 26px high / 11px text.
+- Columns: Name (flex) | Size 74px right mono | Type 88px | Modified 112px | Perms/Access right mono. Column gap 14px, row padding 0 12px.
+- Active pane = tinted path bar (`#e9eef8`, blue mono path, "ACTIVE" tag in Win chrome); inactive = `#f0eeea`/`#f6f5f2` gray path bar. Never a border.
+- Search field: leading `⌕`, mono scope chip ("in shipyard/"), placeholder "Search everything below this folder…", dim shortcut hint right-aligned; focused = 1.5px blue border + `0 0 0 3px rgba(47,111,208,.13)` ring. Filter chips: Names / + Contents / Any size / Any date (active chip = blue tint).
+- Search results mode: right pane header `#e9eef8` "Results for “query” · below <dir> · <time>"; columns Name | Folder 200px mono | Size 70px | Modified 96px; rows 29px; footer hint "Enter reveals in left pane".
+- Progress strip (1f): sits between panes and command bar, `#f3f1ed`, title "Copying to <dst>", current file + speed mono, Pause (gray) / Cancel (red tint) buttons, 7px two-tone green bar (done + in-flight), footer "62 of 148 files done · 3 skipped — same name, newer at destination · Review skipped". Per-file status column appears in both panes during copy: done/42%/queued/skipped (green/blue/gray/amber) on source; ok/writing/newer on destination, in-flight file shown as `name.part`.
+- Command bar idle (Win/1a): 40px `#f0eeea` strip, green mono `cwd $`, dim placeholder, right-aligned dim hints "F5 copy · F6 move · F8 delete · Tab switch pane" that brighten on hover. GNOME/1c: dark `#26251f` strip with `user@host cwd $`. Mac/1b: white rounded card "cwd ❯".
+- Output drawer (1e): opens above the prompt, light header (command, `exit 0 · 12.4 s` green pill, Copy output, "Esc close", drag handle), dark `#26251f` body with colored mono lines, max-height then scroll, input row stays below.
+- Chromes: 1a Win = square window, 34px title bar (blue 12px app mark, "Duet", dim mono context), — ▢ ✕ caption buttons (✕ hover red), 46px toolbar (← → ↑, search, New / ⋯), flush panes split by 1px hairline. 1b mac = native traffic lights, centered title "left · right", floating toolbar row (30px rounded buttons, pill search field), panes as separate white rounded-9px cards with shadow on `#e8e6e1` desk, command bar its own card. 1c GNOME = 46px header bar with round buttons and centered title/subtitle stack, 186px Places rail (`#f3f1ed`, amber folder dots, Places + Remote sections), panes flush, dark command strip, round-cornered window.
+- Empty-state/status bar text: "14 items", "1 selected — 9.2 KB", "12 items — 6.7 GB".
+
+## Architecture (target)
+```
+Duetto.sln
+├─ src/Duet.Core/          net9.0 class lib — no Avalonia reference
+│   ├─ FileSystem/         DirectoryLister, FileEntry, EntrySorter, FormatUtil (sizes/dates)
+│   ├─ Operations/         TransferEngine (copy/move w/ progress+skip), TrashService (per-OS), FileOps (rename/mkdir)
+│   ├─ Search/             SearchService (recursive, names/contents, cancellable, streaming)
+│   └─ Shell/              ShellRunner (process exec, stdout/stderr capture, history)
+├─ src/Duet/               Avalonia app
+│   ├─ ViewModels/         MainViewModel, PaneViewModel, CommandBarViewModel, SearchViewModel, TransferViewModel
+│   ├─ Views/              MainWindow + PaneView, ColumnHeader, StatusBar, CommandBar, OutputDrawer, ProgressStrip, SearchField
+│   ├─ Chrome/             IChrome + WinChrome/MacChrome/GnomeChrome (title bar, toolbar arrangement, pane framing, Places rail)
+│   └─ Assets/             IBM Plex Mono fonts, app icon
+└─ tests/Duet.Tests/       xunit; Core unit tests + Avalonia.Headless UI tests
+```
+Chrome resolution: default from `OperatingSystem.IsWindows()/IsMacOS()/IsLinux()`, overridden by `--chrome win|mac|gnome` argument.
+
+## Phase 1: Repo + solution scaffold
+Status: Not started
+
+- [ ] `git init` in repo root; `.gitignore` for .NET (bin/obj/publish/.DS_Store)
+- [ ] Create `Duetto.sln` with `src/Duet.Core` (net9.0 classlib), `src/Duet` (Avalonia 11 app, net9.0), `tests/Duet.Tests` (xunit, refs both)
+- [ ] Add packages: Avalonia 11.x, Avalonia.Desktop, Avalonia.Themes.Fluent (base only; styling is custom), Avalonia.Fonts.Inter (optional), CommunityToolkit.Mvvm, Avalonia.Headless.XUnit in tests
+- [ ] Bundle IBM Plex Mono Regular+Medium TTFs in `src/Duet/Assets/Fonts`, register as embedded font family
+- [ ] `Program.cs` parses `--chrome`; empty MainWindow shows and closes cleanly
+- [ ] Initial commit
+
+### Verification Plan
+- `dotnet build Duetto.sln` → succeeds, 0 warnings-as-errors
+- `dotnet test` → passes (placeholder test)
+- `timeout 15 dotnet run --project src/Duet -- --smoke` (app supports `--smoke`: renders one frame then exits 0)
+
+### Phase Summary
+_(write when phase completes)_
+
+## Phase 2: Core domain (Duet.Core, test-first)
+Status: Not started
+
+- [ ] `FileEntry` (name, full path, isDir, size, type label, modified, unix perms string + Win RW summary) and `DirectoryLister.List(path)` (dirs first; hidden files included; permission errors non-fatal)
+- [ ] `EntrySorter` — sort by any column asc/desc, dirs always grouped first
+- [ ] `FormatUtil` — human sizes ("9.2 KB", "6.7 GB", "—" for dirs), date formats ("26 Jul 2026" long / "26 Jul" short), type labels from extension (Folder, Text, YAML, C# Source, Markdown, Image, Video, Archive, PDF…)
+- [ ] `FileOps` — rename, new folder ("New folder", "New folder 2", …)
+- [ ] `TrashService` — macOS: Finder via `osascript` (fallback rename-into `~/.Trash`); Linux: freedesktop `~/.local/share/Trash` (files/ + info/ .trashinfo); Windows: `SHFileOperationW` P/Invoke with FOF_ALLOWUNDO
+- [ ] `TransferEngine` — copy/move file sets with: per-file + total progress (bytes, count, speed, ETA), `.part` temp name then atomic rename, pause/resume, cancel, auto-skip when dest exists with same name and newer mtime, skipped list with reason; move = copy+delete across volumes, rename within volume
+- [ ] `SearchService` — recursive from scope dir; name substring match (case-insensitive); optional contents match (text files, streaming read); yields results incrementally with elapsed time; cancellable; skips unreadable dirs
+- [ ] `ShellRunner` — run command via `$SHELL -c` / `cmd.exe /c` in given cwd, stream stdout+stderr lines with stream tag, capture exit code + duration; in-memory history
+- [ ] xunit tests for all of the above against temp directories (no mocks of the real FS)
+
+### Verification Plan
+- `dotnet test --filter FullyQualifiedName~Duet.Tests.Core` → all pass
+- Trash test on macOS: create temp file, `TrashService.Trash`, assert gone from source (Trash-side assert best-effort)
+
+### Phase Summary
+_(write when phase completes)_
+
+## Phase 3: Panes UI — shared layout
+Status: Not started
+
+- [ ] `PaneViewModel`: current dir, entries (sorted), selection (multi: Cmd/Ctrl-click toggle, Shift-click range), cursor, navigation history (back/forward/up), status line text ("N items", "n selected — size")
+- [ ] `MainViewModel`: left/right panes, active pane tracking, Tab switches
+- [ ] `PaneView`: path bar (tinted when active per tokens), column header row (click sorts, arrow indicator), virtualized 27px rows (mark square, name ellipsis, mono size, type, modified, perms), status bar
+- [ ] Row interactions: double-click / Enter opens dir or launches file with OS default app; Backspace and ↑ toolbar go up; typing letters jumps to match (type-ahead)
+- [ ] Toolbar per shared layout: ← → ↑ history buttons, search field (visual only this phase: icon, scope chip bound to active dir, placeholder, shortcut hint), New (folder) button
+- [ ] Keyboard: F2 rename (inline edit), F7 new folder, arrows/PageUp/Down/Home/End cursor movement
+- [ ] FileSystemWatcher per pane → debounced reload preserving selection/cursor
+- [ ] Neutral chrome for now (Win-like flush layout); chrome polish deferred to Phase 7
+- [ ] Headless UI tests: open dir shows entries; Tab moves active tint; Enter descends; sort toggles; rename works
+
+### Verification Plan
+- `dotnet test` → all pass (incl. new headless tests)
+- `dotnet run --project src/Duet -- --smoke` exits 0
+- Manual: `dotnet run --project src/Duet`, navigate repo root, check 27px rows, active-pane tint follows Tab
+
+### Phase Summary
+_(write when phase completes)_
+
+## Phase 4: File operations UI + progress strip
+Status: Not started
+
+- [ ] F5 copy / F6 move selected entries from active pane to other pane's dir via `TransferEngine`; F8/Delete → TrashService with no dialog (trash is undoable)
+- [ ] `ProgressStrip` between panes and command bar per tokens: title, current file + throughput, Pause/Cancel, two-tone bar, "x of y files done · n skipped — same name, newer at destination · Review skipped"
+- [ ] Per-file status column in panes during transfer (done/%/queued/skipped; dest shows `.part` writing row)
+- [ ] "Review skipped" opens flyout listing skipped files + reason
+- [ ] Window title/subtitle reflects operation in mac/GNOME chromes later; for now strip only
+- [ ] App remains fully interactive during transfer (engine on background task, UI updates via dispatcher)
+- [ ] Headless tests: copy N files updates strip counts; conflict file skipped and listed; cancel stops mid-set
+
+### Verification Plan
+- `dotnet test` → pass
+- Manual: copy a big folder between temp dirs; strip shows progress, pause/cancel work, skipped review lists conflicts
+
+### Phase Summary
+_(write when phase completes)_
+
+## Phase 5: Command bar + output drawer
+Status: Not started
+
+- [ ] `CommandBar` per tokens: green mono `cwd-name $` prompt (basename of active pane dir), input, dim hover-brightening hints (F5/F6/F8/Tab)
+- [ ] Enter runs via `ShellRunner` in active pane cwd; drawer opens above prompt: header (command, exit pill green/red with duration, Copy output, Esc close, drag handle), dark body with streamed lines, autoscroll, max-height ~50% window then scroll
+- [ ] ↑/↓ cycles history; Esc closes drawer (first press) / clears input (second); panes refresh after command exits
+- [ ] Focus rules: command bar focus doesn't steal pane keyboard nav — clicking prompt or typing into it focuses; Tab still switches panes when list focused
+- [ ] Headless tests: run `echo hello` → drawer shows "hello", exit 0 pill; failing command shows nonzero exit; history recall
+
+### Verification Plan
+- `dotnet test` → pass
+- Manual: `git status --short`, `ls -la` from bar; output styled per spec; Esc closes
+
+### Phase Summary
+_(write when phase completes)_
+
+## Phase 6: Scoped recursive search
+Status: Not started
+
+- [ ] Ctrl/Cmd+F focuses search field; scope chip always shows active pane folder; typing starts incremental search (debounced) below that folder
+- [ ] Right pane switches to results mode per tokens (header "Results for …" + elapsed, Name/Folder/Size/Modified columns, live count "18 matches in 1,204 files"); left pane untouched
+- [ ] Filter chips: Names (default) / + Contents toggle; Any size / Any date chips with simple menu (size: >1 MB, >100 MB…; date: today, this week, this month) — post-filter on results
+- [ ] Enter on a result reveals it in left pane (navigate + select); Esc clears search and restores right pane's previous dir; "Open as pane" pins results as right pane listing
+- [ ] Results are actionable: F5/F6/F8 work on selected results
+- [ ] Headless tests: search temp tree by name finds nested file; contents toggle finds text match; Esc restores; reveal-in-left navigates
+
+### Verification Plan
+- `dotnet test` → pass
+- Manual: search "axaml"-like pattern in a real tree, verify streaming count, reveal, Esc restore
+
+### Phase Summary
+_(write when phase completes)_
+
+## Phase 7: Three chromes + packaging
+Status: Not started
+
+- [ ] `IChrome` abstraction (window decorations mode, title bar content, toolbar composition, pane framing, command bar skin, optional Places rail)
+- [ ] `WinChrome` (1a): custom title bar 34px with app mark + caption buttons (— ▢ ✕, red close hover), flush panes + hairline, light command strip with F-hints
+- [ ] `MacChrome` (1b): native title bar w/ traffic lights (ExtendClientAreaToDecorationsHint), centered "left · right" title, floating rounded toolbar, panes as shadowed cards on `#e8e6e1` desk, command bar card with `❯`
+- [ ] `GnomeChrome` (1c): 46px header bar (round buttons, title/subtitle stack), 186px Places rail (Home/Documents/Downloads/Pictures/Trash + volumes; amber dots; navigates active pane), dark `#26251f` command strip with `user@host path $`, search filter chips row
+- [ ] RID default + `--chrome` override wired; all three render correctly via override on macOS
+- [ ] Publish: `dotnet publish -c Release -r {osx-arm64|win-x64|linux-x64} --self-contained -p:PublishSingleFile=true` profiles; trimming only if Avalonia-safe, else skip
+- [ ] `scripts/make-app-bundle.sh` builds `dist/Duet.app` (Info.plist, icns generated from simple blue-square mark, osx-arm64 binary), plus zips of all three binaries in `dist/`
+- [ ] Headless render test per chrome (instantiate each chrome, assert key elements present)
+
+### Verification Plan
+- `dotnet run --project src/Duet -- --chrome win --smoke` / `--chrome gnome --smoke` / `--chrome mac --smoke` all exit 0
+- All three publish commands succeed; `file dist/*/Duet` shows correct arch; `dist/Duet.app` launches via `open dist/Duet.app`
+- `dotnet test` full suite green
+
+### Phase Summary
+_(write when phase completes)_
+
+## Phase 8: Polish + final verification
+Status: Not started
+
+- [ ] Sweep every visual token against the spec table above (colors, sizes, spacing, fonts) in all three chromes
+- [ ] Empty dir, permission-denied dir, very long names (ellipsis), 10k-file dir (virtualization smooth)
+- [ ] All keyboard paths from Locked Decisions work; hints hover-brighten
+- [ ] Full test suite + smoke on all chromes; record results
+- [ ] Final commit; write Final Recap + Deployment Plan below
+
+### Verification Plan
+- `dotnet test` green; three `--smoke` runs exit 0; publish artifacts rebuilt clean
+
+### Phase Summary
+_(write when phase completes)_
+
+## Final Recap
+_(write when all phases complete: summary of the entire piece of work)_
+
+## Deployment Plan
+_(write when all phases complete: step-by-step deployment instructions)_

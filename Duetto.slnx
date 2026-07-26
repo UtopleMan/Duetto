@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Duet.Core/Duet.Core.csproj" />
+    <Project Path="src/Duet/Duet.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Duet.Tests/Duet.Tests.csproj" />
+  </Folder>
+</Solution>

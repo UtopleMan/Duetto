@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "real-work": {
+      "source": "Elfocrash/skills",
+      "sourceType": "github",
+      "skillPath": "skills/real-work/SKILL.md",
+      "computedHash": "a3535e53f7ebc8f9b5a2a9381dcc674cf87e1de27a426d188b72ce288591f372"
+    }
+  }
+}
