@@ -12,7 +12,8 @@ public class EdgeCaseTests
     {
         using var tmp = new TempDir();
         using var vm = new PaneViewModel(tmp.Path);
-        Assert.Empty(vm.Rows);
+        var only = Assert.Single(vm.Rows);
+        Assert.True(only.IsParentNav);
         Assert.Equal("0 items", vm.StatusText);
     }
 
@@ -24,7 +25,7 @@ public class EdgeCaseTests
         using var vm = new PaneViewModel(sub);
         Directory.Delete(sub);
         vm.Reload(preserveSelection: false);
-        Assert.Empty(vm.Rows);
+        Assert.All(vm.Rows, r => Assert.True(r.IsParentNav));
     }
 
     [AvaloniaFact]
@@ -38,8 +39,8 @@ public class EdgeCaseTests
         using var vm = new PaneViewModel(tmp.Path);
         clock.Stop();
 
-        Assert.Equal(3000, vm.Rows.Count);
-        Assert.Equal("file-00000.txt", vm.Rows[0].Name);
+        Assert.Equal(3001, vm.Rows.Count); // ".." + 3000 files
+        Assert.Equal("file-00000.txt", vm.Rows[1].Name);
         Assert.True(clock.ElapsedMilliseconds < 5000, $"load took {clock.ElapsedMilliseconds} ms");
     }
 

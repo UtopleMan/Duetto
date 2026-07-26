@@ -7,6 +7,9 @@ public partial class FileRowViewModel : ObservableObject
 {
     public FileEntry Entry { get; }
 
+    /// <summary>True for the ".." row that navigates to the parent directory.</summary>
+    public bool IsParentNav { get; }
+
     [ObservableProperty]
     private bool _isEditing;
 
@@ -20,17 +23,32 @@ public partial class FileRowViewModel : ObservableObject
     [ObservableProperty]
     private string _transferStatusColor = "#a8a69c";
 
-    public FileRowViewModel(FileEntry entry)
+    public FileRowViewModel(FileEntry entry, bool isParentNav = false)
     {
         Entry = entry;
+        IsParentNav = isParentNav;
         _editName = entry.Name;
     }
+
+    public static FileRowViewModel ParentNav(string parentPath) => new(
+        new FileEntry
+        {
+            Name = "..",
+            FullPath = parentPath,
+            IsDirectory = true,
+            SizeBytes = -1,
+            TypeLabel = "Up",
+            ModifiedUtc = DateTime.UnixEpoch,
+            UnixPermissions = "",
+            AccessSummary = "",
+        },
+        isParentNav: true);
 
     public string Name => Entry.Name;
     public bool IsDirectory => Entry.IsDirectory;
     public string SizeText => FormatUtil.HumanSize(Entry.SizeBytes, Entry.IsDirectory);
     public string TypeText => Entry.TypeLabel;
-    public string ModifiedText => FormatUtil.DateLong(Entry.ModifiedUtc);
+    public string ModifiedText => IsParentNav ? "" : FormatUtil.DateLong(Entry.ModifiedUtc);
     public string PermsText => Entry.UnixPermissions;
     public string AccessText => Entry.AccessSummary;
 

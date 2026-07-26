@@ -21,7 +21,8 @@ public class PaneTests
 
         using var vm = new PaneViewModel(tmp.Path);
 
-        Assert.Equal(["zeta", "alpha.txt", "beta.md"], vm.Rows.Select(r => r.Name));
+        Assert.Equal(["..", "zeta", "alpha.txt", "beta.md"], vm.Rows.Select(r => r.Name));
+        Assert.True(vm.Rows[0].IsParentNav);
         Assert.Equal("3 items", vm.StatusText);
     }
 
@@ -34,11 +35,11 @@ public class PaneTests
 
         using var vm = new PaneViewModel(tmp.Path);
         vm.SortBy(SortColumn.Size);
-        Assert.Equal(["small.txt", "large.txt"], vm.Rows.Select(r => r.Name));
+        Assert.Equal(["..", "small.txt", "large.txt"], vm.Rows.Select(r => r.Name));
         Assert.Contains("▲", vm.SizeHeader);
 
         vm.SortBy(SortColumn.Size);
-        Assert.Equal(["large.txt", "small.txt"], vm.Rows.Select(r => r.Name));
+        Assert.Equal(["..", "large.txt", "small.txt"], vm.Rows.Select(r => r.Name));
         Assert.Contains("▼", vm.SizeHeader);
     }
 
@@ -77,7 +78,7 @@ public class PaneTests
         Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(Path.Combine(tmp.Path, "sub"), vm.Left.CurrentPath);
-        Assert.Equal(["inner.txt"], vm.Left.Rows.Select(r => r.Name));
+        Assert.Equal(["..", "inner.txt"], vm.Left.Rows.Select(r => r.Name));
         window.Close();
     }
 
@@ -140,6 +141,35 @@ public class PaneTests
         Assert.True(vm.CanGoForward);
         vm.Forward();
         Assert.Equal(sub, vm.CurrentPath);
+    }
+
+    [AvaloniaFact]
+    public void Parent_row_navigates_up_and_selects_child_dir()
+    {
+        using var tmp = new TempDir();
+        var sub = tmp.Dir("child");
+        using var vm = new PaneViewModel(sub);
+
+        var parentRow = vm.Rows[0];
+        Assert.True(parentRow.IsParentNav);
+        Assert.Equal("..", parentRow.Name);
+
+        vm.Open(parentRow);
+        Assert.Equal(tmp.Path, vm.CurrentPath);
+        Assert.Equal("child", (vm.Selection.SelectedItem as FileRowViewModel)?.Name);
+    }
+
+    [AvaloniaFact]
+    public void Parent_row_excluded_from_ops_and_rename()
+    {
+        using var tmp = new TempDir();
+        tmp.File("real.txt", "x");
+        using var vm = new PaneViewModel(tmp.Path);
+
+        vm.Selection.Select(0); // ".."
+        Assert.Empty(vm.SelectedRows);
+        Assert.Null(vm.StartRename());
+        Assert.Equal("1 item", vm.StatusText);
     }
 
     [AvaloniaFact]

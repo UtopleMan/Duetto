@@ -99,12 +99,19 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     public void Up()
     {
         if (Path.GetDirectoryName(CurrentPath) is { } parent)
+        {
+            var cameFrom = Path.GetFileName(CurrentPath.TrimEnd(Path.DirectorySeparatorChar));
             NavigateTo(parent);
+            if (cameFrom.Length > 0)
+                SelectByName(cameFrom);
+        }
     }
 
     public void Open(FileRowViewModel row)
     {
-        if (row.IsDirectory)
+        if (row.IsParentNav)
+            Up();
+        else if (row.IsDirectory)
             NavigateTo(row.Entry.FullPath);
         else
             LaunchFile(row.Entry.FullPath);
@@ -148,6 +155,8 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         }
 
         Rows.Clear();
+        if (Path.GetDirectoryName(CurrentPath) is { } parent)
+            Rows.Add(FileRowViewModel.ParentNav(parent));
         foreach (var entry in entries)
             Rows.Add(new FileRowViewModel(entry));
 
@@ -168,11 +177,11 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     }
 
     public IReadOnlyList<FileRowViewModel> SelectedRows =>
-        Selection.SelectedItems.OfType<FileRowViewModel>().ToList();
+        Selection.SelectedItems.OfType<FileRowViewModel>().Where(r => !r.IsParentNav).ToList();
 
     public FileRowViewModel? StartRename()
     {
-        if (Selection.SelectedItem is not { } row)
+        if (Selection.SelectedItem is not { IsParentNav: false } row)
             return null;
         row.EditName = row.Name;
         row.IsEditing = true;
@@ -238,8 +247,9 @@ public partial class PaneViewModel : ObservableObject, IDisposable
 
     private void UpdateStatus()
     {
-        var selected = Selection.SelectedItems.OfType<FileRowViewModel>().ToList();
-        var text = Rows.Count == 1 ? "1 item" : $"{Rows.Count} items";
+        var selected = Selection.SelectedItems.OfType<FileRowViewModel>().Where(r => !r.IsParentNav).ToList();
+        var itemCount = Rows.Count(r => !r.IsParentNav);
+        var text = itemCount == 1 ? "1 item" : $"{itemCount} items";
         if (selected.Count > 0)
         {
             var bytes = selected.Where(r => !r.IsDirectory).Sum(r => r.Entry.SizeBytes);
