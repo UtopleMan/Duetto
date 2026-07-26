@@ -13,6 +13,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private TransferViewModel? _activeTransfer;
 
     public CommandBarViewModel CommandBar { get; }
+    public SearchViewModel Search { get; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActiveDirName))]
@@ -20,6 +21,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public PaneViewModel InactivePane => ActivePane == Left ? Right : Left;
     public string ActiveDirName => ActivePane.DirName;
+    public static string SearchHint => OperatingSystem.IsMacOS() ? "⌘F" : "Ctrl F";
 
     public MainViewModel(string leftPath, string rightPath)
     {
@@ -32,6 +34,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             Left.Reload(preserveSelection: true);
             Right.Reload(preserveSelection: true);
+        };
+        Search = new SearchViewModel(() => ActivePane.CurrentPath);
+        Search.RevealRequested += entry =>
+        {
+            if (Path.GetDirectoryName(entry.FullPath) is { } dir)
+            {
+                Left.NavigateTo(dir);
+                Left.SelectByName(entry.Name);
+                Activate(Left);
+            }
         };
 
         Left.PropertyChanged += (_, e) =>
@@ -64,16 +76,27 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private void StartTransfer(TransferMode mode)
     {
-        if (ActiveTransfer is not null && !ActiveTransfer.IsFinished)
+        // Search results transfer into the left pane's dir; pane selections into the other pane.
+        if (Search.IsActive)
+        {
+            var entries = Search.SelectedEntries;
+            StartTransfer(entries.Select(e => e.FullPath).ToList(), Left.CurrentPath, mode, sourcePane: null);
             return;
+        }
+
         var source = ActivePane;
         var paths = source.SelectedRows.Select(r => r.Entry.FullPath).ToList();
-        if (paths.Count == 0)
+        StartTransfer(paths, InactivePane.CurrentPath, mode, source);
+    }
+
+    private void StartTransfer(IReadOnlyList<string> paths, string destinationDir, TransferMode mode, PaneViewModel? sourcePane)
+    {
+        if (paths.Count == 0 || (ActiveTransfer is not null && !ActiveTransfer.IsFinished))
             return;
 
         ActiveTransfer?.Dispose();
-        var session = TransferEngine.Start(paths, InactivePane.CurrentPath, mode);
-        var transfer = new TransferViewModel(session, source);
+        var session = TransferEngine.Start(paths, destinationDir, mode);
+        var transfer = new TransferViewModel(session, sourcePane);
         transfer.Dismissed += () =>
         {
             if (ActiveTransfer == transfer)
@@ -88,20 +111,38 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     public void DeleteSelected()
     {
-        var rows = ActivePane.SelectedRows;
-        foreach (var row in rows)
+        if (Search.IsActive)
         {
-            try
+            var entries = Search.SelectedEntries;
+            foreach (var entry in entries)
+                TryTrash(entry.FullPath);
+            if (entries.Count > 0)
             {
-                TrashService.Trash(row.Entry.FullPath);
+                foreach (var row in Search.Results.Where(r => entries.Contains(r.Entry)).ToList())
+                    Search.Results.Remove(row);
+                Left.Reload(preserveSelection: true);
+                Right.Reload(preserveSelection: true);
             }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException or FileNotFoundException)
-            {
-            }
+
+            return;
         }
 
+        var rows = ActivePane.SelectedRows;
+        foreach (var row in rows)
+            TryTrash(row.Entry.FullPath);
         if (rows.Count > 0)
             ActivePane.Reload(preserveSelection: false);
+    }
+
+    private static void TryTrash(string path)
+    {
+        try
+        {
+            TrashService.Trash(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or FileNotFoundException)
+        {
+        }
     }
 
     public void Activate(PaneViewModel pane)

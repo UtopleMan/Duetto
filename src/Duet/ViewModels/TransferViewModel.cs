@@ -9,7 +9,7 @@ namespace Duet.ViewModels;
 
 public partial class TransferViewModel : ObservableObject, IDisposable
 {
-    private readonly PaneViewModel _sourcePane;
+    private readonly PaneViewModel? _sourcePane;
     private readonly DispatcherTimer _timer;
     private bool _completionHandled;
 
@@ -50,7 +50,7 @@ public partial class TransferViewModel : ObservableObject, IDisposable
     /// <summary>Raised when the strip should go away (auto-hide or user dismiss).</summary>
     public event Action? Dismissed;
 
-    public TransferViewModel(TransferSession session, PaneViewModel sourcePane)
+    public TransferViewModel(TransferSession session, PaneViewModel? sourcePane)
     {
         Session = session;
         _sourcePane = sourcePane;
@@ -89,7 +89,7 @@ public partial class TransferViewModel : ObservableObject, IDisposable
     public void Dismiss()
     {
         _timer.Stop();
-        foreach (var row in _sourcePane.Rows)
+        foreach (var row in _sourcePane?.Rows ?? [])
             row.TransferStatus = "";
         Dismissed?.Invoke();
     }
@@ -127,7 +127,7 @@ public partial class TransferViewModel : ObservableObject, IDisposable
                 SkippedItems.Add(Path.GetFileName(s.SourcePath));
         }
 
-        foreach (var row in _sourcePane.Rows)
+        foreach (var row in _sourcePane?.Rows ?? [])
         {
             if (Session.StateOf(row.Entry.FullPath) is not { } state)
                 continue;

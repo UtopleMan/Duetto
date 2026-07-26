@@ -25,7 +25,38 @@
           <Button Classes="toolbtn" Width="NaN" Padding="10,0" FontSize="12" Content="New"
                   Command="{Binding ActivePane.NewFolderCommand}" />
         </StackPanel>
-        <!-- Search field (visual scope chip; functional in Phase 6) -->
+        <!-- Filter chips (visible while searching) -->
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" Margin="10,0,0,0"
+                    IsVisible="{Binding Search.IsActive}">
+          <Border Classes="chip active">
+            <TextBlock Text="Names" />
+          </Border>
+          <Button Classes="chipbtn" Classes.active="{Binding Search.IncludeContents}"
+                  Content="{Binding Search.ContentsChipLabel}"
+                  Command="{Binding Search.ToggleContentsCommand}" />
+          <Button Classes="chipbtn" x:Name="SizeChip" Content="{Binding Search.SizeFilterLabel}">
+            <Button.Flyout>
+              <MenuFlyout>
+                <MenuItem Header="Any size" Click="OnSizeAny" />
+                <MenuItem Header="&gt; 1 MB" Click="OnSize1" />
+                <MenuItem Header="&gt; 10 MB" Click="OnSize10" />
+                <MenuItem Header="&gt; 100 MB" Click="OnSize100" />
+              </MenuFlyout>
+            </Button.Flyout>
+          </Button>
+          <Button Classes="chipbtn" x:Name="DateChip" Content="{Binding Search.DateFilterLabel}">
+            <Button.Flyout>
+              <MenuFlyout>
+                <MenuItem Header="Any date" Click="OnDateAny" />
+                <MenuItem Header="Today" Click="OnDateToday" />
+                <MenuItem Header="This week" Click="OnDateWeek" />
+                <MenuItem Header="This month" Click="OnDateMonth" />
+              </MenuFlyout>
+            </Button.Flyout>
+          </Button>
+        </StackPanel>
+
+        <!-- Scoped search field -->
         <Border x:Name="SearchShell" Height="30" Background="{StaticResource PaneBg}"
                 BorderBrush="{StaticResource InputBorder}" BorderThickness="1" CornerRadius="7">
           <DockPanel Margin="10,0">
@@ -39,10 +70,14 @@
                 <Run Text="in " /><Run Text="{Binding ActiveDirName}" /><Run Text="/" />
               </TextBlock>
             </Border>
-            <TextBlock DockPanel.Dock="Right" Text="⌘F" FontFamily="{StaticResource MonoFont}"
+            <TextBlock DockPanel.Dock="Right" Text="{Binding SearchHint}" FontFamily="{StaticResource MonoFont}"
                        FontSize="10.5" Foreground="{StaticResource TextHint}" VerticalAlignment="Center" />
-            <TextBlock Text="Search everything below this folder…" FontSize="12.5"
-                       Foreground="{StaticResource TextGhost}" VerticalAlignment="Center" />
+            <TextBox x:Name="SearchBox" Text="{Binding Search.Query}"
+                     Watermark="Search everything below this folder…"
+                     FontSize="12.5" Foreground="{StaticResource TextBody}"
+                     Background="Transparent" BorderThickness="0" MinHeight="0" Padding="0"
+                     VerticalContentAlignment="Center"
+                     KeyDown="OnSearchBoxKeyDown" />
           </DockPanel>
         </Border>
       </DockPanel>
@@ -56,12 +91,58 @@
                          DataContext="{Binding ActiveTransfer}"
                          IsVisible="{Binding Converter={x:Static ObjectConverters.IsNotNull}}" />
 
-    <!-- Panes -->
+    <!-- Panes; the right pane is overlaid by search results while a search is active -->
     <Grid ColumnDefinitions="*,1,*">
       <views:PaneView Grid.Column="0" x:Name="LeftPane" DataContext="{Binding Left}" />
       <Border Grid.Column="1" Background="{StaticResource HairlineDark}" />
-      <views:PaneView Grid.Column="2" x:Name="RightPane" DataContext="{Binding Right}" />
+      <Panel Grid.Column="2">
+        <views:PaneView x:Name="RightPane" DataContext="{Binding Right}" />
+        <views:SearchResultsView x:Name="ResultsView" DataContext="{Binding Search}"
+                                 IsVisible="{Binding IsActive}" />
+      </Panel>
     </Grid>
   </DockPanel>
 
+  <Window.Styles>
+    <Style Selector="Border#SearchShell:focus-within">
+      <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+      <Setter Property="BoxShadow" Value="0 0 0 3 #212f6fd0" />
+    </Style>
+    <Style Selector="Border.chip">
+      <Setter Property="Padding" Value="10,5" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Background" Value="{StaticResource RowHover}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Hairline}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.chip TextBlock">
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="Foreground" Value="{StaticResource TextDim}" />
+    </Style>
+    <Style Selector="Border.chip.active">
+      <Setter Property="Background" Value="{StaticResource ChipBg}" />
+      <Setter Property="BorderBrush" Value="{StaticResource ChipBorder}" />
+    </Style>
+    <Style Selector="Border.chip.active TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource Accent}" />
+    </Style>
+    <Style Selector="Button.chipbtn">
+      <Setter Property="Padding" Value="10,5" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="Foreground" Value="{StaticResource TextDim}" />
+      <Setter Property="Background" Value="{StaticResource RowHover}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Hairline}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Button.chipbtn:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource ButtonHover}" />
+    </Style>
+    <Style Selector="Button.chipbtn.active">
+      <Setter Property="Background" Value="{StaticResource ChipBg}" />
+      <Setter Property="BorderBrush" Value="{StaticResource ChipBorder}" />
+      <Setter Property="Foreground" Value="{StaticResource Accent}" />
+    </Style>
+  </Window.Styles>
 </Window>

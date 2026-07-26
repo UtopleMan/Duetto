@@ -35,12 +35,33 @@ public partial class MainWindow : Window
 
     private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
     {
+        // Cmd/Ctrl+F focuses the search field from anywhere.
+        if (e.Key == Key.F && e.KeyModifiers is KeyModifiers.Meta or KeyModifiers.Control)
+        {
+            SearchBox.Focus();
+            SearchBox.SelectAll();
+            e.Handled = true;
+            return;
+        }
+
         if (IsTextInputFocused())
             return;
 
         var pane = Vm.ActivePane;
         switch (e.Key)
         {
+            case Key.Escape when Vm.Search.IsActive:
+                Vm.Search.Clear();
+                e.Handled = true;
+                return;
+            case Key.Escape when Vm.CommandBar.IsDrawerOpen:
+                Vm.CommandBar.CloseDrawer();
+                e.Handled = true;
+                return;
+            case Key.Enter when Vm.Search.IsActive && e.KeyModifiers == KeyModifiers.None:
+                Vm.Search.RevealSelected();
+                e.Handled = true;
+                return;
             case Key.Tab when e.KeyModifiers == KeyModifiers.None:
                 Vm.SwitchPane();
                 ActivePaneView().List.Focus();
@@ -88,4 +109,31 @@ public partial class MainWindow : Window
 
     private bool IsTextInputFocused() =>
         FocusManager?.GetFocusedElement() is TextBox;
+
+    private void OnSearchBoxKeyDown(object? sender, KeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case Key.Escape:
+                Vm.Search.Clear();
+                ActivePaneView().List.Focus();
+                e.Handled = true;
+                break;
+            case Key.Enter when Vm.Search.Results.Count > 0:
+                if (Vm.Search.Selection.SelectedItem is null)
+                    Vm.Search.Selection.Select(0);
+                Vm.Search.RevealSelected();
+                e.Handled = true;
+                break;
+        }
+    }
+
+    private void OnSizeAny(object? sender, RoutedEventArgs e) => Vm.Search.SetSizeFilter(SizeFilter.Any);
+    private void OnSize1(object? sender, RoutedEventArgs e) => Vm.Search.SetSizeFilter(SizeFilter.Over1MB);
+    private void OnSize10(object? sender, RoutedEventArgs e) => Vm.Search.SetSizeFilter(SizeFilter.Over10MB);
+    private void OnSize100(object? sender, RoutedEventArgs e) => Vm.Search.SetSizeFilter(SizeFilter.Over100MB);
+    private void OnDateAny(object? sender, RoutedEventArgs e) => Vm.Search.SetDateFilter(DateFilter.Any);
+    private void OnDateToday(object? sender, RoutedEventArgs e) => Vm.Search.SetDateFilter(DateFilter.Today);
+    private void OnDateWeek(object? sender, RoutedEventArgs e) => Vm.Search.SetDateFilter(DateFilter.ThisWeek);
+    private void OnDateMonth(object? sender, RoutedEventArgs e) => Vm.Search.SetDateFilter(DateFilter.ThisMonth);
 }
