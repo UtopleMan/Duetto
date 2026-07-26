@@ -3,6 +3,11 @@
              x:Class="Duet.App"
              Name="Duetto"
              RequestedThemeVariant="Light">
+  <NativeMenu.Menu>
+    <NativeMenu>
+      <NativeMenuItem Header="About Duetto" Click="OnAboutClicked" />
+    </NativeMenu>
+  </NativeMenu.Menu>
   <Application.Resources>
     <FontFamily x:Key="MonoFont">avares://Duet/Assets/Fonts#IBM Plex Mono</FontFamily>
 

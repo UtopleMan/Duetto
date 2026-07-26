@@ -10,6 +10,18 @@ public class App : Application
 {
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
+    private void OnAboutClicked(object? sender, EventArgs e)
+    {
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            var about = new AboutWindow();
+            if (desktop.MainWindow is { } owner)
+                about.ShowDialog(owner);
+            else
+                about.Show();
+        }
+    }
+
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
