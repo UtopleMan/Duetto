@@ -6,3 +6,5 @@ publish/
 .DS_Store
 .vs/
 .idea/
+.worktrees/
+.superpowers/
