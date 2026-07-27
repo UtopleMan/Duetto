@@ -72,8 +72,14 @@
         <Border DockPanel.Dock="Left" Width="1" Height="20" Background="{StaticResource HairlineDark}" Margin="10,0"
                 IsVisible="{Binding !IsGnomeChrome}" />
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2" Margin="10,0,0,0">
-          <Button Classes="toolbtn" Width="NaN" Padding="10,0" FontSize="12" Content="New"
-                  Command="{Binding ActivePane.NewFolderCommand}" />
+          <Button Classes="toolbtn" Width="NaN" Padding="10,0" FontSize="12" Content="New ▾">
+            <Button.Flyout>
+              <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                <MenuItem Header="New folder" Command="{Binding ActivePane.NewFolderCommand}" />
+                <MenuItem Header="New file" Command="{Binding ActivePane.NewFileCommand}" />
+              </MenuFlyout>
+            </Button.Flyout>
+          </Button>
         </StackPanel>
 
         <!-- Filter chips (visible while searching) -->

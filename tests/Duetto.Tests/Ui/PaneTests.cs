@@ -119,14 +119,19 @@ public class PaneTests
     }
 
     [AvaloniaFact]
-    public void NewFolder_creates_and_selects()
+    public void NewFolder_shows_editing_placeholder_without_creating()
     {
         using var tmp = new TempDir();
         using var vm = new PaneViewModel(tmp.Path);
         vm.NewFolder();
 
-        Assert.True(Directory.Exists(Path.Combine(tmp.Path, "New folder")));
-        Assert.Equal("New folder", (vm.Selection.SelectedItem as FileRowViewModel)?.Name);
+        var placeholder = vm.Rows.SingleOrDefault(r => r.IsNewPlaceholder);
+        Assert.NotNull(placeholder);
+        Assert.True(placeholder!.IsEditing);
+        Assert.True(placeholder.IsDirectory);
+        Assert.Equal("New folder", placeholder.EditName);
+        Assert.Same(placeholder, vm.Selection.SelectedItem);
+        Assert.False(Directory.Exists(Path.Combine(tmp.Path, "New folder")));
     }
 
     [AvaloniaFact]

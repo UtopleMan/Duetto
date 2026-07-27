@@ -34,6 +34,63 @@ public class FileOpsTests : IDisposable
         Assert.Equal("New folder 2", Path.GetFileName(second));
         Assert.True(Directory.Exists(first) && Directory.Exists(second));
     }
+
+    [Fact]
+    public void SuggestEntryName_returns_free_name_without_creating()
+    {
+        var name = FileOps.SuggestEntryName(_tmp.Path, "New folder");
+        Assert.Equal("New folder", name);
+        Assert.False(Directory.Exists(Path.Combine(_tmp.Path, name)));
+        Assert.False(File.Exists(Path.Combine(_tmp.Path, name)));
+    }
+
+    [Fact]
+    public void SuggestEntryName_uniquifies_around_existing_entries()
+    {
+        _tmp.Dir("New folder");
+        _tmp.File("New folder 2");
+        Assert.Equal("New folder 3", FileOps.SuggestEntryName(_tmp.Path, "New folder"));
+    }
+
+    [Fact]
+    public void CreateFolder_creates_exact_name()
+    {
+        var created = FileOps.CreateFolder(_tmp.Path, "Photos");
+        Assert.Equal("Photos", Path.GetFileName(created));
+        Assert.True(Directory.Exists(created));
+    }
+
+    [Fact]
+    public void CreateFolder_throws_when_target_exists()
+    {
+        _tmp.Dir("Photos");
+        Assert.Throws<IOException>(() => FileOps.CreateFolder(_tmp.Path, "Photos"));
+    }
+
+    [Fact]
+    public void CreateFolder_rejects_path_separators() =>
+        Assert.Throws<ArgumentException>(() => FileOps.CreateFolder(_tmp.Path, "a/b"));
+
+    [Fact]
+    public void CreateFile_creates_empty_file()
+    {
+        var created = FileOps.CreateFile(_tmp.Path, "notes.txt");
+        Assert.Equal("notes.txt", Path.GetFileName(created));
+        Assert.True(File.Exists(created));
+        Assert.Equal(0, new FileInfo(created).Length);
+    }
+
+    [Fact]
+    public void CreateFile_throws_when_target_exists()
+    {
+        _tmp.File("notes.txt", "keep me");
+        Assert.Throws<IOException>(() => FileOps.CreateFile(_tmp.Path, "notes.txt"));
+        Assert.Equal("keep me", File.ReadAllText(Path.Combine(_tmp.Path, "notes.txt")));
+    }
+
+    [Fact]
+    public void CreateFile_rejects_path_separators() =>
+        Assert.Throws<ArgumentException>(() => FileOps.CreateFile(_tmp.Path, "a/b.txt"));
 }
 
 public class TrashServiceTests : IDisposable

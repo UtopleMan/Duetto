@@ -10,6 +10,13 @@ Unscheduled ideas. Promote an item by writing a design spec + implementation pla
   load CTS cancels a stale load when the user navigates away mid-enumeration. See
   `plans/background-file-operations.md` (Phase 2), which also backgrounded
   delete/trash and rename.
+- [x] New folder / new file inline placeholder (edit-then-create). F7 (folder) /
+  Shift+F7 (file) and the toolbar "New ▾" split menu drop an editable placeholder
+  row — no disk write until commit. Enter creates the entry with the typed name;
+  Escape / empty discards; a colliding name keeps the box open (Enter) or is
+  dropped (blur). `FileOps` split into `SuggestEntryName` + `CreateFolder` /
+  `CreateFile`; `PaneViewModel` re-attaches the placeholder across watcher reloads.
+  See `plans/2026-07-27-new-entry-inline-edit-design.md`.
 - [ ] Real Connect backend (SFTP/S3/SMB) behind the stub dialog — biggest open
   feature. The drive popover's Connect… row currently opens
   `ConnectStubWindow`; replace with real remote connections and remote shares

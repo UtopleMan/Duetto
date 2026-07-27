@@ -10,6 +10,12 @@ public partial class FileRowViewModel : ObservableObject
     /// <summary>True for the ".." row that navigates to the parent directory.</summary>
     public bool IsParentNav { get; }
 
+    /// <summary>
+    /// True for the synthetic "new folder/file" row shown in edit mode before the entry
+    /// exists on disk. Commit creates the real entry; cancel discards this row.
+    /// </summary>
+    public bool IsNewPlaceholder { get; }
+
     [ObservableProperty]
     private bool _isEditing;
 
@@ -27,12 +33,35 @@ public partial class FileRowViewModel : ObservableObject
     [ObservableProperty]
     private string _transferStatusColor = "#a8a69c";
 
-    public FileRowViewModel(FileEntry entry, bool isParentNav = false)
+    public FileRowViewModel(FileEntry entry, bool isParentNav = false, bool isNewPlaceholder = false)
     {
         Entry = entry;
         IsParentNav = isParentNav;
+        IsNewPlaceholder = isNewPlaceholder;
         _editName = entry.Name;
     }
+
+    /// <summary>
+    /// A synthetic, editable row for a not-yet-created folder (<paramref name="isDirectory"/>
+    /// true) or file. The suggested name seeds both the display and the edit box.
+    /// </summary>
+    public static FileRowViewModel NewPlaceholder(string parentPath, string suggestedName, bool isDirectory) => new(
+        new FileEntry
+        {
+            Name = suggestedName,
+            FullPath = Path.Combine(parentPath, suggestedName),
+            IsDirectory = isDirectory,
+            SizeBytes = isDirectory ? -1 : 0,
+            TypeLabel = "",
+            ModifiedUtc = DateTime.UnixEpoch,
+            UnixPermissions = "",
+            AccessSummary = "",
+        },
+        isNewPlaceholder: true)
+    {
+        EditName = suggestedName,
+        IsEditing = true,
+    };
 
     public static FileRowViewModel ParentNav(string parentPath) => new(
         new FileEntry

@@ -17,6 +17,9 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     private DispatcherTimer? _reloadDebounce;
     private CancellationTokenSource? _loadCts;
 
+    /// <summary>The active "new folder/file" placeholder row, or null when none is being named.</summary>
+    private FileRowViewModel? _editingPlaceholder;
+
     /// <summary>Reads a directory. Seam for tests; production lists the real filesystem.</summary>
     public Func<string, IReadOnlyList<FileEntry>> Lister { get; set; } = DirectoryLister.List;
 
@@ -297,6 +300,15 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         else if (selectFirst && Rows.Count > 0)
             Selection.Select(0);
 
+        // An in-progress new-entry placeholder is synthetic (not on disk), so a rebuild would
+        // drop it — re-attach it in edit mode so an unrelated reload can't cancel the naming.
+        if (_editingPlaceholder is { } placeholder)
+        {
+            var insertAt = Rows.Count > 0 && Rows[0].IsParentNav ? 1 : 0;
+            Rows.Insert(insertAt, placeholder);
+            Selection.Select(insertAt);
+        }
+
         UpdateStatus();
         OnPropertyChanged(nameof(CanGoBack));
         OnPropertyChanged(nameof(CanGoForward));
@@ -375,14 +387,99 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         return row;
     }
 
+    /// <summary>Enter / programmatic commit. A colliding placeholder name stays in edit mode.</summary>
     public void CommitRename(FileRowViewModel row)
     {
+        if (row.IsNewPlaceholder)
+        {
+            CommitNewEntry(row, fromBlur: false);
+            return;
+        }
+
         row.IsEditing = false;
         var newName = row.EditName.Trim();
         if (newName.Length == 0 || newName == row.Name)
             return;
 
         RenameCompletion = RunRenameAsync(row.Entry.FullPath, newName);
+    }
+
+    /// <summary>
+    /// LostFocus commit. Identical to <see cref="CommitRename"/> for real rows, but a
+    /// placeholder with a bad/colliding name is discarded rather than kept open — clicking
+    /// away must never trap focus in the edit box.
+    /// </summary>
+    public void CommitRenameFromBlur(FileRowViewModel row)
+    {
+        if (row.IsNewPlaceholder)
+            CommitNewEntry(row, fromBlur: true);
+        else
+            CommitRename(row);
+    }
+
+    /// <summary>
+    /// Resolves a new-entry placeholder: empty name discards it; a valid free name creates
+    /// the folder/file and reloads; a bad/colliding name stays editing (Enter) or is
+    /// discarded (<paramref name="fromBlur"/>).
+    /// </summary>
+    private void CommitNewEntry(FileRowViewModel row, bool fromBlur)
+    {
+        var name = row.EditName.Trim();
+        if (name.Length == 0)
+        {
+            DiscardPlaceholder(row);
+            return;
+        }
+
+        if (NewEntryNameError(name) is { } error)
+        {
+            if (fromBlur)
+                DiscardPlaceholder(row);
+            else
+                StatusText = error; // stay in edit mode so the user can fix the name
+            return;
+        }
+
+        try
+        {
+            if (row.IsDirectory)
+                FileOps.CreateFolder(CurrentPath, name);
+            else
+                FileOps.CreateFile(CurrentPath, name);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            if (fromBlur)
+                DiscardPlaceholder(row);
+            else
+                StatusText = e.Message;
+            return;
+        }
+
+        _editingPlaceholder = null;
+        StartLoad(preserveSelection: false, selectAfter: name, selectFirst: false);
+    }
+
+    /// <summary>Null when <paramref name="name"/> is a legal, free entry name; else the reason.</summary>
+    private string? NewEntryNameError(string name)
+    {
+        if (name.Contains(Path.DirectorySeparatorChar) || name.Contains(Path.AltDirectorySeparatorChar))
+            return "Name cannot contain path separators";
+        var target = Path.Combine(CurrentPath, name);
+        if (Directory.Exists(target) || File.Exists(target))
+            return $"\"{name}\" already exists";
+        return null;
+    }
+
+    /// <summary>Removes the synthetic placeholder row without touching the filesystem.</summary>
+    private void DiscardPlaceholder(FileRowViewModel row)
+    {
+        Rows.Remove(row);
+        if (ReferenceEquals(_editingPlaceholder, row))
+            _editingPlaceholder = null;
+        if (Selection.SelectedItem is null && Rows.Count > 0)
+            Selection.Select(0);
+        UpdateStatus();
     }
 
     /// <summary>
@@ -406,19 +503,32 @@ public partial class PaneViewModel : ObservableObject, IDisposable
             StartLoad(preserveSelection: false, selectAfter: newName, selectFirst: false);
     }
 
-    public void CancelRename(FileRowViewModel row) => row.IsEditing = false;
+    public void CancelRename(FileRowViewModel row)
+    {
+        if (row.IsNewPlaceholder)
+            DiscardPlaceholder(row);
+        else
+            row.IsEditing = false;
+    }
 
     [RelayCommand]
-    public void NewFolder()
+    public void NewFolder() => BeginNewEntry(isDirectory: true, baseName: "New folder");
+
+    [RelayCommand]
+    public void NewFile() => BeginNewEntry(isDirectory: false, baseName: "New file");
+
+    /// <summary>
+    /// Inserts an editable placeholder row (no disk write) so the user names the entry in
+    /// place; <see cref="CommitNewEntry"/> creates it on commit.
+    /// </summary>
+    private void BeginNewEntry(bool isDirectory, string baseName)
     {
-        try
-        {
-            var created = FileOps.NewFolder(CurrentPath);
-            StartLoad(preserveSelection: false, selectAfter: Path.GetFileName(created), selectFirst: false);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-        }
+        var suggested = FileOps.SuggestEntryName(CurrentPath, baseName);
+        var row = FileRowViewModel.NewPlaceholder(CurrentPath, suggested, isDirectory);
+        _editingPlaceholder = row;
+        var insertAt = Rows.Count > 0 && Rows[0].IsParentNav ? 1 : 0;
+        Rows.Insert(insertAt, row);
+        Selection.Select(insertAt);
     }
 
     /// <summary>

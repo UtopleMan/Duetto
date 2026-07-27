@@ -175,6 +175,10 @@ public partial class MainWindow : Window
                 Vm.MoveSelected();
                 e.Handled = true;
                 return;
+            case Key.F7 when e.KeyModifiers == KeyModifiers.Shift:
+                pane.NewFile();
+                e.Handled = true;
+                return;
             case Key.F7:
                 pane.NewFolder();
                 e.Handled = true;

@@ -155,7 +155,7 @@ public partial class PaneView : UserControl
     private void OnEditBoxLostFocus(object? sender, RoutedEventArgs e)
     {
         if (sender is TextBox { DataContext: FileRowViewModel { IsEditing: true } row } && Vm is { } vm)
-            vm.CommitRename(row);
+            vm.CommitRenameFromBlur(row);
     }
 
     private void OnVolumeChipClicked(object? sender, RoutedEventArgs e)

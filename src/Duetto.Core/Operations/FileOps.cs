@@ -19,14 +19,51 @@ public static class FileOps
     }
 
     /// <summary>Creates "New folder" (or "New folder 2", …) inside <paramref name="parentDir"/>.</summary>
-    public static string NewFolder(string parentDir, string baseName = "New folder")
+    public static string NewFolder(string parentDir, string baseName = "New folder") =>
+        CreateFolder(parentDir, SuggestEntryName(parentDir, baseName));
+
+    /// <summary>
+    /// First free entry name inside <paramref name="parentDir"/> based on
+    /// <paramref name="baseName"/> ("New folder", "New folder 2", …). Checks both files
+    /// and directories; does not create anything.
+    /// </summary>
+    public static string SuggestEntryName(string parentDir, string baseName)
     {
         var name = baseName;
         var n = 1;
         while (Directory.Exists(Path.Combine(parentDir, name)) || File.Exists(Path.Combine(parentDir, name)))
             name = $"{baseName} {++n}";
-        var path = Path.Combine(parentDir, name);
-        Directory.CreateDirectory(path);
-        return path;
+        return name;
+    }
+
+    /// <summary>Creates a directory named exactly <paramref name="name"/>. Returns the full path.</summary>
+    public static string CreateFolder(string parentDir, string name)
+    {
+        var target = ValidateNewEntry(parentDir, name);
+        Directory.CreateDirectory(target);
+        return target;
+    }
+
+    /// <summary>Creates an empty file named exactly <paramref name="name"/>. Returns the full path.</summary>
+    public static string CreateFile(string parentDir, string name)
+    {
+        var target = ValidateNewEntry(parentDir, name);
+        File.Create(target).Dispose();
+        return target;
+    }
+
+    /// <summary>
+    /// Guards a to-be-created entry: rejects path separators and refuses to clobber an
+    /// existing file or directory. Returns the validated full target path.
+    /// </summary>
+    private static string ValidateNewEntry(string parentDir, string name)
+    {
+        if (name.Contains(Path.DirectorySeparatorChar) || name.Contains(Path.AltDirectorySeparatorChar))
+            throw new ArgumentException("Name cannot contain path separators", nameof(name));
+
+        var target = Path.Combine(parentDir, name);
+        if (Directory.Exists(target) || File.Exists(target))
+            throw new IOException($"\"{name}\" already exists");
+        return target;
     }
 }
