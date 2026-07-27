@@ -53,15 +53,15 @@ full browse + manage + copy/move + search over SFTP, replacing the Connect stub.
 ---
 
 ## Phase 1: Provider abstraction + local refactor (behavior-preserving)
-Status: Not started
+Status: In progress
 
-- [ ] Add `Duetto.Core/FileSystem/IFileSystemProvider.cs` and
+- [x] Add `Duetto.Core/FileSystem/IFileSystemProvider.cs` and
   `FileSystemCapabilities.cs` (record as specified in Architecture).
-- [ ] Add `Duetto.Core/FileSystem/LocalFileSystemProvider.cs` wrapping the existing
+- [x] Add `Duetto.Core/FileSystem/LocalFileSystemProvider.cs` wrapping the existing
   local behavior (`DirectoryLister.List`, `FileOps`, `TrashService`, `DriveInfo`
   streams); `Capabilities` all-true, `Separator = Path.DirectorySeparatorChar`,
   `HasTrash = true`.
-- [ ] Add `Duetto.Core/FileSystem/FileSystemRegistry.cs` (`Resolve(path) →
+- [x] Add `Duetto.Core/FileSystem/FileSystemRegistry.cs` (`Resolve(path) →
   (IFileSystemProvider, string localPath)`; default resolves everything to the
   local provider) and `Duetto.Core/FileSystem/PathUtil.cs` (`Parent`, `Combine`,
   `Leaf`, `IsRemote`, scheme parsing) that delegates to the resolved separator.
