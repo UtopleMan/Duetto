@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
-# Builds dist/Duet.app from the osx-arm64 self-contained publish.
-# Requires macOS (sips + iconutil for the icon). Run scripts/publish-all.sh
-# first, or this script will publish osx-arm64 itself.
+# Builds dist/Duetto.app from a fresh osx-arm64 self-contained publish.
+# Requires macOS (sips + iconutil for the icon). Always republishes current
+# source before bundling.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 APP=dist/Duetto.app
 PUBLISH=dist/osx-arm64
 
-if [[ ! -x "$PUBLISH/Duet" ]]; then
-  echo "== publishing osx-arm64 first =="
-  dotnet publish src/Duet -c Release -r osx-arm64 --self-contained \
-    -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
-    -p:DebugType=none -o "$PUBLISH"
-fi
+# Always publish so the bundle ships current source. dotnet publish is
+# incremental, so this is cheap when nothing changed; guarding on the binary's
+# existence silently shipped stale code.
+echo "== publishing osx-arm64 =="
+dotnet publish src/Duet -c Release -r osx-arm64 --self-contained \
+  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
+  -p:DebugType=none -o "$PUBLISH"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
