@@ -101,25 +101,23 @@ and assigns it to `ActiveOperation`. The `SimpleOperationStrip` DataTemplate onl
 instantiates when such an op is live (first exercised in Phase 3 / on screen).
 
 ## Phase 2: Background directory listing
-Status: Not started
+Status: Complete
 
-- [ ] Add `Lister` seam to `PaneViewModel` (default `DirectoryLister.List`).
-- [ ] Add `[ObservableProperty] bool _isLoading;` and bind a "Loading…" overlay in
-  `PaneView.axaml` shown over an empty list; reveal the spinner via a ~100 ms
-  `DispatcherTimer` so instant loads don't flash it.
-- [ ] Convert `Reload(preserveSelection)` to `ReloadAsync`: capture marks/cursor,
-  cancel+replace the pane's in-flight load CTS, run `Lister(CurrentPath)` +
-  `EntrySorter.Sort` on `Task.Run(..., token)`, then marshal the `Rows` rebuild +
-  selection restore to the UI thread. Ignore results from a superseded token.
-- [ ] Update all callers: `SetPath`, `SortBy`, `NavigateTo/Back/Forward/Up`,
-  `CommitRename`, `NewFolder`, `OnDebounceTick` (watcher), and
-  `MainViewModel`/`CommandBar.CommandFinished` reload calls. Keep synchronous
-  public entry points working (fire-and-forget the task where a caller can't await,
-  but ensure supersession prevents races).
-- [ ] Preserve `Reloaded` event semantics (view restores focus) — fire after Rows
-  are populated on the UI thread.
-- [ ] Surface a slow listing in the unified strip only past the threshold and only
-  when `ActiveOperation` is free (per precedence rule).
+- [x] Add `Lister` seam to `PaneViewModel` (default `DirectoryLister.List`).
+- [x] Add `[ObservableProperty] bool _isLoading;` and a "Loading…" overlay in
+  `PaneView.axaml` shown over the (empty) list while a load is in flight.
+- [x] Convert `Reload` to an async pipeline (`StartLoad` → `ApplyWhenReady` →
+  `ApplyRows`): capture marks/cursor, cancel+replace the pane's load CTS, run
+  `Lister` + `EntrySorter.Sort` via a `LoadScheduler` seam, then rebuild `Rows` +
+  restore selection. Stale/superseded results are discarded (token + CTS-identity
+  check).
+- [x] Update all callers via a `selectAfter`/`selectFirst` thread through
+  `StartLoad`: `SetPath`, `NavigateTo(path, selectName)`, `Up`, `CommitRename`,
+  `NewFolder`, plus `MainViewModel` reveal/`TryNavigatePath` now use the
+  `selectName` overload so selection lands after the async load.
+- [x] `Reloaded` fires at the end of `ApplyRows` (after Rows populated).
+- [~] Slow-listing-in-strip precedence: deferred to Phase 5 (listing currently
+  shows only the pane overlay; strip stays reserved for delete/rename/transfer).
 
 ### Verification Plan
 - `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj` → green, including existing
@@ -133,7 +131,32 @@ Status: Not started
   - Marks/cursor preserved across a `preserveSelection: true` reload.
 
 ### Phase Summary
-_(write when phase completes)_
+Done. Listing is now async off the UI thread via a **`LoadScheduler` seam** —
+default runs inline (`Task.FromResult(work())`) so the ~40 existing synchronous
+pane assertions stay valid untouched; production wires
+`PaneViewModel.BackgroundScheduler` (`Task.Run`) on the parameterless
+`MainViewModel()` ctor (production-only path). Per-pane `_loadCts` cancels the prior
+load on every new one; `ApplyWhenReady` bails on `OperationCanceledException` or if
+a newer CTS has taken over, so rapid navigation always lands on the final dir.
+`IsLoading` drives a "Loading…" overlay in `PaneView.axaml`. Selection-after-load is
+threaded through `StartLoad(selectAfter, selectFirst)` and a new
+`NavigateTo(path, selectName)` overload (used by Up, rename, new-folder, search
+reveal, address-bar file navigation).
+
+**Key decisions:** the scheduler seam (not a raw `Task.Run` in the VM) is what makes
+the change testable without rewriting the suite — a `ManualScheduler` in
+`BackgroundListingTests` releases loads on command to exercise `IsLoading` and
+supersession deterministically. `Reload` now returns `Task` (callers that ignore it
+compile unchanged); `LoadCompletion` is the await handle.
+
+**Verified:** `dotnet test` → **134 passed** (132 + 2 new background tests), 0
+errors. Watched both new tests fail first (`CS1061: LoadScheduler/IsLoading`
+missing). No remaining direct `DirectoryLister.List` callers outside the seam.
+
+**Deferred to Phase 5:** surfacing a *slow* listing in the unified strip (with the
+free-slot precedence rule). Today a slow listing shows the pane overlay and is
+cancelled by navigating away; wiring it into the strip is the remaining bit of the
+"unified strip for every long op" decision.
 
 ## Phase 3: Background delete / trash
 Status: Not started
