@@ -159,19 +159,20 @@ cancelled by navigating away; wiring it into the strip is the remaining bit of t
 "unified strip for every long op" decision.
 
 ## Phase 3: Background delete / trash
-Status: Not started
+Status: Complete
 
-- [ ] Add `TrashFn` seam to `MainViewModel` (default `TrashService.Trash`).
-- [ ] Rewrite `DeleteSelected`: snapshot target paths on the UI thread, create a
+- [x] Add `TrashFn` seam to `MainViewModel` (default `TrashService.Trash`) plus a
+  `DeleteScheduler` seam (default `Task.Run`, tests inject inline) and a
+  `DeleteCompletion` await handle.
+- [x] Rewrite `DeleteSelected`: snapshot target paths on the UI thread, create a
   `SimpleOperationViewModel` ("Deleting N items"), set it as `ActiveOperation`,
-  then loop `TrashFn` on `Task.Run` checking the CTS **before each item**. On
-  completion, marshal row removal (`Search.Results` / pane `Rows`) + pane reloads
-  to the UI thread and `Finish()` the op.
-- [ ] Cancel semantics: cancelling stops before the next item; items already
-  trashed remain removed and their rows refreshed.
-- [ ] Keep the existing exception swallow (`IOException`,
-  `UnauthorizedAccessException`, `FileNotFoundException`) per item so one failure
-  doesn't abort the batch.
+  then loop `TrashFn` via `DeleteScheduler` checking the CTS **before each item**.
+  On completion, remove trashed `Search.Results` rows + reload panes on the
+  continuation and `Finish()` (or `Dismiss()` on cancel).
+- [x] Cancel semantics: cancelling stops before the next item; items already
+  trashed stay trashed and their rows refreshed.
+- [x] Keep the per-item exception swallow (`IOException`,
+  `UnauthorizedAccessException`, `FileNotFoundException`).
 
 ### Verification Plan
 - `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj` → green.
@@ -183,7 +184,26 @@ Status: Not started
   - A per-item throw is swallowed; the batch continues.
 
 ### Phase Summary
-_(write when phase completes)_
+Done. `DeleteSelected` snapshots the target paths (search selection or pane marks)
+on the UI thread, publishes a `SimpleOperationViewModel` ("Deleting N items") into
+the strip slot, then runs `TrashFn` per item via the `DeleteScheduler` seam
+(default `Task.Run`), calling `ct.ThrowIfCancellationRequested()` before each item.
+After the loop it removes trashed search rows + reloads both panes on the
+continuation, then `Finish()` (auto-hide) or, if cancelled, `Dismiss()`.
+
+**Key decisions:** the `DeleteScheduler` seam is what makes cancel/failure testable
+without real timing — tests inject an inline scheduler and drive cancellation from
+inside a fake `TrashFn` (cancel after the first item asserts the loop stops before
+the second). `trashed` is collected in the worker and read after the `await`
+barrier, so no cross-thread hazard. `DeleteCompletion` lets end-to-end tests await
+the real async trash.
+
+**Verified:** `dotnet test` → **137 passed** (134 + 3 new `DeleteOperationTests`).
+Watched the 3 new tests fail first (`CS1061: DeleteScheduler/TrashFn` missing). Two
+existing tests (`TransferUiTests.Delete_selected_sends_to_trash`,
+`SearchUiTests.Delete_from_results_trashes_and_removes_row`) now `await
+vm.DeleteCompletion` since delete became asynchronous — they still verify real
+files are trashed and rows removed end-to-end.
 
 ## Phase 4: Background rename
 Status: Not started

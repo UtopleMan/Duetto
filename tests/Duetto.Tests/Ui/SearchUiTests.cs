@@ -147,6 +147,7 @@ public class SearchUiTests
         vm.Search.Selection.Select(0);
 
         vm.DeleteSelected();
+        await vm.DeleteCompletion;
 
         Assert.False(File.Exists(doomed));
         Assert.Empty(vm.Search.Results);

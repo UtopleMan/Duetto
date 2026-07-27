@@ -26,6 +26,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Convenience view of the slot when it holds a transfer (used by tests + transfer wiring).</summary>
     public TransferViewModel? ActiveTransfer => ActiveOperation as TransferViewModel;
 
+    /// <summary>Moves a path to the OS trash. Seam for tests; production uses <see cref="TrashService"/>.</summary>
+    public Func<string, string?> TrashFn { get; set; } = TrashService.Trash;
+
+    /// <summary>Schedules the delete loop. Default runs it on a worker thread; tests inject inline.</summary>
+    public Func<Action<CancellationToken>, CancellationToken, Task> DeleteScheduler { get; set; }
+        = static (work, ct) => Task.Run(() => work(ct), ct);
+
+    /// <summary>Completes when the current delete finishes; tests await this to settle.</summary>
+    public Task DeleteCompletion { get; private set; } = Task.CompletedTask;
+
     public CommandBarViewModel CommandBar { get; }
     public SearchViewModel Search { get; }
 
@@ -225,38 +235,73 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     public void DeleteSelected()
     {
-        if (Search.IsActive)
-        {
-            var entries = Search.SelectedEntries;
-            foreach (var entry in entries)
-                TryTrash(entry.FullPath);
-            if (entries.Count > 0)
-            {
-                foreach (var row in Search.Results.Where(r => entries.Contains(r.Entry)).ToList())
-                    Search.Results.Remove(row);
-                Left.Reload(preserveSelection: true);
-                Right.Reload(preserveSelection: true);
-            }
+        var fromSearch = Search.IsActive;
+        var paths = (fromSearch
+                ? Search.SelectedEntries.Select(e => e.FullPath)
+                : ActivePane.SelectedRows.Select(r => r.Entry.FullPath))
+            .ToList();
 
+        if (paths.Count == 0 || ActiveOperation is { IsFinished: false })
             return;
-        }
 
-        var rows = ActivePane.SelectedRows;
-        foreach (var row in rows)
-            TryTrash(row.Entry.FullPath);
-        if (rows.Count > 0)
-            ActivePane.Reload(preserveSelection: false);
+        var cts = new CancellationTokenSource();
+        var op = new SimpleOperationViewModel(
+            $"Deleting {paths.Count} {(paths.Count == 1 ? "item" : "items")}", cts);
+        op.Dismissed += () =>
+        {
+            if (ReferenceEquals(ActiveOperation, op))
+                ActiveOperation = null;
+            op.Dispose();
+        };
+        ActiveOperation = op;
+
+        DeleteCompletion = RunDeleteAsync(paths, op, cts.Token, fromSearch);
     }
 
-    private static void TryTrash(string path)
+    /// <summary>
+    /// Trashes each path on a worker thread, checking cancellation before every item
+    /// (cancel stops before the next one; already-trashed items stay trashed). A
+    /// per-item failure is swallowed so one bad entry doesn't abort the batch.
+    /// </summary>
+    private async Task RunDeleteAsync(
+        IReadOnlyList<string> paths, SimpleOperationViewModel op, CancellationToken token, bool fromSearch)
     {
+        var trashed = new HashSet<string>();
         try
         {
-            TrashService.Trash(path);
+            await DeleteScheduler(ct =>
+            {
+                foreach (var path in paths)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    try
+                    {
+                        TrashFn(path);
+                        trashed.Add(path);
+                    }
+                    catch (Exception e) when (e is IOException or UnauthorizedAccessException or FileNotFoundException)
+                    {
+                    }
+                }
+            }, token);
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or FileNotFoundException)
+        catch (OperationCanceledException)
         {
         }
+
+        if (fromSearch)
+        {
+            foreach (var row in Search.Results.Where(r => trashed.Contains(r.Entry.FullPath)).ToList())
+                Search.Results.Remove(row);
+        }
+
+        Left.Reload(preserveSelection: true);
+        Right.Reload(preserveSelection: true);
+
+        if (token.IsCancellationRequested)
+            op.Dismiss();
+        else
+            op.Finish();
     }
 
     public void Activate(PaneViewModel pane)
