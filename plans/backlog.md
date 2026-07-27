@@ -19,6 +19,13 @@ Unscheduled ideas. Promote an item by writing a design spec + implementation pla
   from the Duet design spec ("Duet File Manager.dc.html", claude.ai/design
   project 9547189c-a040-4169-8fed-38dc0d79972e) across `Duet.app` icns,
   window/taskbar icon, and the Win chrome title-bar app mark.
+- [ ] Rename the app everywhere from Duet to Duetto. Today the split is
+  solution=Duetto, app=Duet (locked decision from v1). Unify on Duetto: project
+  dirs/namespaces (`src/Duet`, `src/Duet.Core`, `Duet.Tests`), assembly and
+  binary names, window/menu titles, About dialog, `Duet.app` bundle +
+  Info.plist, publish scripts, `avares://Duet/` URIs, docs. Watch for: macOS
+  menu-bar name comes from the bundle/process name; git history of dirs
+  preserved via `git mv`.
 - [ ] Test Windows/Linux binaries on real target OSes before wide distribution.
   `dist/win-x64/Duet.exe` and `dist/linux-x64/Duet` are cross-compiled from
   macOS and never ran on their targets; verify chrome, trash, shell runner and
