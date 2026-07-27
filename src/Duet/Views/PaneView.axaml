@@ -102,7 +102,7 @@
                     <TextBlock Text="THIS MACHINE" FontSize="10.5" LetterSpacing="0.6"
                                Foreground="{StaticResource HeaderText}" Margin="10,0,10,6" />
                     <ListBox x:Name="DriveList" ItemsSource="{Binding Volumes}"
-                             Background="Transparent" Padding="0"
+                             Background="Transparent" Padding="0" MaxHeight="320"
                              DoubleTapped="OnDriveRowActivated" Tapped="OnDriveRowActivated">
                       <ListBox.ItemContainerTheme>
                         <ControlTheme TargetType="ListBoxItem">
@@ -180,9 +180,12 @@
                         </StackPanel>
                       </DockPanel>
                     </Button>
-                    <!-- Eject row -->
+                    <!-- Eject row: visible whenever the current volume is ejectable;
+                         disabled (not hidden) while an eject is in progress so the
+                         popover layout does not reflow during the operation. -->
                     <Button x:Name="EjectRow" Command="{Binding EjectCurrentCommand}"
-                            IsVisible="{Binding CanEject}"
+                            IsVisible="{Binding EjectRowVisible}"
+                            IsEnabled="{Binding CanEject}"
                             Background="Transparent" CornerRadius="7" Height="30"
                             Padding="10,0" HorizontalAlignment="Stretch"
                             HorizontalContentAlignment="Left" BorderThickness="0">

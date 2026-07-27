@@ -191,4 +191,41 @@ public class DrivePopoverTests
 
         Assert.True(requested);
     }
+
+    [AvaloniaFact]
+    public async Task Eject_row_stays_visible_but_disabled_while_ejecting()
+    {
+        // Spec: the eject row must be *disabled* (not hidden) during an in-progress eject
+        // so the popover layout does not reflow.
+        using var tmp = new TempDir();
+        using var pane = new PaneViewModel(tmp.Path);
+        var current = new VolumeInfo("Stick", tmp.Path, 1000, 500, "x · 1000 B", true);
+        var popover = Popover(pane, current);
+
+        var ejectStarted = new TaskCompletionSource();
+        var ejectRelease = new TaskCompletionSource();
+        popover.Eject = async _ =>
+        {
+            ejectStarted.SetResult();
+            await ejectRelease.Task;
+            return new EjectResult(false, "cancelled");
+        };
+
+        Assert.True(popover.EjectRowVisible, "row should be visible before eject");
+        Assert.True(popover.CanEject, "row should be enabled before eject");
+
+        var ejectTask = popover.EjectCurrentAsync();
+        await ejectStarted.Task;
+
+        // While ejecting: visible but not enabled
+        Assert.True(popover.EjectRowVisible, "row must stay visible during eject");
+        Assert.False(popover.CanEject, "row must be disabled during eject");
+
+        ejectRelease.SetResult();
+        await ejectTask;
+
+        // After eject completes: back to visible and enabled (failure case keeps current)
+        Assert.True(popover.EjectRowVisible, "row should remain visible after failed eject");
+        Assert.True(popover.CanEject, "row should be re-enabled after eject finishes");
+    }
 }

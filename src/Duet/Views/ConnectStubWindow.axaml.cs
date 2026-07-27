@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 
 namespace Duet.Views;
@@ -11,4 +12,13 @@ public partial class ConnectStubWindow : Window
     }
 
     private void OnCloseClicked(object? sender, RoutedEventArgs e) => Close();
+
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            Close();
+            e.Handled = true;
+        }
+    }
 }

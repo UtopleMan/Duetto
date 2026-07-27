@@ -48,17 +48,23 @@ public partial class DrivePopoverViewModel : ObservableObject
     private string _filterText = "";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanEject), nameof(EjectLabel))]
+    [NotifyPropertyChangedFor(nameof(CanEject), nameof(EjectRowVisible), nameof(EjectLabel))]
     private VolumeInfo? _current;
 
     [ObservableProperty]
     private string _errorText = "";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanEject))]
+    [NotifyPropertyChangedFor(nameof(CanEject), nameof(EjectRowVisible))]
     private bool _isEjecting;
 
-    public bool CanEject => Current is { IsEjectable: true } && !OperatingSystem.IsWindows() && !IsEjecting;
+    // True when the current volume is ejectable and the platform supports eject.
+    // Controls row *visibility* — the row stays in the layout while ejecting.
+    public bool EjectRowVisible => Current is { IsEjectable: true } && !OperatingSystem.IsWindows();
+
+    // True when ejection is allowed right now (visible and not already in progress).
+    // Controls row *enabled* state — the row is disabled while an eject is running.
+    public bool CanEject => EjectRowVisible && !IsEjecting;
     public string EjectLabel => $"Eject {Current?.Name}";
 
     public event Action? CloseRequested;

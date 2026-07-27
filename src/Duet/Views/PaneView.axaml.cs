@@ -214,7 +214,7 @@ public partial class PaneView : UserControl
     /// <summary>x:Name fields inside Flyout content can be unreliable; go via the chip.</summary>
     private void HideDriveFlyout()
     {
-        (VolumeChip.Flyout as Avalonia.Controls.Primitives.FlyoutBase)?.Hide();
+        VolumeChip.Flyout?.Hide();
         FocusList();
     }
 }
