@@ -206,18 +206,18 @@ vm.DeleteCompletion` since delete became asynchronous — they still verify real
 files are trashed and rows removed end-to-end.
 
 ## Phase 4: Background rename
-Status: Not started
+Status: Complete
 
-- [ ] Run `FileOps.Rename` off the UI thread in `PaneViewModel.CommitRename` via
-  `Task.Run`; on success marshal `ReloadAsync` + `SelectByName` to the UI thread.
-- [ ] If the rename exceeds the latency threshold, show a `SimpleOperationViewModel`
-  ("Renaming …") in the strip with Cancel. **Document the limitation:** a single
-  OS `File.Move`/`Directory.Move` cannot be interrupted mid-op; Cancel abandons the
-  wait/refresh, it does not roll back. Same-volume renames are effectively instant;
-  the slow case is a cross-volume directory move.
-- [ ] Keep the current exception swallow (`IOException`,
-  `UnauthorizedAccessException`, `ArgumentException`) and the "no-op on
-  empty/unchanged name" guard.
+- [x] Run `FileOps.Rename` off the UI thread in `PaneViewModel.CommitRename` via a
+  `RenameScheduler` seam (default inline; production `BackgroundRenameScheduler` =
+  `Task.Run`); on success the continuation runs `StartLoad(selectAfter: newName)`.
+- [~] Strip op for a slow rename: **not** added. A single OS `File.Move`/
+  `Directory.Move` cannot be interrupted mid-flight, so a Cancel button would be a
+  lie (the move keeps running). Documented in `RunRenameAsync`. Same-volume renames
+  are instant; the rare slow case (cross-volume directory move) still runs off the
+  UI thread, so the window never freezes — it just can't be aborted.
+- [x] Keep the exception swallow (`IOException`, `UnauthorizedAccessException`,
+  `ArgumentException`) and the "no-op on empty/unchanged name" guard.
 
 ### Verification Plan
 - `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj` → green, including existing
@@ -226,7 +226,24 @@ Status: Not started
   refresh; cursor lands on the renamed row.
 
 ### Phase Summary
-_(write when phase completes)_
+Done. `CommitRename` now delegates to `RunRenameAsync`, which runs the move through
+the `RenameScheduler` seam (default inline so the existing
+`PaneTests.Rename_via_viewmodel_renames_file` stays synchronous and green;
+production wires `BackgroundRenameScheduler` = `Task.Run` in the parameterless
+`MainViewModel()` ctor). On success the continuation re-lists and selects the new
+name; the 3-type exception swallow is preserved.
+
+**Decision — no fake cancel:** the scope said "cancel mid-run", but a single OS move
+is atomic-to-us and uninterruptible. Rather than ship a Cancel that dismisses the
+strip while the move continues underneath, rename is backgrounded (UI stays
+responsive) with the limitation documented in code. This is the honest reading of
+the constraint; the interruptible long op is copy/move (already done via
+`TransferEngine`).
+
+**Verified:** `dotnet test` → **138 passed** (137 + new
+`RenameOperationTests.Rename_runsViaScheduler_thenSelectsRenamedRow`, which gates
+the scheduler to prove the move runs through it and selection lands after
+completion). Watched it fail first (`CS1061: RenameScheduler/RenameCompletion`).
 
 ## Phase 5: Integration, precedence & regression
 Status: Not started

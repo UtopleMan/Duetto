@@ -91,10 +91,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile))
     {
-        // Production only: list directories off the UI thread. Tests use the explicit
-        // ctor above and keep the default inline scheduler for deterministic asserts.
+        // Production only: run listing and rename off the UI thread. Tests use the
+        // explicit ctor above and keep the default inline schedulers for deterministic asserts.
         Left.LoadScheduler = PaneViewModel.BackgroundScheduler;
         Right.LoadScheduler = PaneViewModel.BackgroundScheduler;
+        Left.RenameScheduler = PaneViewModel.BackgroundRenameScheduler;
+        Right.RenameScheduler = PaneViewModel.BackgroundRenameScheduler;
     }
 
     [RelayCommand]

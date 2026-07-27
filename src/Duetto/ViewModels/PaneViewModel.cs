@@ -34,6 +34,16 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     /// <summary>Completes when the in-flight load finishes; tests await this to settle.</summary>
     public Task LoadCompletion { get; private set; } = Task.CompletedTask;
 
+    /// <summary>Schedules the rename move. Default inline; production offloads to a worker thread.</summary>
+    public Func<Action, Task> RenameScheduler { get; set; }
+        = static work => { work(); return Task.CompletedTask; };
+
+    /// <summary>Runs the rename move on a thread-pool thread. Wired in by production composition.</summary>
+    public static readonly Func<Action, Task> BackgroundRenameScheduler = static work => Task.Run(work);
+
+    /// <summary>Completes when the in-flight rename finishes; tests await this to settle.</summary>
+    public Task RenameCompletion { get; private set; } = Task.CompletedTask;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DirName), nameof(VolumeChipText), nameof(PathTailText))]
     private string _currentPath;
@@ -371,16 +381,29 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         var newName = row.EditName.Trim();
         if (newName.Length == 0 || newName == row.Name)
             return;
+
+        RenameCompletion = RunRenameAsync(row.Entry.FullPath, newName);
+    }
+
+    /// <summary>
+    /// Runs the rename off the UI thread so a slow (cross-volume) move never blocks.
+    /// A single OS move is not interruptible mid-flight, so there is no true mid-move
+    /// cancel — same-volume renames are effectively instant anyway.
+    /// </summary>
+    private async Task RunRenameAsync(string fullPath, string newName)
+    {
+        var ok = true;
         try
         {
-            FileOps.Rename(row.Entry.FullPath, newName);
+            await RenameScheduler(() => FileOps.Rename(fullPath, newName));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
         {
-            return;
+            ok = false;
         }
 
-        StartLoad(preserveSelection: false, selectAfter: newName, selectFirst: false);
+        if (ok)
+            StartLoad(preserveSelection: false, selectAfter: newName, selectFirst: false);
     }
 
     public void CancelRename(FileRowViewModel row) => row.IsEditing = false;
