@@ -316,6 +316,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        // Cancels an in-flight delete/transfer (SimpleOperationViewModel/TransferSession
+        // cancel their token on Dispose) before tearing down the panes.
+        ActiveOperation?.Dispose();
         Left.Dispose();
         Right.Dispose();
     }

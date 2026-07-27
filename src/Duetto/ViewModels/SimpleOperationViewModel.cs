@@ -53,5 +53,10 @@ public partial class SimpleOperationViewModel : ObservableObject, IStripOperatio
 
     public void Dismiss() => Dismissed?.Invoke();
 
-    public void Dispose() => _cts.Dispose();
+    public void Dispose()
+    {
+        // Cancel first so a still-running worker stops before we drop the source.
+        _cts.Cancel();
+        _cts.Dispose();
+    }
 }

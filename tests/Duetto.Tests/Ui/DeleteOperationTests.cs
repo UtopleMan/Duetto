@@ -83,4 +83,27 @@ public class DeleteOperationTests
 
         Assert.Equal(2, trashed.Count); // a + c trashed; b failed but did not abort the batch
     }
+
+    [AvaloniaFact]
+    public void SecondOperation_isBlocked_whileTheSlotIsBusy()
+    {
+        using var tmp = new TempDir();
+        tmp.File("a.txt", "a");
+        using var vm = new MainViewModel(tmp.Path, tmp.Path);
+
+        // A delete whose worker never completes keeps the strip slot occupied.
+        vm.DeleteScheduler = (_, _) => new TaskCompletionSource<bool>().Task;
+        vm.TrashFn = _ => null;
+
+        MarkAll(vm.Left);
+        vm.DeleteSelectedCommand.Execute(null);
+        var firstOp = vm.ActiveOperation;
+        Assert.NotNull(firstOp);
+
+        // A second attempt must be ignored while the slot holds an unfinished op.
+        MarkAll(vm.Left);
+        vm.DeleteSelectedCommand.Execute(null);
+
+        Assert.Same(firstOp, vm.ActiveOperation);
+    }
 }
