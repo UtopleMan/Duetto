@@ -51,25 +51,23 @@ through Glider (solution `Duetto.slnx`); commit messages plain imperative, no
 attribution trailers.
 
 ## Phase 1: Unified operation strip infrastructure
-Status: Not started
+Status: Complete
 
-- [ ] Add `OperationViewModel` base (or `IOperationStripItem` interface) in
-  `src/Duetto/ViewModels/` exposing `Title`, `IsFinished`, `IsIndeterminate`,
-  `CancelLabel`, `CancelOrDismissCommand`, and the `Dismissed` event.
-- [ ] Make `TransferViewModel` implement it (`IsIndeterminate => false`); no
-  behavior change to transfers.
-- [ ] Add `SimpleOperationViewModel(string title, CancellationTokenSource cts)`:
+- [x] Add `IStripOperation` interface (`IDisposable`) exposing `IsFinished` +
+  `Dismissed` — the minimal contract the strip slot needs.
+- [x] Make `TransferViewModel` implement it (already had `IsFinished`/`Dismissed`/
+  `Dispose`); no behavior change to transfers.
+- [x] Add `SimpleOperationViewModel(string title, CancellationTokenSource cts)`:
   `IsIndeterminate => true`, `CancelOrDismiss` cancels the CTS then raises
-  `Dismissed`; exposes a `Task Completion` hook and a `Finish()` that flips
-  `IsFinished` + auto-dismisses (reuse the transfer strip's 1.5 s auto-hide).
-- [ ] Generalize `ProgressStrip.axaml`: keep the rich transfer layout for
-  `IsIndeterminate == false`; add an indeterminate layout (label + spinner +
-  Cancel) shown when `IsIndeterminate == true`. Switch via `DataTemplate` /
-  `IsVisible` bindings. Keep `x:DataType` compile-safe.
-- [ ] `MainViewModel`: add `ActiveOperation` (typed as the base) and repoint
-  `MainWindow.axaml:142` `DataContext="{Binding ActiveOperation}"`. Keep the
-  existing "one transfer at a time" guard; add a helper `SetActiveOperation(op)`
-  that wires `Dismissed` → clear slot + dispose.
+  `Dismissed`; `Finish()` flips `IsFinished` + auto-dismisses after 1 s.
+- [x] Host the strip via a type-selecting `ContentControl` at
+  `MainWindow.axaml` with `DataTemplate`s for `TransferViewModel`
+  (existing `ProgressStrip`) and `SimpleOperationViewModel` (new
+  `SimpleOperationStrip` — label + indeterminate `ProgressBar` + Cancel).
+- [x] `MainViewModel`: add `ActiveOperation` (typed `IStripOperation?`) as the
+  single slot; keep `ActiveTransfer` as a derived `ActiveOperation as
+  TransferViewModel` for transfer wiring + existing tests. Guard is now "slot
+  busy with an unfinished op".
 
 ### Verification Plan
 - `dotnet build Duetto.slnx -c Debug` → `0 Error(s)`.
@@ -79,7 +77,28 @@ Status: Not started
   sets `cts.IsCancellationRequested == true` and raises `Dismissed`.
 
 ### Phase Summary
-_(write when phase completes)_
+Done. Introduced `IStripOperation` (slot contract: `IsFinished` + `Dismissed`) and
+`SimpleOperationViewModel` (indeterminate op wrapping a `CancellationTokenSource`;
+`CancelOrDismiss` trips the token then dismisses; `Finish()` auto-hides after 1 s).
+`TransferViewModel` now implements the interface with zero behavior change.
+`MainViewModel.ActiveOperation` is the single strip slot; `ActiveTransfer` survives
+as a derived convenience so `TransferUiTests`/`SearchUiTests` are untouched.
+
+**Deviation from plan:** rather than conditionally re-templating `ProgressStrip`
+in place, the strip is hosted by a `ContentControl` with one `DataTemplate` per op
+type (`ProgressStrip` for transfers, new `SimpleOperationStrip` for the rest). This
+avoids fragile `x:DataType` gymnastics and keeps each view compile-bound to its own
+VM — cleaner realization of the same "unified strip" decision.
+
+**Verified:** `dotnet test` → **132 passed** (131 + new `OperationStripTests`), 0
+errors. `ChromeTests` render the real `MainWindow` (`new MainWindow(vm); Show()`),
+so the new `ContentControl` host loads at runtime. Watched the new test fail first
+(`CS0246: SimpleOperationViewModel not found`) before implementing.
+
+**For the next phase:** the slot is single-occupancy; a delete/rename/slow-listing
+creates a `SimpleOperationViewModel`, wires `Dismissed` → clear+dispose the slot,
+and assigns it to `ActiveOperation`. The `SimpleOperationStrip` DataTemplate only
+instantiates when such an op is live (first exercised in Phase 3 / on screen).
 
 ## Phase 2: Background directory listing
 Status: Not started

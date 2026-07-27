@@ -7,7 +7,7 @@ using Duetto.Core.Operations;
 
 namespace Duetto.ViewModels;
 
-public partial class TransferViewModel : ObservableObject, IDisposable
+public partial class TransferViewModel : ObservableObject, IStripOperation
 {
     private readonly PaneViewModel? _sourcePane;
     private readonly DispatcherTimer _timer;

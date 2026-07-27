@@ -18,8 +18,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public IReadOnlyList<Place> Places { get; }
     public static string UserAtHost { get; } = $"{Environment.UserName}@{Environment.MachineName.Split('.')[0]}";
 
+    /// <summary>The single strip slot: a transfer, a delete, a rename, or a slow listing.</summary>
     [ObservableProperty]
-    private TransferViewModel? _activeTransfer;
+    [NotifyPropertyChangedFor(nameof(ActiveTransfer))]
+    private IStripOperation? _activeOperation;
+
+    /// <summary>Convenience view of the slot when it holds a transfer (used by tests + transfer wiring).</summary>
+    public TransferViewModel? ActiveTransfer => ActiveOperation as TransferViewModel;
 
     public CommandBarViewModel CommandBar { get; }
     public SearchViewModel Search { get; }
@@ -198,21 +203,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private void StartTransfer(IReadOnlyList<string> paths, string destinationDir, TransferMode mode, PaneViewModel? sourcePane)
     {
-        if (paths.Count == 0 || (ActiveTransfer is not null && !ActiveTransfer.IsFinished))
+        if (paths.Count == 0 || ActiveOperation is { IsFinished: false })
             return;
 
-        ActiveTransfer?.Dispose();
+        ActiveOperation?.Dispose();
         var session = TransferEngine.Start(paths, destinationDir, mode);
         var transfer = new TransferViewModel(session, sourcePane);
         transfer.Dismissed += () =>
         {
-            if (ActiveTransfer == transfer)
-                ActiveTransfer = null;
+            if (ReferenceEquals(ActiveOperation, transfer))
+                ActiveOperation = null;
             transfer.Dispose();
             Left.Reload(preserveSelection: true);
             Right.Reload(preserveSelection: true);
         };
-        ActiveTransfer = transfer;
+        ActiveOperation = transfer;
     }
 
     [RelayCommand]
