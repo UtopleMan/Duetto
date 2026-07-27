@@ -318,6 +318,16 @@
       </ListBox.ItemTemplate>
     </ListBox>
 
+    <!-- Loading overlay: covers the (empty) list while a background listing is in flight -->
+    <Border Grid.Row="2" Background="{StaticResource WindowBg}" IsVisible="{Binding IsLoading}">
+      <StackPanel Orientation="Horizontal" Spacing="10"
+                  HorizontalAlignment="Center" VerticalAlignment="Center">
+        <ProgressBar IsIndeterminate="True" Width="90" Height="5" />
+        <TextBlock Text="Loading…" FontSize="12" Foreground="{StaticResource TextDim}"
+                   VerticalAlignment="Center" />
+      </StackPanel>
+    </Border>
+
     <!-- Status bar -->
     <Border Grid.Row="3" Background="{StaticResource ToolbarBg}"
             BorderBrush="{StaticResource HairlineLight}" BorderThickness="0,1,0,0">

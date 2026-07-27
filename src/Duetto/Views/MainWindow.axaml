@@ -138,10 +138,20 @@
     <!-- Command bar + output drawer -->
     <views:CommandBar DockPanel.Dock="Bottom" x:Name="CommandBarView" />
 
-    <!-- Copy/move progress strip (docked after the command bar so it sits above it) -->
-    <views:ProgressStrip DockPanel.Dock="Bottom"
-                         DataContext="{Binding ActiveTransfer}"
-                         IsVisible="{Binding Converter={x:Static ObjectConverters.IsNotNull}}" />
+    <!-- Unified operation strip (docked after the command bar so it sits above it):
+         transfers render rich; delete/rename/slow-listing render indeterminate. -->
+    <ContentControl DockPanel.Dock="Bottom"
+                    Content="{Binding ActiveOperation}"
+                    IsVisible="{Binding ActiveOperation, Converter={x:Static ObjectConverters.IsNotNull}}">
+      <ContentControl.DataTemplates>
+        <DataTemplate DataType="vm:TransferViewModel">
+          <views:ProgressStrip />
+        </DataTemplate>
+        <DataTemplate DataType="vm:SimpleOperationViewModel">
+          <views:SimpleOperationStrip />
+        </DataTemplate>
+      </ContentControl.DataTemplates>
+    </ContentControl>
 
     <!-- Rail + panes; the right pane is overlaid by search results while a search is active -->
     <Grid ColumnDefinitions="Auto,*">

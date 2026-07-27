@@ -3,11 +3,13 @@
 Unscheduled ideas. Promote an item by writing a design spec + implementation plan
 (`plans/<date>-<feature>-design.md` / `-implementation.md`) before building.
 
-- [ ] Query directories in the background so the user interface is not locked on
-  directories with many items. Today `PaneViewModel` lists and sorts on the UI
-  thread; a huge dir (network mount, 100k+ entries) freezes the window. Load on a
-  background task, stream or batch rows in, show a loading state, cancel a stale
-  load when the user navigates away mid-enumeration.
+- [x] Query directories in the background so the user interface is not locked on
+  directories with many items. Done via `PaneViewModel`'s `LoadScheduler` seam
+  (production `BackgroundScheduler` = `Task.Run`): listing + sort run off the UI
+  thread, an `IsLoading` "Loading…" overlay shows during the load, and a per-pane
+  load CTS cancels a stale load when the user navigates away mid-enumeration. See
+  `plans/background-file-operations.md` (Phase 2), which also backgrounded
+  delete/trash and rename.
 - [ ] Real Connect backend (SFTP/S3/SMB) behind the stub dialog — biggest open
   feature. The drive popover's Connect… row currently opens
   `ConnectStubWindow`; replace with real remote connections and remote shares

@@ -96,7 +96,7 @@ public class TransferUiTests
     }
 
     [AvaloniaFact]
-    public void Delete_selected_sends_to_trash()
+    public async Task Delete_selected_sends_to_trash()
     {
         using var src = new TempDir();
         using var dst = new TempDir();
@@ -105,6 +105,7 @@ public class TransferUiTests
         vm.Left.SelectByName("doomed.txt");
 
         vm.DeleteSelected();
+        await vm.DeleteCompletion;
 
         Assert.False(File.Exists(doomed));
         Assert.DoesNotContain(vm.Left.Rows, r => r.Name == "doomed.txt");

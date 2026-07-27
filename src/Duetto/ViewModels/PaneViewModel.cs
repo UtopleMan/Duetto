@@ -15,6 +15,34 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     private readonly Stack<string> _forward = new();
     private FileSystemWatcher? _watcher;
     private DispatcherTimer? _reloadDebounce;
+    private CancellationTokenSource? _loadCts;
+
+    /// <summary>Reads a directory. Seam for tests; production lists the real filesystem.</summary>
+    public Func<string, IReadOnlyList<FileEntry>> Lister { get; set; } = DirectoryLister.List;
+
+    /// <summary>
+    /// Schedules the listing work. Default runs it inline (synchronous); production
+    /// swaps in <see cref="BackgroundScheduler"/> so slow directories never block the UI.
+    /// </summary>
+    public Func<Func<IReadOnlyList<FileEntry>>, CancellationToken, Task<IReadOnlyList<FileEntry>>> LoadScheduler { get; set; }
+        = static (work, _) => Task.FromResult(work());
+
+    /// <summary>Runs the listing on a thread-pool thread. Wired in by production composition.</summary>
+    public static readonly Func<Func<IReadOnlyList<FileEntry>>, CancellationToken, Task<IReadOnlyList<FileEntry>>>
+        BackgroundScheduler = static (work, ct) => Task.Run(work, ct);
+
+    /// <summary>Completes when the in-flight load finishes; tests await this to settle.</summary>
+    public Task LoadCompletion { get; private set; } = Task.CompletedTask;
+
+    /// <summary>Schedules the rename move. Default inline; production offloads to a worker thread.</summary>
+    public Func<Action, Task> RenameScheduler { get; set; }
+        = static work => { work(); return Task.CompletedTask; };
+
+    /// <summary>Runs the rename move on a thread-pool thread. Wired in by production composition.</summary>
+    public static readonly Func<Action, Task> BackgroundRenameScheduler = static work => Task.Run(work);
+
+    /// <summary>Completes when the in-flight rename finishes; tests await this to settle.</summary>
+    public Task RenameCompletion { get; private set; } = Task.CompletedTask;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DirName), nameof(VolumeChipText), nameof(PathTailText))]
@@ -42,6 +70,10 @@ public partial class PaneViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private string _statusText = "";
+
+    /// <summary>True while a background listing is in flight (drives the "Loading…" overlay).</summary>
+    [ObservableProperty]
+    private bool _isLoading;
 
     public ObservableCollection<FileRowViewModel> Rows { get; } = [];
 
@@ -98,13 +130,16 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    public void NavigateTo(string path)
+    public void NavigateTo(string path) => NavigateTo(path, null);
+
+    /// <summary>Navigate, then select <paramref name="selectName"/> once the load lands (else the first row).</summary>
+    public void NavigateTo(string path, string? selectName)
     {
         if (!Directory.Exists(path))
             return;
         _back.Push(CurrentPath);
         _forward.Clear();
-        SetPath(path);
+        SetPath(path, selectName);
     }
 
     [RelayCommand]
@@ -131,9 +166,7 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         if (Path.GetDirectoryName(CurrentPath) is { } parent)
         {
             var cameFrom = Path.GetFileName(CurrentPath.TrimEnd(Path.DirectorySeparatorChar));
-            NavigateTo(parent);
-            if (cameFrom.Length > 0)
-                SelectByName(cameFrom);
+            NavigateTo(parent, cameFrom.Length > 0 ? cameFrom : null);
         }
     }
 
@@ -168,23 +201,82 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         Reload(preserveSelection: true);
     }
 
-    public void Reload(bool preserveSelection)
+    public Task Reload(bool preserveSelection) =>
+        StartLoad(preserveSelection, selectAfter: null, selectFirst: false);
+
+    /// <summary>
+    /// Kicks off a listing via <see cref="LoadScheduler"/>. A newer load cancels
+    /// and supersedes any in-flight one; the stale result is discarded so rapid
+    /// navigation always lands on the final directory.
+    /// </summary>
+    private Task StartLoad(bool preserveSelection, string? selectAfter, bool selectFirst)
     {
         var markedNames = preserveSelection
             ? Rows.Where(r => r.IsMarked).Select(r => r.Name).ToHashSet()
             : [];
         var cursorName = preserveSelection ? CursorRow?.Name : null;
 
-        List<FileEntry> entries;
+        _loadCts?.Cancel();
+        var cts = _loadCts = new CancellationTokenSource();
+        var token = cts.Token;
+        var path = CurrentPath;
+        var sortColumn = SortColumn;
+        var ascending = SortAscending;
+
+        Func<IReadOnlyList<FileEntry>> work = () =>
+        {
+            try
+            {
+                return EntrySorter.Sort(Lister(path), sortColumn, ascending);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or DirectoryNotFoundException)
+            {
+                return [];
+            }
+        };
+
+        Task<IReadOnlyList<FileEntry>> task;
         try
         {
-            entries = EntrySorter.Sort(DirectoryLister.List(CurrentPath), SortColumn, SortAscending);
+            task = LoadScheduler(work, token);
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or DirectoryNotFoundException)
+        catch (OperationCanceledException)
         {
-            entries = [];
+            return Task.CompletedTask;
         }
 
+        if (!task.IsCompleted)
+            IsLoading = true;
+
+        return LoadCompletion = ApplyWhenReady(task, cts, markedNames, cursorName, selectAfter, selectFirst);
+    }
+
+    private async Task ApplyWhenReady(
+        Task<IReadOnlyList<FileEntry>> task, CancellationTokenSource cts,
+        HashSet<string> markedNames, string? cursorName, string? selectAfter, bool selectFirst)
+    {
+        IReadOnlyList<FileEntry> entries;
+        try
+        {
+            entries = await task;
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        // A newer load superseded this one while it was in flight — discard the result.
+        if (!ReferenceEquals(cts, _loadCts))
+            return;
+
+        ApplyRows(entries, markedNames, cursorName, selectAfter, selectFirst);
+        IsLoading = false;
+    }
+
+    private void ApplyRows(
+        IReadOnlyList<FileEntry> entries, HashSet<string> markedNames,
+        string? cursorName, string? selectAfter, bool selectFirst)
+    {
         Rows.Clear();
         if (Path.GetDirectoryName(CurrentPath) is { } parent)
             Rows.Add(FileRowViewModel.ParentNav(parent));
@@ -199,6 +291,11 @@ public partial class PaneViewModel : ObservableObject, IDisposable
             if (cursorName is not null && Rows[i].Name == cursorName)
                 Selection.Select(i);
         }
+
+        if (selectAfter is not null)
+            SelectByName(selectAfter);
+        else if (selectFirst && Rows.Count > 0)
+            Selection.Select(0);
 
         UpdateStatus();
         OnPropertyChanged(nameof(CanGoBack));
@@ -284,17 +381,29 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         var newName = row.EditName.Trim();
         if (newName.Length == 0 || newName == row.Name)
             return;
+
+        RenameCompletion = RunRenameAsync(row.Entry.FullPath, newName);
+    }
+
+    /// <summary>
+    /// Runs the rename off the UI thread so a slow (cross-volume) move never blocks.
+    /// A single OS move is not interruptible mid-flight, so there is no true mid-move
+    /// cancel — same-volume renames are effectively instant anyway.
+    /// </summary>
+    private async Task RunRenameAsync(string fullPath, string newName)
+    {
+        var ok = true;
         try
         {
-            FileOps.Rename(row.Entry.FullPath, newName);
+            await RenameScheduler(() => FileOps.Rename(fullPath, newName));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
         {
-            return;
+            ok = false;
         }
 
-        Reload(preserveSelection: false);
-        SelectByName(newName);
+        if (ok)
+            StartLoad(preserveSelection: false, selectAfter: newName, selectFirst: false);
     }
 
     public void CancelRename(FileRowViewModel row) => row.IsEditing = false;
@@ -305,8 +414,7 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         try
         {
             var created = FileOps.NewFolder(CurrentPath);
-            Reload(preserveSelection: false);
-            SelectByName(Path.GetFileName(created));
+            StartLoad(preserveSelection: false, selectAfter: Path.GetFileName(created), selectFirst: false);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
@@ -341,13 +449,11 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void SetPath(string path)
+    private void SetPath(string path, string? selectName = null)
     {
         CurrentPath = path;
-        Reload(preserveSelection: false);
-        if (Rows.Count > 0)
-            Selection.Select(0);
         StartWatcher();
+        StartLoad(preserveSelection: false, selectAfter: selectName, selectFirst: selectName is null);
     }
 
     private void UpdateStatus()
@@ -409,6 +515,7 @@ public partial class PaneViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        _loadCts?.Cancel();
         _watcher?.Dispose();
         _reloadDebounce?.Stop();
     }

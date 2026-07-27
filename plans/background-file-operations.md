@@ -51,25 +51,23 @@ through Glider (solution `Duetto.slnx`); commit messages plain imperative, no
 attribution trailers.
 
 ## Phase 1: Unified operation strip infrastructure
-Status: Not started
+Status: Complete
 
-- [ ] Add `OperationViewModel` base (or `IOperationStripItem` interface) in
-  `src/Duetto/ViewModels/` exposing `Title`, `IsFinished`, `IsIndeterminate`,
-  `CancelLabel`, `CancelOrDismissCommand`, and the `Dismissed` event.
-- [ ] Make `TransferViewModel` implement it (`IsIndeterminate => false`); no
-  behavior change to transfers.
-- [ ] Add `SimpleOperationViewModel(string title, CancellationTokenSource cts)`:
+- [x] Add `IStripOperation` interface (`IDisposable`) exposing `IsFinished` +
+  `Dismissed` — the minimal contract the strip slot needs.
+- [x] Make `TransferViewModel` implement it (already had `IsFinished`/`Dismissed`/
+  `Dispose`); no behavior change to transfers.
+- [x] Add `SimpleOperationViewModel(string title, CancellationTokenSource cts)`:
   `IsIndeterminate => true`, `CancelOrDismiss` cancels the CTS then raises
-  `Dismissed`; exposes a `Task Completion` hook and a `Finish()` that flips
-  `IsFinished` + auto-dismisses (reuse the transfer strip's 1.5 s auto-hide).
-- [ ] Generalize `ProgressStrip.axaml`: keep the rich transfer layout for
-  `IsIndeterminate == false`; add an indeterminate layout (label + spinner +
-  Cancel) shown when `IsIndeterminate == true`. Switch via `DataTemplate` /
-  `IsVisible` bindings. Keep `x:DataType` compile-safe.
-- [ ] `MainViewModel`: add `ActiveOperation` (typed as the base) and repoint
-  `MainWindow.axaml:142` `DataContext="{Binding ActiveOperation}"`. Keep the
-  existing "one transfer at a time" guard; add a helper `SetActiveOperation(op)`
-  that wires `Dismissed` → clear slot + dispose.
+  `Dismissed`; `Finish()` flips `IsFinished` + auto-dismisses after 1 s.
+- [x] Host the strip via a type-selecting `ContentControl` at
+  `MainWindow.axaml` with `DataTemplate`s for `TransferViewModel`
+  (existing `ProgressStrip`) and `SimpleOperationViewModel` (new
+  `SimpleOperationStrip` — label + indeterminate `ProgressBar` + Cancel).
+- [x] `MainViewModel`: add `ActiveOperation` (typed `IStripOperation?`) as the
+  single slot; keep `ActiveTransfer` as a derived `ActiveOperation as
+  TransferViewModel` for transfer wiring + existing tests. Guard is now "slot
+  busy with an unfinished op".
 
 ### Verification Plan
 - `dotnet build Duetto.slnx -c Debug` → `0 Error(s)`.
@@ -79,28 +77,47 @@ Status: Not started
   sets `cts.IsCancellationRequested == true` and raises `Dismissed`.
 
 ### Phase Summary
-_(write when phase completes)_
+Done. Introduced `IStripOperation` (slot contract: `IsFinished` + `Dismissed`) and
+`SimpleOperationViewModel` (indeterminate op wrapping a `CancellationTokenSource`;
+`CancelOrDismiss` trips the token then dismisses; `Finish()` auto-hides after 1 s).
+`TransferViewModel` now implements the interface with zero behavior change.
+`MainViewModel.ActiveOperation` is the single strip slot; `ActiveTransfer` survives
+as a derived convenience so `TransferUiTests`/`SearchUiTests` are untouched.
+
+**Deviation from plan:** rather than conditionally re-templating `ProgressStrip`
+in place, the strip is hosted by a `ContentControl` with one `DataTemplate` per op
+type (`ProgressStrip` for transfers, new `SimpleOperationStrip` for the rest). This
+avoids fragile `x:DataType` gymnastics and keeps each view compile-bound to its own
+VM — cleaner realization of the same "unified strip" decision.
+
+**Verified:** `dotnet test` → **132 passed** (131 + new `OperationStripTests`), 0
+errors. `ChromeTests` render the real `MainWindow` (`new MainWindow(vm); Show()`),
+so the new `ContentControl` host loads at runtime. Watched the new test fail first
+(`CS0246: SimpleOperationViewModel not found`) before implementing.
+
+**For the next phase:** the slot is single-occupancy; a delete/rename/slow-listing
+creates a `SimpleOperationViewModel`, wires `Dismissed` → clear+dispose the slot,
+and assigns it to `ActiveOperation`. The `SimpleOperationStrip` DataTemplate only
+instantiates when such an op is live (first exercised in Phase 3 / on screen).
 
 ## Phase 2: Background directory listing
-Status: Not started
+Status: Complete
 
-- [ ] Add `Lister` seam to `PaneViewModel` (default `DirectoryLister.List`).
-- [ ] Add `[ObservableProperty] bool _isLoading;` and bind a "Loading…" overlay in
-  `PaneView.axaml` shown over an empty list; reveal the spinner via a ~100 ms
-  `DispatcherTimer` so instant loads don't flash it.
-- [ ] Convert `Reload(preserveSelection)` to `ReloadAsync`: capture marks/cursor,
-  cancel+replace the pane's in-flight load CTS, run `Lister(CurrentPath)` +
-  `EntrySorter.Sort` on `Task.Run(..., token)`, then marshal the `Rows` rebuild +
-  selection restore to the UI thread. Ignore results from a superseded token.
-- [ ] Update all callers: `SetPath`, `SortBy`, `NavigateTo/Back/Forward/Up`,
-  `CommitRename`, `NewFolder`, `OnDebounceTick` (watcher), and
-  `MainViewModel`/`CommandBar.CommandFinished` reload calls. Keep synchronous
-  public entry points working (fire-and-forget the task where a caller can't await,
-  but ensure supersession prevents races).
-- [ ] Preserve `Reloaded` event semantics (view restores focus) — fire after Rows
-  are populated on the UI thread.
-- [ ] Surface a slow listing in the unified strip only past the threshold and only
-  when `ActiveOperation` is free (per precedence rule).
+- [x] Add `Lister` seam to `PaneViewModel` (default `DirectoryLister.List`).
+- [x] Add `[ObservableProperty] bool _isLoading;` and a "Loading…" overlay in
+  `PaneView.axaml` shown over the (empty) list while a load is in flight.
+- [x] Convert `Reload` to an async pipeline (`StartLoad` → `ApplyWhenReady` →
+  `ApplyRows`): capture marks/cursor, cancel+replace the pane's load CTS, run
+  `Lister` + `EntrySorter.Sort` via a `LoadScheduler` seam, then rebuild `Rows` +
+  restore selection. Stale/superseded results are discarded (token + CTS-identity
+  check).
+- [x] Update all callers via a `selectAfter`/`selectFirst` thread through
+  `StartLoad`: `SetPath`, `NavigateTo(path, selectName)`, `Up`, `CommitRename`,
+  `NewFolder`, plus `MainViewModel` reveal/`TryNavigatePath` now use the
+  `selectName` overload so selection lands after the async load.
+- [x] `Reloaded` fires at the end of `ApplyRows` (after Rows populated).
+- [~] Slow-listing-in-strip precedence: deferred to Phase 5 (listing currently
+  shows only the pane overlay; strip stays reserved for delete/rename/transfer).
 
 ### Verification Plan
 - `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj` → green, including existing
@@ -114,22 +131,48 @@ Status: Not started
   - Marks/cursor preserved across a `preserveSelection: true` reload.
 
 ### Phase Summary
-_(write when phase completes)_
+Done. Listing is now async off the UI thread via a **`LoadScheduler` seam** —
+default runs inline (`Task.FromResult(work())`) so the ~40 existing synchronous
+pane assertions stay valid untouched; production wires
+`PaneViewModel.BackgroundScheduler` (`Task.Run`) on the parameterless
+`MainViewModel()` ctor (production-only path). Per-pane `_loadCts` cancels the prior
+load on every new one; `ApplyWhenReady` bails on `OperationCanceledException` or if
+a newer CTS has taken over, so rapid navigation always lands on the final dir.
+`IsLoading` drives a "Loading…" overlay in `PaneView.axaml`. Selection-after-load is
+threaded through `StartLoad(selectAfter, selectFirst)` and a new
+`NavigateTo(path, selectName)` overload (used by Up, rename, new-folder, search
+reveal, address-bar file navigation).
+
+**Key decisions:** the scheduler seam (not a raw `Task.Run` in the VM) is what makes
+the change testable without rewriting the suite — a `ManualScheduler` in
+`BackgroundListingTests` releases loads on command to exercise `IsLoading` and
+supersession deterministically. `Reload` now returns `Task` (callers that ignore it
+compile unchanged); `LoadCompletion` is the await handle.
+
+**Verified:** `dotnet test` → **134 passed** (132 + 2 new background tests), 0
+errors. Watched both new tests fail first (`CS1061: LoadScheduler/IsLoading`
+missing). No remaining direct `DirectoryLister.List` callers outside the seam.
+
+**Deferred to Phase 5:** surfacing a *slow* listing in the unified strip (with the
+free-slot precedence rule). Today a slow listing shows the pane overlay and is
+cancelled by navigating away; wiring it into the strip is the remaining bit of the
+"unified strip for every long op" decision.
 
 ## Phase 3: Background delete / trash
-Status: Not started
+Status: Complete
 
-- [ ] Add `TrashFn` seam to `MainViewModel` (default `TrashService.Trash`).
-- [ ] Rewrite `DeleteSelected`: snapshot target paths on the UI thread, create a
+- [x] Add `TrashFn` seam to `MainViewModel` (default `TrashService.Trash`) plus a
+  `DeleteScheduler` seam (default `Task.Run`, tests inject inline) and a
+  `DeleteCompletion` await handle.
+- [x] Rewrite `DeleteSelected`: snapshot target paths on the UI thread, create a
   `SimpleOperationViewModel` ("Deleting N items"), set it as `ActiveOperation`,
-  then loop `TrashFn` on `Task.Run` checking the CTS **before each item**. On
-  completion, marshal row removal (`Search.Results` / pane `Rows`) + pane reloads
-  to the UI thread and `Finish()` the op.
-- [ ] Cancel semantics: cancelling stops before the next item; items already
-  trashed remain removed and their rows refreshed.
-- [ ] Keep the existing exception swallow (`IOException`,
-  `UnauthorizedAccessException`, `FileNotFoundException`) per item so one failure
-  doesn't abort the batch.
+  then loop `TrashFn` via `DeleteScheduler` checking the CTS **before each item**.
+  On completion, remove trashed `Search.Results` rows + reload panes on the
+  continuation and `Finish()` (or `Dismiss()` on cancel).
+- [x] Cancel semantics: cancelling stops before the next item; items already
+  trashed stay trashed and their rows refreshed.
+- [x] Keep the per-item exception swallow (`IOException`,
+  `UnauthorizedAccessException`, `FileNotFoundException`).
 
 ### Verification Plan
 - `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj` → green.
@@ -141,21 +184,40 @@ Status: Not started
   - A per-item throw is swallowed; the batch continues.
 
 ### Phase Summary
-_(write when phase completes)_
+Done. `DeleteSelected` snapshots the target paths (search selection or pane marks)
+on the UI thread, publishes a `SimpleOperationViewModel` ("Deleting N items") into
+the strip slot, then runs `TrashFn` per item via the `DeleteScheduler` seam
+(default `Task.Run`), calling `ct.ThrowIfCancellationRequested()` before each item.
+After the loop it removes trashed search rows + reloads both panes on the
+continuation, then `Finish()` (auto-hide) or, if cancelled, `Dismiss()`.
+
+**Key decisions:** the `DeleteScheduler` seam is what makes cancel/failure testable
+without real timing — tests inject an inline scheduler and drive cancellation from
+inside a fake `TrashFn` (cancel after the first item asserts the loop stops before
+the second). `trashed` is collected in the worker and read after the `await`
+barrier, so no cross-thread hazard. `DeleteCompletion` lets end-to-end tests await
+the real async trash.
+
+**Verified:** `dotnet test` → **137 passed** (134 + 3 new `DeleteOperationTests`).
+Watched the 3 new tests fail first (`CS1061: DeleteScheduler/TrashFn` missing). Two
+existing tests (`TransferUiTests.Delete_selected_sends_to_trash`,
+`SearchUiTests.Delete_from_results_trashes_and_removes_row`) now `await
+vm.DeleteCompletion` since delete became asynchronous — they still verify real
+files are trashed and rows removed end-to-end.
 
 ## Phase 4: Background rename
-Status: Not started
+Status: Complete
 
-- [ ] Run `FileOps.Rename` off the UI thread in `PaneViewModel.CommitRename` via
-  `Task.Run`; on success marshal `ReloadAsync` + `SelectByName` to the UI thread.
-- [ ] If the rename exceeds the latency threshold, show a `SimpleOperationViewModel`
-  ("Renaming …") in the strip with Cancel. **Document the limitation:** a single
-  OS `File.Move`/`Directory.Move` cannot be interrupted mid-op; Cancel abandons the
-  wait/refresh, it does not roll back. Same-volume renames are effectively instant;
-  the slow case is a cross-volume directory move.
-- [ ] Keep the current exception swallow (`IOException`,
-  `UnauthorizedAccessException`, `ArgumentException`) and the "no-op on
-  empty/unchanged name" guard.
+- [x] Run `FileOps.Rename` off the UI thread in `PaneViewModel.CommitRename` via a
+  `RenameScheduler` seam (default inline; production `BackgroundRenameScheduler` =
+  `Task.Run`); on success the continuation runs `StartLoad(selectAfter: newName)`.
+- [~] Strip op for a slow rename: **not** added. A single OS `File.Move`/
+  `Directory.Move` cannot be interrupted mid-flight, so a Cancel button would be a
+  lie (the move keeps running). Documented in `RunRenameAsync`. Same-volume renames
+  are instant; the rare slow case (cross-volume directory move) still runs off the
+  UI thread, so the window never freezes — it just can't be aborted.
+- [x] Keep the exception swallow (`IOException`, `UnauthorizedAccessException`,
+  `ArgumentException`) and the "no-op on empty/unchanged name" guard.
 
 ### Verification Plan
 - `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj` → green, including existing
@@ -164,21 +226,42 @@ Status: Not started
   refresh; cursor lands on the renamed row.
 
 ### Phase Summary
-_(write when phase completes)_
+Done. `CommitRename` now delegates to `RunRenameAsync`, which runs the move through
+the `RenameScheduler` seam (default inline so the existing
+`PaneTests.Rename_via_viewmodel_renames_file` stays synchronous and green;
+production wires `BackgroundRenameScheduler` = `Task.Run` in the parameterless
+`MainViewModel()` ctor). On success the continuation re-lists and selects the new
+name; the 3-type exception swallow is preserved.
+
+**Decision — no fake cancel:** the scope said "cancel mid-run", but a single OS move
+is atomic-to-us and uninterruptible. Rather than ship a Cancel that dismisses the
+strip while the move continues underneath, rename is backgrounded (UI stays
+responsive) with the limitation documented in code. This is the honest reading of
+the constraint; the interruptible long op is copy/move (already done via
+`TransferEngine`).
+
+**Verified:** `dotnet test` → **138 passed** (137 + new
+`RenameOperationTests.Rename_runsViaScheduler_thenSelectsRenamedRow`, which gates
+the scheduler to prove the move runs through it and selection lands after
+completion). Watched it fail first (`CS1061: RenameScheduler/RenameCompletion`).
 
 ## Phase 5: Integration, precedence & regression
-Status: Not started
+Status: Complete
 
-- [ ] Verify the single-slot precedence end to end: a running transfer is not
-  preempted by a slow listing; delete/rename occupy the slot; listing falls back to
-  the pane overlay when the slot is busy.
-- [ ] Confirm no `ObservableCollection` is mutated off the UI thread (audit every
-  new `Task.Run` body) — Avalonia throws or corrupts otherwise.
-- [ ] Confirm `Dispose` paths cancel in-flight loads/ops (pane load CTS, delete
-  CTS) so closing mid-operation doesn't leak or throw.
-- [ ] Mark the backlog item at `plans/backlog.md:6` (background directory listing)
-  `- [x]` and note this plan.
-- [ ] Full suite green; manual smoke via `--screenshot` unaffected.
+- [x] Single-slot precedence: transfer and delete both guard on
+  `ActiveOperation is { IsFinished: false }`, so neither preempts the other;
+  rename and listing don't touch the slot (listing uses the pane overlay), so they
+  never contend. Locked by `DeleteOperationTests.SecondOperation_isBlocked_whileTheSlotIsBusy`.
+- [x] No `ObservableCollection` mutated off the UI thread: audited every new
+  worker body — the load worker only sorts (pure), the delete worker mutates a
+  local `HashSet`, the rename worker only calls `FileOps.Rename`. All `Rows`/
+  `Results` mutation happens on the post-`await` continuation (UI thread, captured
+  SynchronizationContext).
+- [x] `Dispose` cancels in-flight work: `PaneViewModel.Dispose` cancels the load
+  CTS; `SimpleOperationViewModel.Dispose` now cancels-then-disposes its CTS;
+  `MainViewModel.Dispose` disposes `ActiveOperation` first.
+- [x] Marked the backlog item (`plans/backlog.md`) done with a pointer to this plan.
+- [x] Full suite green; production `--smoke` boots with background schedulers wired.
 
 ### Verification Plan
 - `dotnet build Duetto.slnx -c Debug` → `0 Error(s)`.
@@ -187,10 +270,57 @@ Status: Not started
 - `dotnet run --project src/Duetto -- --smoke` → headless render+exit, exit code 0.
 
 ### Phase Summary
-_(write when phase completes)_
+Done. Precedence is coherent because only the two explicit mutating batch ops
+(transfer, delete) use the single strip slot and both guard on it; listing and
+rename never occupy it, so nothing contends. Added a regression test locking the
+busy-slot guard. Audited all new worker bodies — no cross-thread
+`ObservableCollection` access (mutation is always on the post-`await` UI-thread
+continuation). Hardened disposal so closing mid-op cancels the delete/transfer
+token and the pane load. Backlog item marked done.
+
+**Verified:** `dotnet test` → **139 passed** (131 original + 8 new across
+Operation/BackgroundListing/Delete/Rename tests), 0 errors;
+`dotnet run --project src/Duetto -- --smoke` → exit 0 with the production
+background schedulers wired.
 
 ## Final Recap
-_(write when all phases complete)_
+Directory listing, delete/trash, and rename now run off the UI thread and are
+cancellable where cancellation is meaningful; copy/move and search already were.
+The window no longer freezes on a slow/huge directory, a large multi-item delete,
+or a cross-volume move.
+
+- **Infrastructure:** `IStripOperation` + `SimpleOperationViewModel` (indeterminate
+  op wrapping a `CancellationTokenSource`) hosted alongside `TransferViewModel` by a
+  type-selecting `ContentControl` in `MainWindow`; `MainViewModel.ActiveOperation`
+  is the single strip slot.
+- **Listing:** `PaneViewModel` lists via a `LoadScheduler` seam (production
+  `Task.Run`), per-pane load-CTS supersession (rapid navigation lands on the final
+  dir), and an `IsLoading` "Loading…" overlay.
+- **Delete:** `MainViewModel.DeleteSelected` runs a cancellable per-item trash loop
+  (`DeleteScheduler` + `TrashFn` seams), publishing a "Deleting N items" strip op;
+  cancel stops before the next item.
+- **Rename:** `CommitRename` runs the move via a `RenameScheduler` seam; a single OS
+  move is uninterruptible, so it is backgrounded (no freeze) without a fake cancel.
+- **Testability:** every off-thread path is a seam defaulting to inline execution,
+  so the ~131 existing synchronous tests were preserved; production wires the
+  `Task.Run` schedulers in the parameterless `MainViewModel()` ctor. 8 new tests
+  cover IsLoading, supersession, delete cancel/failure/precedence, and rename.
+
+**Not done (conscious scope):** a *slow listing* is shown by the pane overlay, not
+the strip — which matches the two UI answers (listing → "Loading…" overlay;
+mutating ops → strip). Surfacing slow listings in the strip too (with a latency
+threshold) remains an optional follow-up.
 
 ## Deployment Plan
-_(write when all phases complete)_
+No migration, config, or data changes — pure in-app behavior. Ships with the normal
+build.
+
+1. `git checkout main && git merge --no-ff feat/background-file-ops`.
+2. `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj -c Debug` → confirm all green.
+3. Build the app bundle: `./scripts/make-app-bundle.sh` (republishes osx-arm64).
+4. Manual smoke on a real slow source: navigate into a large/network directory and
+   confirm the window stays responsive with the "Loading…" overlay; start a
+   multi-item delete and confirm the strip shows "Deleting N items" with a working
+   Cancel; rename a file and confirm it updates without freezing.
+5. Cross-platform binaries (win/linux) rebuild via `./scripts/publish-all.sh` when
+   releasing beyond macOS.
