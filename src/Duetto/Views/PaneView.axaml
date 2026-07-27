@@ -96,8 +96,9 @@
                   <StackPanel Margin="6,7,6,6">
                     <!-- invisible-border filter box: it has focus; typing filters -->
                     <TextBox x:Name="DriveFilterBox" Text="{Binding FilterText}"
-                             Background="Transparent" BorderThickness="0" MinHeight="0"
-                             Padding="10,0,10,4" FontSize="11" CaretBrush="{StaticResource Accent}"
+                             Watermark="Filter drives…"
+                             Background="Transparent" BorderThickness="0" MinHeight="32"
+                             Padding="10,7" FontSize="12.5" CaretBrush="{StaticResource Accent}"
                              KeyDown="OnDriveFilterKeyDown" />
                     <TextBlock Text="THIS MACHINE" FontSize="10.5" LetterSpacing="0.6"
                                Foreground="{StaticResource HeaderText}" Margin="10,0,10,6" />
