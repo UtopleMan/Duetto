@@ -1,9 +1,9 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/Duet.Core/Duet.Core.csproj" />
-    <Project Path="src/Duet/Duet.csproj" />
+    <Project Path="src/Duetto.Core/Duetto.Core.csproj" />
+    <Project Path="src/Duetto/Duetto.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Duet.Tests/Duet.Tests.csproj" />
+    <Project Path="tests/Duetto.Tests/Duetto.Tests.csproj" />
   </Folder>
 </Solution>

@@ -4,7 +4,7 @@
 
 **Goal:** Drive popover (design 2a) opened from a new volume chip in each pane's path bar: local volumes with capacity bars, Connect… stub, Eject on mac/linux.
 
-**Architecture:** Pure volume catalog + ejector in `Duet.Core` (injected data/process-runner, unit-tested). Per-pane `DrivePopoverViewModel` in the app wires catalog to pane navigation. `PaneView` path bar splits into a chip `Button` whose `Flyout` hosts the popover card. Spec: `plans/2026-07-26-drive-popover-design.md`.
+**Architecture:** Pure volume catalog + ejector in `Duetto.Core` (injected data/process-runner, unit-tested). Per-pane `DrivePopoverViewModel` in the app wires catalog to pane navigation. `PaneView` path bar splits into a chip `Button` whose `Flyout` hosts the popover card. Spec: `plans/2026-07-26-drive-popover-design.md`.
 
 **Tech Stack:** net10.0, Avalonia 11.3.18 (+ Avalonia.Headless.XUnit in tests), CommunityToolkit.Mvvm 8.4.2, xunit.
 
@@ -13,19 +13,19 @@
 - No new NuGet packages.
 - Colors come from `App.axaml` resources where a key exists (`Accent` #2f6fd0, `ChipBg` #eef1f7, `RowHover` #f2f0ec, `HairlineLight` #e6e3dc, `HeaderText` #918f85, `MonoFont`); new literal colors allowed only for the three bar colors `#2f8f5b` / `#c07a3a` / `#b8443c` and swatch gray `#5b5950`.
 - MVVM style: `ObservableObject` + `[ObservableProperty]`/`[RelayCommand]`, replaceable `Func<>`/delegate properties for test seams (see `PaneViewModel.LaunchFile`).
-- Tests: Core logic in `tests/Duet.Tests/Core` (plain xunit `[Fact]`), UI in `tests/Duet.Tests/Ui` (`[AvaloniaFact]`).
-- Test command: `dotnet test tests/Duet.Tests/Duet.Tests.csproj --filter "<filter>"` from repo root.
+- Tests: Core logic in `tests/Duetto.Tests/Core` (plain xunit `[Fact]`), UI in `tests/Duetto.Tests/Ui` (`[AvaloniaFact]`).
+- Test command: `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj --filter "<filter>"` from repo root.
 - Commit messages: plain imperative sentence, no attribution trailers, no AI mentions.
 - Exception handling mirrors existing code: catch specific exception types only (`IOException`, `UnauthorizedAccessException`, …), never bare `catch`.
 
 ---
 
-### Task 1: VolumeInfo + VolumeCatalog (Duet.Core)
+### Task 1: VolumeInfo + VolumeCatalog (Duetto.Core)
 
 **Files:**
-- Create: `src/Duet.Core/FileSystem/VolumeInfo.cs`
-- Create: `src/Duet.Core/FileSystem/VolumeCatalog.cs`
-- Test: `tests/Duet.Tests/Core/VolumeCatalogTests.cs`
+- Create: `src/Duetto.Core/FileSystem/VolumeInfo.cs`
+- Create: `src/Duetto.Core/FileSystem/VolumeCatalog.cs`
+- Test: `tests/Duetto.Tests/Core/VolumeCatalogTests.cs`
 
 **Interfaces:**
 - Consumes: `FormatUtil.HumanSize(long)` (existing).
@@ -39,12 +39,12 @@
 
 - [ ] **Step 1: Write the failing tests**
 
-`tests/Duet.Tests/Core/VolumeCatalogTests.cs`:
+`tests/Duetto.Tests/Core/VolumeCatalogTests.cs`:
 
 ```csharp
-using Duet.Core.FileSystem;
+using Duetto.Core.FileSystem;
 
-namespace Duet.Tests.Core;
+namespace Duetto.Tests.Core;
 
 public class VolumeCatalogTests
 {
@@ -149,15 +149,15 @@ public class VolumeCatalogTests
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `dotnet test tests/Duet.Tests/Duet.Tests.csproj --filter "FullyQualifiedName~VolumeCatalogTests"`
+Run: `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj --filter "FullyQualifiedName~VolumeCatalogTests"`
 Expected: build error — `VolumeCatalog` does not exist.
 
 - [ ] **Step 3: Implement**
 
-`src/Duet.Core/FileSystem/VolumeInfo.cs`:
+`src/Duetto.Core/FileSystem/VolumeInfo.cs`:
 
 ```csharp
-namespace Duet.Core.FileSystem;
+namespace Duetto.Core.FileSystem;
 
 public enum VolumePlatform
 {
@@ -177,10 +177,10 @@ public sealed record VolumeInfo(
 }
 ```
 
-`src/Duet.Core/FileSystem/VolumeCatalog.cs`:
+`src/Duetto.Core/FileSystem/VolumeCatalog.cs`:
 
 ```csharp
-namespace Duet.Core.FileSystem;
+namespace Duetto.Core.FileSystem;
 
 public static class VolumeCatalog
 {
@@ -296,23 +296,23 @@ public static class VolumeCatalog
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `dotnet test tests/Duet.Tests/Duet.Tests.csproj --filter "FullyQualifiedName~VolumeCatalogTests"`
+Run: `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj --filter "FullyQualifiedName~VolumeCatalogTests"`
 Expected: all pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/Duet.Core/FileSystem/VolumeInfo.cs src/Duet.Core/FileSystem/VolumeCatalog.cs tests/Duet.Tests/Core/VolumeCatalogTests.cs
+git add src/Duetto.Core/FileSystem/VolumeInfo.cs src/Duetto.Core/FileSystem/VolumeCatalog.cs tests/Duetto.Tests/Core/VolumeCatalogTests.cs
 git commit -m "Volume catalog with capacity and ejectable rules"
 ```
 
 ---
 
-### Task 2: VolumeEjector (Duet.Core)
+### Task 2: VolumeEjector (Duetto.Core)
 
 **Files:**
-- Create: `src/Duet.Core/FileSystem/VolumeEjector.cs`
-- Test: `tests/Duet.Tests/Core/VolumeEjectorTests.cs`
+- Create: `src/Duetto.Core/FileSystem/VolumeEjector.cs`
+- Test: `tests/Duetto.Tests/Core/VolumeEjectorTests.cs`
 
 **Interfaces:**
 - Consumes: `VolumePlatform` (Task 1).
@@ -324,12 +324,12 @@ git commit -m "Volume catalog with capacity and ejectable rules"
 
 - [ ] **Step 1: Write the failing tests**
 
-`tests/Duet.Tests/Core/VolumeEjectorTests.cs`:
+`tests/Duetto.Tests/Core/VolumeEjectorTests.cs`:
 
 ```csharp
-using Duet.Core.FileSystem;
+using Duetto.Core.FileSystem;
 
-namespace Duet.Tests.Core;
+namespace Duetto.Tests.Core;
 
 public class VolumeEjectorTests
 {
@@ -415,18 +415,18 @@ public static Task<EjectResult> EjectAsync(
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `dotnet test tests/Duet.Tests/Duet.Tests.csproj --filter "FullyQualifiedName~VolumeEjectorTests"`
+Run: `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj --filter "FullyQualifiedName~VolumeEjectorTests"`
 Expected: build error — `VolumeEjector` does not exist.
 
 - [ ] **Step 3: Implement**
 
-`src/Duet.Core/FileSystem/VolumeEjector.cs`:
+`src/Duetto.Core/FileSystem/VolumeEjector.cs`:
 
 ```csharp
 using System.ComponentModel;
 using System.Diagnostics;
 
-namespace Duet.Core.FileSystem;
+namespace Duetto.Core.FileSystem;
 
 public sealed record EjectResult(bool Success, string Error);
 
@@ -501,13 +501,13 @@ public static class VolumeEjector
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `dotnet test tests/Duet.Tests/Duet.Tests.csproj --filter "FullyQualifiedName~VolumeEjectorTests"`
+Run: `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj --filter "FullyQualifiedName~VolumeEjectorTests"`
 Expected: all pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/Duet.Core/FileSystem/VolumeEjector.cs tests/Duet.Tests/Core/VolumeEjectorTests.cs
+git add src/Duetto.Core/FileSystem/VolumeEjector.cs tests/Duetto.Tests/Core/VolumeEjectorTests.cs
 git commit -m "Volume ejector with per-platform commands and fallback"
 ```
 
@@ -516,8 +516,8 @@ git commit -m "Volume ejector with per-platform commands and fallback"
 ### Task 3: DrivePopoverViewModel + VolumeRowViewModel
 
 **Files:**
-- Create: `src/Duet/ViewModels/DrivePopoverViewModel.cs`
-- Test: `tests/Duet.Tests/Ui/DrivePopoverTests.cs`
+- Create: `src/Duetto/ViewModels/DrivePopoverViewModel.cs`
+- Test: `tests/Duetto.Tests/Ui/DrivePopoverTests.cs`
 
 **Interfaces:**
 - Consumes: `VolumeCatalog.List/FindByPath`, `VolumeInfo`, `VolumeEjector.EjectAsync`, `EjectResult` (Tasks 1–2); `PaneViewModel.NavigateTo(string)`, `PaneViewModel.CurrentPath` (existing).
@@ -542,15 +542,15 @@ git commit -m "Volume ejector with per-platform commands and fallback"
 
 - [ ] **Step 1: Write the failing tests**
 
-`tests/Duet.Tests/Ui/DrivePopoverTests.cs` (VM-only, but lives in Ui — it depends on the app project like other Ui tests; uses `[AvaloniaFact]` because `PaneViewModel` touches Avalonia types):
+`tests/Duetto.Tests/Ui/DrivePopoverTests.cs` (VM-only, but lives in Ui — it depends on the app project like other Ui tests; uses `[AvaloniaFact]` because `PaneViewModel` touches Avalonia types):
 
 ```csharp
 using Avalonia.Headless.XUnit;
-using Duet.Core.FileSystem;
-using Duet.Tests.Core;
-using Duet.ViewModels;
+using Duetto.Core.FileSystem;
+using Duetto.Tests.Core;
+using Duetto.ViewModels;
 
-namespace Duet.Tests.Ui;
+namespace Duetto.Tests.Ui;
 
 public class DrivePopoverTests
 {
@@ -659,20 +659,20 @@ on eject success when `pane.CurrentPath` is under the ejected mount, navigate to
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `dotnet test tests/Duet.Tests/Duet.Tests.csproj --filter "FullyQualifiedName~DrivePopoverTests"`
+Run: `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj --filter "FullyQualifiedName~DrivePopoverTests"`
 Expected: build error — `DrivePopoverViewModel` / `pane.Drives` do not exist. (`pane.Drives` arrives in this task too — see step 3.)
 
 - [ ] **Step 3: Implement**
 
-`src/Duet/ViewModels/DrivePopoverViewModel.cs`:
+`src/Duetto/ViewModels/DrivePopoverViewModel.cs`:
 
 ```csharp
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Duet.Core.FileSystem;
+using Duetto.Core.FileSystem;
 
-namespace Duet.ViewModels;
+namespace Duetto.ViewModels;
 
 public sealed class VolumeRowViewModel(VolumeInfo volume, bool isCurrent)
 {
@@ -800,7 +800,7 @@ public partial class DrivePopoverViewModel(PaneViewModel pane) : ObservableObjec
 }
 ```
 
-Wire into `PaneViewModel` (modify `src/Duet/ViewModels/PaneViewModel.cs`): add the
+Wire into `PaneViewModel` (modify `src/Duetto/ViewModels/PaneViewModel.cs`): add the
 property and construct it in the ctor after `_currentPath` is set:
 
 ```csharp
@@ -818,13 +818,13 @@ property and construct it in the ctor after `_currentPath` is set:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `dotnet test tests/Duet.Tests/Duet.Tests.csproj --filter "FullyQualifiedName~DrivePopoverTests"`
+Run: `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj --filter "FullyQualifiedName~DrivePopoverTests"`
 Expected: all pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/Duet/ViewModels/DrivePopoverViewModel.cs src/Duet/ViewModels/PaneViewModel.cs tests/Duet.Tests/Ui/DrivePopoverTests.cs
+git add src/Duetto/ViewModels/DrivePopoverViewModel.cs src/Duetto/ViewModels/PaneViewModel.cs tests/Duetto.Tests/Ui/DrivePopoverTests.cs
 git commit -m "Drive popover view model with filter, navigation and eject"
 ```
 
@@ -833,9 +833,9 @@ git commit -m "Drive popover view model with filter, navigation and eject"
 ### Task 4: Path-bar chip properties + side labels
 
 **Files:**
-- Modify: `src/Duet/ViewModels/PaneViewModel.cs`
-- Modify: `src/Duet/ViewModels/MainViewModel.cs` (ctor)
-- Test: `tests/Duet.Tests/Ui/DrivePopoverTests.cs` (append)
+- Modify: `src/Duetto/ViewModels/PaneViewModel.cs`
+- Modify: `src/Duetto/ViewModels/MainViewModel.cs` (ctor)
+- Test: `tests/Duetto.Tests/Ui/DrivePopoverTests.cs` (append)
 
 **Interfaces:**
 - Consumes: `DrivePopoverViewModel.VolumeFor(string)` (Task 3).
@@ -846,7 +846,7 @@ git commit -m "Drive popover view model with filter, navigation and eject"
 
 - [ ] **Step 1: Write the failing tests**
 
-Append to `tests/Duet.Tests/Ui/DrivePopoverTests.cs`:
+Append to `tests/Duetto.Tests/Ui/DrivePopoverTests.cs`:
 
 ```csharp
     [AvaloniaFact]
@@ -890,7 +890,7 @@ Append to `tests/Duet.Tests/Ui/DrivePopoverTests.cs`:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `dotnet test tests/Duet.Tests/Duet.Tests.csproj --filter "FullyQualifiedName~DrivePopoverTests"`
+Run: `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj --filter "FullyQualifiedName~DrivePopoverTests"`
 Expected: build error — `VolumeChipText` does not exist.
 
 - [ ] **Step 3: Implement**
@@ -936,13 +936,13 @@ In `MainViewModel` ctor, right after `Right = new PaneViewModel(rightPath);`:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `dotnet test tests/Duet.Tests/Duet.Tests.csproj --filter "FullyQualifiedName~DrivePopoverTests"`
+Run: `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj --filter "FullyQualifiedName~DrivePopoverTests"`
 Expected: all pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/Duet/ViewModels/PaneViewModel.cs src/Duet/ViewModels/MainViewModel.cs tests/Duet.Tests/Ui/DrivePopoverTests.cs
+git add src/Duetto/ViewModels/PaneViewModel.cs src/Duetto/ViewModels/MainViewModel.cs tests/Duetto.Tests/Ui/DrivePopoverTests.cs
 git commit -m "Path bar splits into volume chip and tail"
 ```
 
@@ -951,9 +951,9 @@ git commit -m "Path bar splits into volume chip and tail"
 ### Task 5: Chip + popover UI in PaneView
 
 **Files:**
-- Modify: `src/Duet/Views/PaneView.axaml` (path-bar `DockPanel`, lines ~33–48, plus styles)
-- Modify: `src/Duet/Views/PaneView.axaml.cs`
-- Test: `tests/Duet.Tests/Ui/DrivePopoverTests.cs` (append)
+- Modify: `src/Duetto/Views/PaneView.axaml` (path-bar `DockPanel`, lines ~33–48, plus styles)
+- Modify: `src/Duetto/Views/PaneView.axaml.cs`
+- Test: `tests/Duetto.Tests/Ui/DrivePopoverTests.cs` (append)
 
 **Interfaces:**
 - Consumes: `PaneViewModel.VolumeChipText/PathTailText/Drives` (Tasks 3–4), `DrivePopoverViewModel` members (Task 3), resources from `App.axaml`.
@@ -961,7 +961,7 @@ git commit -m "Path bar splits into volume chip and tail"
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `tests/Duet.Tests/Ui/DrivePopoverTests.cs`:
+Append to `tests/Duetto.Tests/Ui/DrivePopoverTests.cs`:
 
 ```csharp
     [AvaloniaFact]
@@ -981,12 +981,12 @@ Append to `tests/Duet.Tests/Ui/DrivePopoverTests.cs`:
     }
 ```
 
-Add `using Avalonia.VisualTree;`, `using Avalonia.Controls;` and `using Duet.Views;`
+Add `using Avalonia.VisualTree;`, `using Avalonia.Controls;` and `using Duetto.Views;`
 to the file's usings (then `Views.PaneView` becomes just `PaneView`).
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `dotnet test tests/Duet.Tests/Duet.Tests.csproj --filter "FullyQualifiedName~Path_bar_shows_volume_chip"`
+Run: `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj --filter "FullyQualifiedName~Path_bar_shows_volume_chip"`
 Expected: FAIL — `FindControl("VolumeChip")` returns null.
 
 - [ ] **Step 3: Implement the XAML**
@@ -1260,12 +1260,12 @@ no unsubscribe bookkeeping is needed — mirrors the `Reloaded` handling.)
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `dotnet test tests/Duet.Tests/Duet.Tests.csproj --filter "FullyQualifiedName~Path_bar_shows_volume_chip"`
+Run: `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj --filter "FullyQualifiedName~Path_bar_shows_volume_chip"`
 Expected: PASS.
 
 - [ ] **Step 6: Run the whole suite (UI regressions)**
 
-Run: `dotnet test tests/Duet.Tests/Duet.Tests.csproj`
+Run: `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj`
 Expected: all pass. Watch for `ChromeTests` / `PaneTests` breaking on the path-bar
 change — those assert against `PathText`; update any assertion that expected the
 full path in `PathText` to use `PathTailText` semantics or the chip.
@@ -1273,7 +1273,7 @@ full path in `PathText` to use `PathTailText` semantics or the chip.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/Duet/Views/PaneView.axaml src/Duet/Views/PaneView.axaml.cs tests/Duet.Tests/Ui/DrivePopoverTests.cs
+git add src/Duetto/Views/PaneView.axaml src/Duetto/Views/PaneView.axaml.cs tests/Duetto.Tests/Ui/DrivePopoverTests.cs
 git commit -m "Volume chip opens drive popover in path bar"
 ```
 
@@ -1282,10 +1282,10 @@ git commit -m "Volume chip opens drive popover in path bar"
 ### Task 6: Connect… placeholder dialog
 
 **Files:**
-- Create: `src/Duet/Views/ConnectStubWindow.axaml`
-- Create: `src/Duet/Views/ConnectStubWindow.axaml.cs`
-- Modify: `src/Duet/Views/PaneView.axaml.cs` (handle `ConnectRequested`)
-- Test: `tests/Duet.Tests/Ui/DrivePopoverTests.cs` (append)
+- Create: `src/Duetto/Views/ConnectStubWindow.axaml`
+- Create: `src/Duetto/Views/ConnectStubWindow.axaml.cs`
+- Modify: `src/Duetto/Views/PaneView.axaml.cs` (handle `ConnectRequested`)
+- Test: `tests/Duetto.Tests/Ui/DrivePopoverTests.cs` (append)
 
 **Interfaces:**
 - Consumes: `DrivePopoverViewModel.ConnectRequested` / `Connect()` (Task 3).
@@ -1293,7 +1293,7 @@ git commit -m "Volume chip opens drive popover in path bar"
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `tests/Duet.Tests/Ui/DrivePopoverTests.cs`:
+Append to `tests/Duetto.Tests/Ui/DrivePopoverTests.cs`:
 
 ```csharp
     [AvaloniaFact]
@@ -1313,18 +1313,18 @@ Append to `tests/Duet.Tests/Ui/DrivePopoverTests.cs`:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `dotnet test tests/Duet.Tests/Duet.Tests.csproj --filter "FullyQualifiedName~Connect_command_raises_request"`
+Run: `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj --filter "FullyQualifiedName~Connect_command_raises_request"`
 Expected: PASS already if Task 3 shipped `Connect()`/`ConnectRequested` — then this
 step only guards the contract. If it fails to build, fix Task 3's VM first.
 
 - [ ] **Step 3: Implement the dialog**
 
-`src/Duet/Views/ConnectStubWindow.axaml`:
+`src/Duetto/Views/ConnectStubWindow.axaml`:
 
 ```xml
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="Duet.Views.ConnectStubWindow"
+        x:Class="Duetto.Views.ConnectStubWindow"
         Title="Connect"
         Width="360" Height="170"
         CanResize="False"
@@ -1344,13 +1344,13 @@ step only guards the contract. If it fails to build, fix Task 3's VM first.
 </Window>
 ```
 
-`src/Duet/Views/ConnectStubWindow.axaml.cs`:
+`src/Duetto/Views/ConnectStubWindow.axaml.cs`:
 
 ```csharp
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 
-namespace Duet.Views;
+namespace Duetto.Views;
 
 public partial class ConnectStubWindow : Window
 {
@@ -1381,13 +1381,13 @@ Task 5 (same `DataContextChanged` block):
 
 - [ ] **Step 4: Run test and build**
 
-Run: `dotnet test tests/Duet.Tests/Duet.Tests.csproj --filter "FullyQualifiedName~DrivePopoverTests"`
+Run: `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj --filter "FullyQualifiedName~DrivePopoverTests"`
 Expected: all pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/Duet/Views/ConnectStubWindow.axaml src/Duet/Views/ConnectStubWindow.axaml.cs src/Duet/Views/PaneView.axaml.cs tests/Duet.Tests/Ui/DrivePopoverTests.cs
+git add src/Duetto/Views/ConnectStubWindow.axaml src/Duetto/Views/ConnectStubWindow.axaml.cs src/Duetto/Views/PaneView.axaml.cs tests/Duetto.Tests/Ui/DrivePopoverTests.cs
 git commit -m "Connect placeholder dialog from drive popover"
 ```
 
@@ -1400,18 +1400,18 @@ git commit -m "Connect placeholder dialog from drive popover"
 
 - [ ] **Step 1: Full suite**
 
-Run: `dotnet test tests/Duet.Tests/Duet.Tests.csproj`
+Run: `dotnet test tests/Duetto.Tests/Duetto.Tests.csproj`
 Expected: all pass (76 pre-existing + new ones). Fix regressions, don't skip.
 
 - [ ] **Step 2: Smoke the app**
 
-Run: `dotnet run --project src/Duet -- --smoke`
+Run: `dotnet run --project src/Duetto -- --smoke`
 Expected: exit 0.
 
 - [ ] **Step 3: Visual check against design 2a**
 
-Run: `dotnet run --project src/Duet -- --screenshot /tmp/duet-popover.png` and also
-launch interactively (`dotnet run --project src/Duet`): click the chip, verify
+Run: `dotnet run --project src/Duetto -- --screenshot /tmp/duetto-popover.png` and also
+launch interactively (`dotnet run --project src/Duetto`): click the chip, verify
 popover layout (header, capacity bars, current-volume tint, Connect… row, eject
 row on an external volume), typing filters, ↑/↓ + Enter navigates, Esc closes.
 

@@ -1,7 +1,7 @@
 # Drive popover — design spec
 
 Date: 2026-07-26
-Source: Claude design spec "Duet File Manager.dc.html", turn 2, option **2a**
+Source: Claude design spec "Duetto File Manager.dc.html", turn 2, option **2a**
 (project 9547189c-a040-4169-8fed-38dc0d79972e on claude.ai/design).
 Scope decided with user: **drives + Connect stub** — no remote backend yet.
 Eject on **macOS and Linux only**.
@@ -18,7 +18,7 @@ dialog) is stubbed with a placeholder.
 
 ## Components
 
-### Duet.Core
+### Duetto.Core
 
 - `FileSystem/VolumeInfo.cs` — record: `Name`, `MountPath`, `TotalBytes`,
   `FreeBytes`, `Format` (e.g. "APFS · 512 GB"), `IsEjectable`.
@@ -39,7 +39,7 @@ dialog) is stubbed with a placeholder.
   - Process-runner injected for tests; returns success or the tool's stderr
     line as the error message.
 
-### Duet (app)
+### Duetto (app)
 
 - `ViewModels/DrivePopoverViewModel.cs` — one per pane:
   - `Refresh()` on open: reload volumes, detect current volume by longest

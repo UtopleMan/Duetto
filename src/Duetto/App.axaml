@@ -1,0 +1,80 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Duetto.App"
+             Name="Duetto"
+             RequestedThemeVariant="Light">
+  <NativeMenu.Menu>
+    <NativeMenu>
+      <NativeMenuItem Header="About Duetto" Click="OnAboutClicked" />
+    </NativeMenu>
+  </NativeMenu.Menu>
+  <Application.Resources>
+    <FontFamily x:Key="MonoFont">avares://Duetto/Assets/Fonts#IBM Plex Mono</FontFamily>
+
+    <!-- Duetto palette (design spec t0/1a-1g) -->
+    <SolidColorBrush x:Key="WindowBg">#faf9f7</SolidColorBrush>
+    <SolidColorBrush x:Key="ChromeBg">#f0eeea</SolidColorBrush>
+    <SolidColorBrush x:Key="ToolbarBg">#f6f5f2</SolidColorBrush>
+    <SolidColorBrush x:Key="Hairline">#e2dfd8</SolidColorBrush>
+    <SolidColorBrush x:Key="HairlineDark">#dcd9d2</SolidColorBrush>
+    <SolidColorBrush x:Key="HairlineLight">#e6e3dc</SolidColorBrush>
+    <SolidColorBrush x:Key="HairlinePale">#ecebe5</SolidColorBrush>
+    <SolidColorBrush x:Key="TextPrimary">#22211d</SolidColorBrush>
+    <SolidColorBrush x:Key="TextBody">#33322c</SolidColorBrush>
+    <SolidColorBrush x:Key="TextMid">#4a4840</SolidColorBrush>
+    <SolidColorBrush x:Key="TextDim">#7c7a70</SolidColorBrush>
+    <SolidColorBrush x:Key="TextFaint">#8c8a80</SolidColorBrush>
+    <SolidColorBrush x:Key="TextGhost">#a8a69c</SolidColorBrush>
+    <SolidColorBrush x:Key="TextHint">#c2bfb5</SolidColorBrush>
+    <SolidColorBrush x:Key="HeaderText">#918f85</SolidColorBrush>
+    <SolidColorBrush x:Key="Accent">#2f6fd0</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentDim">#7d8ba3</SolidColorBrush>
+    <SolidColorBrush x:Key="SelectionBg">#dfe8f7</SolidColorBrush>
+    <SolidColorBrush x:Key="ActivePathBg">#e9eef8</SolidColorBrush>
+    <SolidColorBrush x:Key="ChipBg">#eef1f7</SolidColorBrush>
+    <SolidColorBrush x:Key="ChipBorder">#dbe3f2</SolidColorBrush>
+    <SolidColorBrush x:Key="FolderMark">#c8992f</SolidColorBrush>
+    <SolidColorBrush x:Key="FileMark">#b6b3a8</SolidColorBrush>
+    <SolidColorBrush x:Key="Green">#2f8f5b</SolidColorBrush>
+    <SolidColorBrush x:Key="GreenLight">#8fd0ab</SolidColorBrush>
+    <SolidColorBrush x:Key="SkipAmber">#b08020</SolidColorBrush>
+    <SolidColorBrush x:Key="DangerRed">#d94040</SolidColorBrush>
+    <SolidColorBrush x:Key="DangerText">#a03c3c</SolidColorBrush>
+    <SolidColorBrush x:Key="DangerBg">#f5e6e4</SolidColorBrush>
+    <SolidColorBrush x:Key="TermBg">#26251f</SolidColorBrush>
+    <SolidColorBrush x:Key="TermInputBg">#1c1b16</SolidColorBrush>
+    <SolidColorBrush x:Key="TermPrompt">#7fd6a0</SolidColorBrush>
+    <SolidColorBrush x:Key="TermPath">#8ca8d8</SolidColorBrush>
+    <SolidColorBrush x:Key="TermText">#f0eeea</SolidColorBrush>
+    <SolidColorBrush x:Key="TermDim">#6b695f</SolidColorBrush>
+    <SolidColorBrush x:Key="RowHover">#f2f0ec</SolidColorBrush>
+    <SolidColorBrush x:Key="ButtonHover">#e6e3dc</SolidColorBrush>
+    <SolidColorBrush x:Key="PaneBg">#ffffff</SolidColorBrush>
+    <SolidColorBrush x:Key="InputBorder">#d6d3ca</SolidColorBrush>
+  </Application.Resources>
+  <Application.Styles>
+    <FluentTheme />
+
+    <Style Selector="Button.toolbtn">
+      <Setter Property="Width" Value="28" />
+      <Setter Property="Height" Value="28" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="Foreground" Value="{StaticResource TextMid}" />
+    </Style>
+    <Style Selector="Button.toolbtn:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource ButtonHover}" />
+    </Style>
+    <Style Selector="Button.toolbtn:disabled">
+      <Setter Property="Foreground" Value="{StaticResource TextHint}" />
+    </Style>
+    <Style Selector="Button.toolbtn:disabled /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+  </Application.Styles>
+</Application>

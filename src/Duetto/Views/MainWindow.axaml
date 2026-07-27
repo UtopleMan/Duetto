@@ -1,0 +1,290 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Duetto.ViewModels"
+        xmlns:views="using:Duetto.Views"
+        x:Class="Duetto.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="Duetto"
+        Icon="/Assets/AppIcon.png"
+        Width="1180" Height="700"
+        Background="{StaticResource WindowBg}">
+  <DockPanel>
+    <!-- 1a Windows: custom 34px title bar with caption buttons -->
+    <Border DockPanel.Dock="Top" x:Name="WinTitleBar" Height="34" Background="{StaticResource ChromeBg}"
+            BorderBrush="{StaticResource HairlineDark}" BorderThickness="0,0,0,1"
+            IsVisible="{Binding IsWinChrome}"
+            PointerPressed="OnTitleBarPressed">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="9" Margin="12,0,0,0">
+          <Image Width="16" Height="16" Source="/Assets/AppIcon.png" VerticalAlignment="Center" />
+          <TextBlock Text="Duetto" FontSize="12" FontWeight="Medium" Foreground="#3d3b34" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding ActiveDirName}" FontFamily="{StaticResource MonoFont}" FontSize="11"
+                     Foreground="{StaticResource TextFaint}" VerticalAlignment="Center" />
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+          <Button Classes="caption" Content="—" Click="OnMinimize" />
+          <Button Classes="caption" Content="▢" FontSize="10" Click="OnMaximize" />
+          <Button Classes="caption close" Content="✕" Click="OnClose" />
+        </StackPanel>
+        <Panel />
+      </DockPanel>
+    </Border>
+
+    <!-- 1c GNOME: 46px header bar with round buttons and title stack -->
+    <Border DockPanel.Dock="Top" x:Name="GnomeHeader" Height="46" Background="#f3f1ed"
+            BorderBrush="{StaticResource InputBorder}" BorderThickness="0,0,0,1"
+            IsVisible="{Binding IsGnomeChrome}"
+            PointerPressed="OnTitleBarPressed">
+      <DockPanel Margin="12,0" VerticalAlignment="Center">
+        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="4">
+          <Button Classes="roundbtn" Content="←" Command="{Binding ActivePane.BackCommand}"
+                  IsEnabled="{Binding ActivePane.CanGoBack}" />
+          <Button Classes="roundbtn" Content="↑" Command="{Binding ActivePane.UpCommand}"
+                  IsEnabled="{Binding ActivePane.CanGoUp}" />
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+          <Button Classes="roundbtn" Content="⌕" FontSize="12" Click="OnGnomeSearch" />
+          <Button Classes="roundbtn close" Content="✕" FontSize="11" Click="OnClose" />
+        </StackPanel>
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Text="{Binding ActiveDirName}" FontSize="13" FontWeight="Bold"
+                     Foreground="#2f2e28" HorizontalAlignment="Center" />
+          <TextBlock Text="{Binding ActivePane.CurrentPath}" FontFamily="{StaticResource MonoFont}"
+                     FontSize="10.5" Foreground="{StaticResource TextFaint}" HorizontalAlignment="Center"
+                     TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <!-- Toolbar (all chromes; GNOME hides nav — its header has them) -->
+    <Border DockPanel.Dock="Top" x:Name="Toolbar" Height="46" Background="{StaticResource ToolbarBg}"
+            BorderBrush="{StaticResource Hairline}" BorderThickness="0,0,0,1">
+      <DockPanel Margin="12,0" VerticalAlignment="Center">
+        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="2"
+                    IsVisible="{Binding !IsGnomeChrome}">
+          <Button Classes="toolbtn" Content="←" Command="{Binding ActivePane.BackCommand}"
+                  IsEnabled="{Binding ActivePane.CanGoBack}" />
+          <Button Classes="toolbtn" Content="→" Command="{Binding ActivePane.ForwardCommand}"
+                  IsEnabled="{Binding ActivePane.CanGoForward}" />
+          <Button Classes="toolbtn" Content="↑" Command="{Binding ActivePane.UpCommand}"
+                  IsEnabled="{Binding ActivePane.CanGoUp}" />
+        </StackPanel>
+        <Border DockPanel.Dock="Left" Width="1" Height="20" Background="{StaticResource HairlineDark}" Margin="10,0"
+                IsVisible="{Binding !IsGnomeChrome}" />
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2" Margin="10,0,0,0">
+          <Button Classes="toolbtn" Width="NaN" Padding="10,0" FontSize="12" Content="New"
+                  Command="{Binding ActivePane.NewFolderCommand}" />
+        </StackPanel>
+
+        <!-- Filter chips (visible while searching) -->
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" Margin="10,0,0,0"
+                    IsVisible="{Binding Search.IsActive}">
+          <Border Classes="chip active">
+            <TextBlock Text="Names" />
+          </Border>
+          <Button Classes="chipbtn" Classes.active="{Binding Search.IncludeContents}"
+                  Content="{Binding Search.ContentsChipLabel}"
+                  Command="{Binding Search.ToggleContentsCommand}" />
+          <Button Classes="chipbtn" x:Name="SizeChip" Content="{Binding Search.SizeFilterLabel}">
+            <Button.Flyout>
+              <MenuFlyout>
+                <MenuItem Header="Any size" Click="OnSizeAny" />
+                <MenuItem Header="&gt; 1 MB" Click="OnSize1" />
+                <MenuItem Header="&gt; 10 MB" Click="OnSize10" />
+                <MenuItem Header="&gt; 100 MB" Click="OnSize100" />
+              </MenuFlyout>
+            </Button.Flyout>
+          </Button>
+          <Button Classes="chipbtn" x:Name="DateChip" Content="{Binding Search.DateFilterLabel}">
+            <Button.Flyout>
+              <MenuFlyout>
+                <MenuItem Header="Any date" Click="OnDateAny" />
+                <MenuItem Header="Today" Click="OnDateToday" />
+                <MenuItem Header="This week" Click="OnDateWeek" />
+                <MenuItem Header="This month" Click="OnDateMonth" />
+              </MenuFlyout>
+            </Button.Flyout>
+          </Button>
+        </StackPanel>
+
+        <!-- Scoped search field -->
+        <Border x:Name="SearchShell" Height="30" Background="{StaticResource PaneBg}"
+                BorderBrush="{StaticResource InputBorder}" BorderThickness="1" CornerRadius="7">
+          <DockPanel Margin="10,0">
+            <TextBlock DockPanel.Dock="Left" Text="⌕" FontSize="12"
+                       Foreground="{StaticResource TextGhost}" VerticalAlignment="Center" />
+            <Border DockPanel.Dock="Left" Background="{StaticResource ChipBg}"
+                    BorderBrush="{StaticResource ChipBorder}" BorderThickness="1"
+                    CornerRadius="4" Padding="6,2" Margin="9,0"
+                    VerticalAlignment="Center">
+              <TextBlock FontFamily="{StaticResource MonoFont}" FontSize="10.5"
+                         Foreground="{StaticResource TextMid}" VerticalAlignment="Center">
+                <Run Text="in " /><Run Text="{Binding ActiveDirName}" /><Run Text="/" />
+              </TextBlock>
+            </Border>
+            <TextBlock DockPanel.Dock="Right" Text="{Binding SearchHint}" FontFamily="{StaticResource MonoFont}"
+                       FontSize="10.5" Foreground="{StaticResource TextHint}" VerticalAlignment="Center" />
+            <TextBox x:Name="SearchBox" Text="{Binding Search.Query}"
+                     Watermark="Search everything below this folder…"
+                     FontSize="12.5" Foreground="{StaticResource TextBody}"
+                     Background="Transparent" BorderThickness="0" MinHeight="0" Padding="0"
+                     VerticalContentAlignment="Center"
+                     KeyDown="OnSearchBoxKeyDown" />
+          </DockPanel>
+        </Border>
+      </DockPanel>
+    </Border>
+
+    <!-- Command bar + output drawer -->
+    <views:CommandBar DockPanel.Dock="Bottom" x:Name="CommandBarView" />
+
+    <!-- Copy/move progress strip (docked after the command bar so it sits above it) -->
+    <views:ProgressStrip DockPanel.Dock="Bottom"
+                         DataContext="{Binding ActiveTransfer}"
+                         IsVisible="{Binding Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+    <!-- Rail + panes; the right pane is overlaid by search results while a search is active -->
+    <Grid ColumnDefinitions="Auto,*">
+      <!-- 1c GNOME Places rail -->
+      <Border Grid.Column="0" x:Name="PlacesRail" Width="186" Background="#f3f1ed"
+              BorderBrush="{StaticResource Hairline}" BorderThickness="0,0,1,0"
+              IsVisible="{Binding IsGnomeChrome}">
+        <StackPanel Margin="8,10">
+          <TextBlock Text="PLACES" FontSize="10.5" LetterSpacing="0.6"
+                     Foreground="{StaticResource HeaderText}" Margin="10,6,10,5" />
+          <ItemsControl ItemsSource="{Binding Places}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:Place">
+                <Button Classes="placeitem" Click="OnPlaceClicked">
+                  <StackPanel Orientation="Horizontal" Spacing="9">
+                    <Border Width="10" Height="10" CornerRadius="2.5" Background="{Binding Color}"
+                            VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Name}" FontSize="12.5" Foreground="#3d3b34"
+                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+      <Border Grid.Column="1" x:Name="Desk">
+        <Grid x:Name="PanesGrid" ColumnDefinitions="*,1,*">
+          <Border Grid.Column="0" x:Name="LeftCard" ClipToBounds="True">
+            <views:PaneView x:Name="LeftPane" DataContext="{Binding Left}" />
+          </Border>
+          <Border Grid.Column="1" x:Name="PaneDivider" Background="{StaticResource HairlineDark}" />
+          <Border Grid.Column="2" x:Name="RightCard" ClipToBounds="True">
+            <Panel>
+              <views:PaneView x:Name="RightPane" DataContext="{Binding Right}" />
+              <views:SearchResultsView x:Name="ResultsView" DataContext="{Binding Search}"
+                                       IsVisible="{Binding IsActive}" />
+            </Panel>
+          </Border>
+        </Grid>
+      </Border>
+    </Grid>
+  </DockPanel>
+
+  <Window.Styles>
+    <Style Selector="Border#SearchShell:focus-within">
+      <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+      <Setter Property="BoxShadow" Value="0 0 0 3 #212f6fd0" />
+    </Style>
+    <Style Selector="Border.chip">
+      <Setter Property="Padding" Value="10,5" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Background" Value="{StaticResource RowHover}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Hairline}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.chip TextBlock">
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="Foreground" Value="{StaticResource TextDim}" />
+    </Style>
+    <Style Selector="Border.chip.active">
+      <Setter Property="Background" Value="{StaticResource ChipBg}" />
+      <Setter Property="BorderBrush" Value="{StaticResource ChipBorder}" />
+    </Style>
+    <Style Selector="Border.chip.active TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource Accent}" />
+    </Style>
+    <Style Selector="Button.chipbtn">
+      <Setter Property="Padding" Value="10,5" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="Foreground" Value="{StaticResource TextDim}" />
+      <Setter Property="Background" Value="{StaticResource RowHover}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Hairline}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Button.chipbtn:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource ButtonHover}" />
+    </Style>
+    <Style Selector="Button.chipbtn.active">
+      <Setter Property="Background" Value="{StaticResource ChipBg}" />
+      <Setter Property="BorderBrush" Value="{StaticResource ChipBorder}" />
+      <Setter Property="Foreground" Value="{StaticResource Accent}" />
+    </Style>
+
+    <!-- Windows caption buttons -->
+    <Style Selector="Button.caption">
+      <Setter Property="Width" Value="44" />
+      <Setter Property="Height" Value="33" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="#5b5950" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.caption:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#e2dfd8" />
+    </Style>
+    <Style Selector="Button.caption.close:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource DangerRed}" />
+    </Style>
+    <Style Selector="Button.caption.close:pointerover">
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+
+    <!-- GNOME round buttons -->
+    <Style Selector="Button.roundbtn">
+      <Setter Property="Width" Value="30" />
+      <Setter Property="Height" Value="30" />
+      <Setter Property="CornerRadius" Value="15" />
+      <Setter Property="Background" Value="{StaticResource ButtonHover}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="Foreground" Value="{StaticResource TextMid}" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.roundbtn:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#d8d4cb" />
+    </Style>
+    <Style Selector="Button.roundbtn.close:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource DangerRed}" />
+    </Style>
+    <Style Selector="Button.roundbtn.close:pointerover">
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+
+    <!-- GNOME places rail items -->
+    <Style Selector="Button.placeitem">
+      <Setter Property="Height" Value="28" />
+      <Setter Property="Padding" Value="10,0" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+    <Style Selector="Button.placeitem:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource ButtonHover}" />
+    </Style>
+  </Window.Styles>
+</Window>

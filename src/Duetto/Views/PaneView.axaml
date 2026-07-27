@@ -1,0 +1,327 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Duetto.ViewModels"
+             x:Class="Duetto.Views.PaneView"
+             x:DataType="vm:PaneViewModel"
+             x:Name="Root">
+  <UserControl.Styles>
+    <!-- Path bar: tinted when the pane is active -->
+    <Style Selector="Border#PathBar">
+      <Setter Property="Background" Value="{StaticResource ChromeBg}" />
+    </Style>
+    <Style Selector="Border#PathBar.active">
+      <Setter Property="Background" Value="{StaticResource ActivePathBg}" />
+    </Style>
+    <Style Selector="TextBlock#PathText">
+      <Setter Property="Foreground" Value="{StaticResource TextDim}" />
+    </Style>
+    <Style Selector="Border#PathBar.active TextBlock#PathText">
+      <Setter Property="Foreground" Value="{StaticResource AccentDim}" />
+    </Style>
+
+    <Style Selector="Button.volumechip">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="Padding" Value="8,3" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Foreground" Value="{StaticResource TextDim}" />
+    </Style>
+    <Style Selector="Button.volumechip:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource ButtonHover}" />
+    </Style>
+    <Style Selector="Border#PathBar.active Button.volumechip">
+      <Setter Property="Background" Value="#ffffff" />
+      <Setter Property="BorderBrush" Value="#b9cbea" />
+      <Setter Property="Foreground" Value="{StaticResource Accent}" />
+    </Style>
+    <!-- Fluent's pseudo-class styles set Background on the template presenter,
+         bypassing the Button's own Background; mirror the active fill there
+         (same reason Button.toolbtn targets the presenter). -->
+    <Style Selector="Border#PathBar.active Button.volumechip /template/ ContentPresenter">
+      <Setter Property="Background" Value="#ffffff" />
+    </Style>
+    <Style Selector="Border#PathBar.active Button.volumechip:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#f2f6fd" />
+    </Style>
+
+    <Style Selector="Button.colheader">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="30,24,*,26">
+    <!-- Path bar -->
+    <Border Grid.Row="0" x:Name="PathBar"
+            BorderBrush="{StaticResource Hairline}" BorderThickness="0,0,0,1"
+            Classes.active="{Binding IsActive}">
+      <DockPanel Margin="9,0,12,0" VerticalAlignment="Center">
+        <TextBlock DockPanel.Dock="Right" Text="ACTIVE"
+                   IsVisible="{Binding IsActive}"
+                   FontSize="10.5" LetterSpacing="0.7"
+                   Foreground="{StaticResource AccentDim}"
+                   VerticalAlignment="Center" />
+        <Button DockPanel.Dock="Left" x:Name="VolumeChip" Classes="volumechip"
+                Click="OnVolumeChipClicked">
+          <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+            <Border Width="10" Height="10" CornerRadius="2" Background="{StaticResource Accent}" />
+            <TextBlock Text="{Binding VolumeChipText}"
+                       FontFamily="{StaticResource MonoFont}" FontSize="11"
+                       VerticalAlignment="Center" />
+            <TextBlock Text="▾" FontSize="9" VerticalAlignment="Center" />
+          </StackPanel>
+          <Button.Flyout>
+            <Flyout Placement="BottomEdgeAlignedLeft" ShowMode="Transient">
+              <Border Width="392" Background="#fdfcfa" CornerRadius="10"
+                      BorderBrush="{StaticResource HairlineDark}" BorderThickness="1"
+                      DataContext="{Binding Drives}">
+                <StackPanel>
+                  <!-- Header -->
+                  <Border Height="30" Background="{StaticResource ChromeBg}"
+                          BorderBrush="{StaticResource HairlineLight}" BorderThickness="0,0,0,1"
+                          CornerRadius="10,10,0,0">
+                    <DockPanel Margin="12,0" VerticalAlignment="Center">
+                      <TextBlock DockPanel.Dock="Right" Text="type to filter"
+                                 FontFamily="{StaticResource MonoFont}" FontSize="10"
+                                 Foreground="{StaticResource TextGhost}" VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding HeaderText}" FontSize="11"
+                                 Foreground="{StaticResource TextDim}" VerticalAlignment="Center" />
+                    </DockPanel>
+                  </Border>
+                  <StackPanel Margin="6,7,6,6">
+                    <!-- invisible-border filter box: it has focus; typing filters -->
+                    <TextBox x:Name="DriveFilterBox" Text="{Binding FilterText}"
+                             Background="Transparent" BorderThickness="0" MinHeight="0"
+                             Padding="10,0,10,4" FontSize="11" CaretBrush="{StaticResource Accent}"
+                             KeyDown="OnDriveFilterKeyDown" />
+                    <TextBlock Text="THIS MACHINE" FontSize="10.5" LetterSpacing="0.6"
+                               Foreground="{StaticResource HeaderText}" Margin="10,0,10,6" />
+                    <ListBox x:Name="DriveList" ItemsSource="{Binding Volumes}"
+                             Background="Transparent" Padding="0" MaxHeight="320"
+                             DoubleTapped="OnDriveRowActivated" Tapped="OnDriveRowActivated">
+                      <ListBox.ItemContainerTheme>
+                        <ControlTheme TargetType="ListBoxItem">
+                          <Setter Property="Padding" Value="0" />
+                          <Setter Property="MinHeight" Value="38" />
+                          <Setter Property="CornerRadius" Value="7" />
+                          <Setter Property="Background" Value="Transparent" />
+                          <Setter Property="Template">
+                            <ControlTemplate>
+                              <ContentPresenter Name="PART_ContentPresenter"
+                                                Background="{TemplateBinding Background}"
+                                                CornerRadius="{TemplateBinding CornerRadius}"
+                                                Content="{TemplateBinding Content}"
+                                                ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                Padding="{TemplateBinding Padding}" />
+                            </ControlTemplate>
+                          </Setter>
+                          <Style Selector="^:pointerover">
+                            <Setter Property="Background" Value="{StaticResource ChipBg}" />
+                          </Style>
+                          <Style Selector="^:selected">
+                            <Setter Property="Background" Value="{StaticResource ChipBg}" />
+                          </Style>
+                        </ControlTheme>
+                      </ListBox.ItemContainerTheme>
+                      <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:VolumeRowViewModel">
+                          <Border Background="{Binding RowBg}" CornerRadius="7" Padding="10,0" Height="38">
+                            <Grid ColumnDefinitions="12,11,*,11,96" VerticalAlignment="Center">
+                              <Border Grid.Column="0" Width="12" Height="12" CornerRadius="3"
+                                      Background="{Binding SwatchColor}" />
+                              <StackPanel Grid.Column="2" Spacing="3" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                  <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="Medium"
+                                             Foreground="{StaticResource TextPrimary}"
+                                             TextTrimming="CharacterEllipsis" />
+                                  <TextBlock Text="{Binding MountPath}"
+                                             FontFamily="{StaticResource MonoFont}" FontSize="10"
+                                             Foreground="{StaticResource TextGhost}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <Border Height="3" CornerRadius="2" Background="{StaticResource HairlineLight}"
+                                        Width="170" HorizontalAlignment="Left">
+                                  <Border Height="3" CornerRadius="2" Background="{Binding BarColor}"
+                                          Width="{Binding BarWidth}" HorizontalAlignment="Left" />
+                                </Border>
+                              </StackPanel>
+                              <TextBlock Grid.Column="4" Text="{Binding FreeText}"
+                                         FontFamily="{StaticResource MonoFont}" FontSize="10.5"
+                                         Foreground="{StaticResource TextFaint}" HorizontalAlignment="Right"
+                                         VerticalAlignment="Center" />
+                            </Grid>
+                          </Border>
+                        </DataTemplate>
+                      </ListBox.ItemTemplate>
+                    </ListBox>
+                    <Border Height="1" Background="{StaticResource HairlineLight}" Margin="10,7" />
+                    <!-- Connect… row (stub; dialog wired in Task 6) -->
+                    <Button x:Name="ConnectRow" Command="{Binding ConnectCommand}"
+                            Background="{StaticResource ChipBg}" CornerRadius="7" Height="34"
+                            Padding="10,0" HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch" BorderThickness="0">
+                      <DockPanel VerticalAlignment="Center">
+                        <Border DockPanel.Dock="Left" Width="12" Height="12" CornerRadius="3"
+                                BorderBrush="{StaticResource Accent}" BorderThickness="1.5"
+                                Margin="0,0,10,0" VerticalAlignment="Center" />
+                        <TextBlock DockPanel.Dock="Right"
+                                   Text="{Binding ConnectShortcut}"
+                                   FontFamily="{StaticResource MonoFont}" FontSize="10"
+                                   Foreground="{StaticResource AccentDim}" VerticalAlignment="Center" />
+                        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                          <TextBlock Text="Connect…" FontSize="12.5" FontWeight="Medium"
+                                     Foreground="{StaticResource Accent}" />
+                          <TextBlock Text="SFTP, S3 or SMB" FontSize="11"
+                                     Foreground="{StaticResource AccentDim}" />
+                        </StackPanel>
+                      </DockPanel>
+                    </Button>
+                    <!-- Eject row: visible whenever the current volume is ejectable;
+                         disabled (not hidden) while an eject is in progress so the
+                         popover layout does not reflow during the operation. -->
+                    <Button x:Name="EjectRow" Command="{Binding EjectCurrentCommand}"
+                            IsVisible="{Binding EjectRowVisible}"
+                            IsEnabled="{Binding CanEject}"
+                            Background="Transparent" CornerRadius="7" Height="30"
+                            Padding="10,0" HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left" BorderThickness="0">
+                      <TextBlock Text="{Binding EjectLabel}" FontSize="12.5"
+                                 Foreground="{StaticResource TextDim}" VerticalAlignment="Center" />
+                    </Button>
+                    <TextBlock Text="{Binding ErrorText}" FontSize="11"
+                               Foreground="{StaticResource DangerText}" Margin="10,2,10,4"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding ErrorText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+            </Flyout>
+          </Button.Flyout>
+        </Button>
+        <TextBlock x:Name="PathText" Text="{Binding PathTailText}" Margin="7,0,0,0"
+                   FontFamily="{StaticResource MonoFont}" FontSize="11"
+                   TextTrimming="CharacterEllipsis"
+                   VerticalAlignment="Center" />
+      </DockPanel>
+    </Border>
+
+    <!-- Column headers -->
+    <Border Grid.Row="1" Background="{StaticResource WindowBg}"
+            BorderBrush="{StaticResource HairlineLight}" BorderThickness="0,0,0,1">
+      <Grid Margin="12,0" ColumnDefinitions="*,14,74,14,88,14,112,14,76">
+        <Button Grid.Column="0" Classes="colheader" Click="OnSortName">
+          <TextBlock Text="{Binding NameHeader}" FontSize="10.5" LetterSpacing="0.5" Foreground="{StaticResource HeaderText}" />
+        </Button>
+        <Button Grid.Column="2" Classes="colheader" Click="OnSortSize">
+          <TextBlock Text="{Binding SizeHeader}" FontSize="10.5" LetterSpacing="0.5" Foreground="{StaticResource HeaderText}" HorizontalAlignment="Right" />
+        </Button>
+        <Button Grid.Column="4" Classes="colheader" Click="OnSortType">
+          <TextBlock Text="{Binding TypeHeader}" FontSize="10.5" LetterSpacing="0.5" Foreground="{StaticResource HeaderText}" />
+        </Button>
+        <Button Grid.Column="6" Classes="colheader" Click="OnSortModified">
+          <TextBlock Text="{Binding ModifiedHeader}" FontSize="10.5" LetterSpacing="0.5" Foreground="{StaticResource HeaderText}" />
+        </Button>
+        <TextBlock Grid.Column="8" Text="{Binding AccessHeader}" FontSize="10.5" LetterSpacing="0.5" Foreground="{StaticResource HeaderText}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+
+    <!-- Rows -->
+    <ListBox Grid.Row="2" x:Name="RowList"
+             Background="{StaticResource PaneBg}"
+             ItemsSource="{Binding Rows}"
+             Selection="{Binding Selection}"
+             SelectionMode="Single"
+             DoubleTapped="OnRowDoubleTapped"
+             GotFocus="OnListFocused">
+      <ListBox.ItemContainerTheme>
+        <ControlTheme TargetType="ListBoxItem">
+          <Setter Property="Height" Value="27" />
+          <Setter Property="Padding" Value="0" />
+          <Setter Property="Background" Value="Transparent" />
+          <Setter Property="Template">
+            <ControlTemplate>
+              <!-- Mark fill comes from the row template (full row); the cursor is a
+                   thin accent outline overlaid on top. -->
+              <Panel>
+                <ContentPresenter Name="PART_ContentPresenter"
+                                  Background="{TemplateBinding Background}"
+                                  Content="{TemplateBinding Content}"
+                                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                                  Padding="{TemplateBinding Padding}"
+                                  VerticalContentAlignment="Stretch"
+                                  HorizontalContentAlignment="Stretch" />
+                <Border Name="CursorBorder" BorderThickness="1" BorderBrush="Transparent"
+                        IsHitTestVisible="False" />
+              </Panel>
+            </ControlTemplate>
+          </Setter>
+          <Style Selector="^:pointerover">
+            <Setter Property="Background" Value="{StaticResource RowHover}" />
+          </Style>
+          <Style Selector="^:selected /template/ Border#CursorBorder">
+            <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+          </Style>
+        </ControlTheme>
+      </ListBox.ItemContainerTheme>
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="vm:FileRowViewModel">
+          <Border Background="{Binding IsMarked, Converter={x:Static vm:BoolBrushConverters.MarkedBg}}"
+                  Padding="12,0">
+          <Grid ColumnDefinitions="*,14,74,14,88,14,112,14,76">
+            <DockPanel Grid.Column="0" VerticalAlignment="Center">
+              <Border DockPanel.Dock="Left" Width="11" Height="11" CornerRadius="2.5"
+                      Background="{Binding MarkColor}" Margin="0,0,9,0" VerticalAlignment="Center" />
+              <Panel>
+                <TextBlock Text="{Binding Name}"
+                           IsVisible="{Binding !IsEditing}"
+                           FontSize="12.5" Foreground="{StaticResource TextBody}"
+                           FontWeight="{Binding NameWeight}"
+                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                <TextBox Text="{Binding EditName}"
+                         IsVisible="{Binding IsEditing}"
+                         FontSize="12.5" MinHeight="0" Padding="4,2"
+                         VerticalAlignment="Center"
+                         AttachedToVisualTree="OnEditBoxAttached"
+                         KeyDown="OnEditBoxKeyDown"
+                         LostFocus="OnEditBoxLostFocus" />
+              </Panel>
+            </DockPanel>
+            <TextBlock Grid.Column="2" Text="{Binding SizeText}"
+                       FontFamily="{StaticResource MonoFont}" FontSize="11"
+                       Foreground="{StaticResource TextDim}"
+                       HorizontalAlignment="Right" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="4" Text="{Binding TypeText}"
+                       FontSize="11.5" Foreground="{StaticResource TextDim}"
+                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="6" Text="{Binding ModifiedText}"
+                       FontSize="11.5" Foreground="{StaticResource TextDim}" VerticalAlignment="Center" />
+            <Panel Grid.Column="8">
+              <TextBlock Text="{Binding AccessColText}"
+                         IsVisible="{Binding TransferStatus, Converter={x:Static StringConverters.IsNullOrEmpty}}"
+                         FontFamily="{StaticResource MonoFont}" FontSize="10.5"
+                         Foreground="{StaticResource TextGhost}"
+                         HorizontalAlignment="Right" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding TransferStatus}"
+                         IsVisible="{Binding TransferStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                         FontFamily="{StaticResource MonoFont}" FontSize="10"
+                         Foreground="{Binding TransferStatusColor}"
+                         HorizontalAlignment="Right" VerticalAlignment="Center" />
+            </Panel>
+          </Grid>
+          </Border>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+
+    <!-- Status bar -->
+    <Border Grid.Row="3" Background="{StaticResource ToolbarBg}"
+            BorderBrush="{StaticResource HairlineLight}" BorderThickness="0,1,0,0">
+      <TextBlock Text="{Binding StatusText}" Margin="12,0" FontSize="11"
+                 Foreground="{StaticResource TextDim}" VerticalAlignment="Center" />
+    </Border>
+  </Grid>
+</UserControl>

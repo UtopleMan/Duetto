@@ -1,0 +1,143 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Duetto.ViewModels"
+             x:Class="Duetto.Views.CommandBar"
+             x:DataType="vm:MainViewModel">
+  <StackPanel x:Name="BarRoot" Classes.mac="{Binding IsMacChrome}">
+    <!-- Output drawer -->
+    <Border IsVisible="{Binding CommandBar.IsDrawerOpen}"
+            BorderBrush="#cfccc4" BorderThickness="0,1,0,0">
+      <StackPanel>
+        <Border Height="30" Background="#f3f1ed"
+                BorderBrush="{StaticResource Hairline}" BorderThickness="0,0,0,1">
+          <DockPanel Margin="12,0" VerticalAlignment="Center">
+            <Border DockPanel.Dock="Left" Width="24" Height="3" CornerRadius="2"
+                    Background="{StaticResource TextHint}" VerticalAlignment="Center" />
+            <TextBlock DockPanel.Dock="Left" Text="{Binding CommandBar.RanCommand}" Margin="9,0,0,0"
+                       FontFamily="{StaticResource MonoFont}" FontSize="11"
+                       Foreground="#3d3b34" VerticalAlignment="Center" />
+            <Border DockPanel.Dock="Left" CornerRadius="10" Padding="8,2" Margin="9,0,0,0"
+                    IsVisible="{Binding CommandBar.HasExited}"
+                    Background="{Binding CommandBar.ExitOk, Converter={x:Static vm:BoolBrushConverters.ExitPillBg}}"
+                    BorderBrush="{Binding CommandBar.ExitOk, Converter={x:Static vm:BoolBrushConverters.ExitPillBorder}}"
+                    BorderThickness="1" VerticalAlignment="Center">
+              <TextBlock Text="{Binding CommandBar.ExitText}" FontSize="10.5"
+                         Foreground="{Binding CommandBar.ExitOk, Converter={x:Static vm:BoolBrushConverters.ExitPillText}}" />
+            </Border>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="12"
+                        VerticalAlignment="Center">
+              <Button Content="Copy output" Click="OnCopyOutput"
+                      Background="Transparent" BorderThickness="0" Padding="0" MinHeight="0"
+                      FontSize="11" Foreground="{StaticResource TextFaint}"
+                      VerticalAlignment="Center" />
+              <TextBlock Text="Esc close" FontFamily="{StaticResource MonoFont}" FontSize="10.5"
+                         Foreground="{StaticResource TextGhost}" VerticalAlignment="Center" />
+            </StackPanel>
+            <Panel />
+          </DockPanel>
+        </Border>
+        <ScrollViewer x:Name="OutputScroll" MaxHeight="260" Background="{StaticResource TermBg}">
+          <ItemsControl ItemsSource="{Binding CommandBar.Output}" Margin="14,11">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:OutputLine">
+                <TextBlock Text="{Binding Text}" Foreground="{Binding Color}"
+                           FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                           LineHeight="18" TextWrapping="NoWrap" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </StackPanel>
+    </Border>
+
+    <!-- Prompt row: win = light strip, gnome = dark terminal strip, mac = floating card -->
+    <Border x:Name="PromptRow" Height="40" Background="{StaticResource ChromeBg}"
+            BorderBrush="{StaticResource HairlineDark}" BorderThickness="0,1,0,0"
+            Classes.gnome="{Binding IsGnomeChrome}"
+            Classes.mac="{Binding IsMacChrome}">
+      <DockPanel Margin="12,0" VerticalAlignment="Center">
+        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBlock IsVisible="{Binding IsGnomeChrome}" Text="{Binding UserAtHost}"
+                     FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                     Foreground="{StaticResource TermPrompt}" VerticalAlignment="Center" />
+          <TextBlock IsVisible="{Binding IsGnomeChrome}" Text="{Binding ActivePane.CurrentPath}"
+                     FontFamily="{StaticResource MonoFont}" FontSize="11.5" MaxWidth="260"
+                     TextTrimming="CharacterEllipsis"
+                     Foreground="{StaticResource TermPath}" VerticalAlignment="Center" />
+          <TextBlock IsVisible="{Binding IsGnomeChrome}" Text="$"
+                     FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                     Foreground="{StaticResource TermText}" VerticalAlignment="Center" />
+          <TextBlock IsVisible="{Binding !IsGnomeChrome}" x:Name="LightPrompt"
+                     FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                     Foreground="{StaticResource Green}" FontWeight="Medium" VerticalAlignment="Center">
+            <Run Text="{Binding ActiveDirName}" /><Run Text="{Binding PromptGlyph}" />
+          </TextBlock>
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="5"
+                    IsVisible="{Binding !CommandBar.IsRunning}">
+          <TextBlock Text="F5 copy" Classes="hint" />
+          <TextBlock Text="F6 move" Classes="hint" />
+          <TextBlock Text="F8 delete" Classes="hint" />
+          <TextBlock Text="Tab switch pane" Classes="hint" />
+        </StackPanel>
+        <TextBox x:Name="InputBox" Text="{Binding CommandBar.Input}"
+                 Watermark="Type a shell command…"
+                 Margin="10,0" MinHeight="0" Padding="0" VerticalContentAlignment="Center"
+                 FontFamily="{StaticResource MonoFont}" FontSize="12"
+                 Foreground="{StaticResource TextMid}"
+                 Background="Transparent" BorderThickness="0"
+                 KeyDown="OnInputKeyDown" />
+      </DockPanel>
+    </Border>
+  </StackPanel>
+
+  <UserControl.Styles>
+    <Style Selector="TextBlock.hint">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="10.5" />
+      <Setter Property="Foreground" Value="{StaticResource TextHint}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.hint:pointerover">
+      <Setter Property="Foreground" Value="{StaticResource TextMid}" />
+    </Style>
+    <Style Selector="TextBox#InputBox:focus /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="TextBox#InputBox:pointerover /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <!-- GNOME: dark terminal strip -->
+    <Style Selector="Border#PromptRow.gnome">
+      <Setter Property="Background" Value="{StaticResource TermBg}" />
+      <Setter Property="Height" Value="42" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Border#PromptRow.gnome TextBox#InputBox">
+      <Setter Property="Foreground" Value="{StaticResource TermText}" />
+    </Style>
+    <Style Selector="Border#PromptRow.gnome TextBlock.hint">
+      <Setter Property="Foreground" Value="{StaticResource TermDim}" />
+    </Style>
+    <Style Selector="Border#PromptRow.gnome TextBlock.hint:pointerover">
+      <Setter Property="Foreground" Value="{StaticResource TermText}" />
+    </Style>
+
+    <Style Selector="StackPanel#BarRoot.mac">
+      <Setter Property="Background" Value="#e8e6e1" />
+    </Style>
+
+    <!-- macOS: white floating card (design 1b) -->
+    <Style Selector="Border#PromptRow.mac">
+      <Setter Property="Background" Value="{StaticResource PaneBg}" />
+      <Setter Property="Height" Value="38" />
+      <Setter Property="Margin" Value="14,8,14,14" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="BorderBrush" Value="#dad7d0" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BoxShadow" Value="0 1 3 0 #0d000000" />
+    </Style>
+  </UserControl.Styles>
+</UserControl>

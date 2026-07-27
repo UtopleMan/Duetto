@@ -7,7 +7,7 @@ Manager.dc.html", claude.ai/design project 9547189c-a040-4169-8fed-38dc0d79972e)
 two voices near unison, the second lagging in both time and pitch.
 
 Writes a 1024px PNG using only the stdlib (zlib), then macOS tooling
-(sips + iconutil) turns it into Duet.icns.
+(sips + iconutil) turns it into Duetto.icns.
 """
 import math
 import struct
