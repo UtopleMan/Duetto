@@ -34,6 +34,29 @@ public class DeleteOperationTests
     }
 
     [AvaloniaFact]
+    public void Delete_movesCursorToNeighbor_soTheListStaysFocusable()
+    {
+        using var tmp = new TempDir();
+        tmp.File("a.txt", "a");
+        tmp.File("b.txt", "b");
+        tmp.File("c.txt", "c");
+        using var vm = new MainViewModel(tmp.Path, tmp.Path);
+        vm.DeleteScheduler = (work, ct) => { work(ct); return Task.CompletedTask; }; // inline
+        vm.TrashFn = p => { File.Delete(p); return null; };                          // really remove
+
+        vm.Left.SelectByName("b.txt");
+        vm.DeleteSelectedCommand.Execute(null);
+
+        // b.txt is gone; the cursor must land on a real row (the one that took its slot),
+        // not vanish — an empty selection leaves no container to keep keyboard focus.
+        Assert.DoesNotContain(vm.Left.Rows, r => r.Name == "b.txt");
+        var cursor = vm.Left.Selection.SelectedItem;
+        Assert.NotNull(cursor);
+        Assert.False(cursor!.IsParentNav);
+        Assert.Equal("c.txt", cursor.Name);
+    }
+
+    [AvaloniaFact]
     public void Delete_cancel_stopsBeforeNextItem()
     {
         using var tmp = new TempDir();

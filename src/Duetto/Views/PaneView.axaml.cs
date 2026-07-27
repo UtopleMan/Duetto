@@ -59,16 +59,15 @@ public partial class PaneView : UserControl
     }
 
     /// <summary>
-    /// Reload replaces every row container. If the focused row died with it (e.g. after a
-    /// delete), focus either goes null or is relocated onto some other control such as the
-    /// operation strip's button — so reclaim it for the active pane's list. The one thing we
-    /// must not steal is a text box the user is typing in (search, drive filter, inline
-    /// rename / new-entry edit).
+    /// Reload replaces every row container; if the focused one died with it,
+    /// keyboard focus becomes null. Restore it to this pane when it is active.
+    /// The reload keeps a valid selected row (see <c>ApplyRows</c>), so the list
+    /// always has a container to focus.
     /// </summary>
     private void OnVmReloaded() => Dispatcher.UIThread.Post(() =>
     {
         if (Vm is { IsActive: true } &&
-            TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is not TextBox)
+            TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is null)
             FocusList();
     });
 

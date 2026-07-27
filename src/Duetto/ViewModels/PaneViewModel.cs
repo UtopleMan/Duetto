@@ -218,6 +218,7 @@ public partial class PaneViewModel : ObservableObject, IDisposable
             ? Rows.Where(r => r.IsMarked).Select(r => r.Name).ToHashSet()
             : [];
         var cursorName = preserveSelection ? CursorRow?.Name : null;
+        var cursorIndex = preserveSelection ? Selection.SelectedIndex : -1;
 
         _loadCts?.Cancel();
         var cts = _loadCts = new CancellationTokenSource();
@@ -251,12 +252,12 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         if (!task.IsCompleted)
             IsLoading = true;
 
-        return LoadCompletion = ApplyWhenReady(task, cts, markedNames, cursorName, selectAfter, selectFirst);
+        return LoadCompletion = ApplyWhenReady(task, cts, markedNames, cursorName, cursorIndex, selectAfter, selectFirst);
     }
 
     private async Task ApplyWhenReady(
         Task<IReadOnlyList<FileEntry>> task, CancellationTokenSource cts,
-        HashSet<string> markedNames, string? cursorName, string? selectAfter, bool selectFirst)
+        HashSet<string> markedNames, string? cursorName, int cursorIndex, string? selectAfter, bool selectFirst)
     {
         IReadOnlyList<FileEntry> entries;
         try
@@ -272,13 +273,13 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         if (!ReferenceEquals(cts, _loadCts))
             return;
 
-        ApplyRows(entries, markedNames, cursorName, selectAfter, selectFirst);
+        ApplyRows(entries, markedNames, cursorName, cursorIndex, selectAfter, selectFirst);
         IsLoading = false;
     }
 
     private void ApplyRows(
         IReadOnlyList<FileEntry> entries, HashSet<string> markedNames,
-        string? cursorName, string? selectAfter, bool selectFirst)
+        string? cursorName, int cursorIndex, string? selectAfter, bool selectFirst)
     {
         Rows.Clear();
         if (Path.GetDirectoryName(CurrentPath) is { } parent)
@@ -299,6 +300,12 @@ public partial class PaneViewModel : ObservableObject, IDisposable
             SelectByName(selectAfter);
         else if (selectFirst && Rows.Count > 0)
             Selection.Select(0);
+
+        // The preserved cursor row is gone (deleted, or renamed/moved away): land on whatever
+        // now occupies its slot — the next item, or the last row when it was the tail. Leaving
+        // no selection would strand keyboard focus (no row container to focus).
+        if (cursorName is not null && Selection.SelectedIndex < 0 && Rows.Count > 0)
+            Selection.Select(Math.Clamp(cursorIndex, 0, Rows.Count - 1));
 
         // An in-progress new-entry placeholder is synthetic (not on disk), so a rebuild would
         // drop it — re-attach it in edit mode so an unrelated reload can't cancel the naming.
