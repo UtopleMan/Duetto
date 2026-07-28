@@ -21,7 +21,11 @@ public static class FileOps
 
     /// <summary>Creates "New folder" (or "New folder 2", …) inside <paramref name="parentDir"/>.</summary>
     public static string NewFolder(string parentDir, string baseName = "New folder") =>
-        CreateFolder(parentDir, SuggestEntryName(parentDir, baseName));
+        NewFolder(Local, parentDir, baseName);
+
+    /// <summary>Creates "New folder" (or "New folder 2", …) inside <paramref name="parentDir"/> on <paramref name="provider"/>.</summary>
+    public static string NewFolder(IFileSystemProvider provider, string parentDir, string baseName = "New folder") =>
+        CreateFolder(provider, parentDir, SuggestEntryName(provider, parentDir, baseName));
 
     /// <summary>
     /// First free entry name inside <paramref name="parentDir"/> based on

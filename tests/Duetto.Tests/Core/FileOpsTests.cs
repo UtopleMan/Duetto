@@ -145,10 +145,28 @@ public class FileOpsProviderTests
     }
 
     [Fact]
+    public void CreateFile_routes_through_the_provider()
+    {
+        var created = FileOps.CreateFile(_fs, "/", "notes.txt");
+        Assert.Equal("/notes.txt", created);
+        Assert.True(_fs.FileExists(created));
+    }
+
+    [Fact]
     public void CreateFile_throws_when_target_exists()
     {
         FileOps.CreateFile(_fs, "/", "notes.txt");
         Assert.Throws<IOException>(() => FileOps.CreateFile(_fs, "/", "notes.txt"));
+    }
+
+    [Fact]
+    public void NewFolder_routes_through_the_provider_and_uniquifies()
+    {
+        var first = FileOps.NewFolder(_fs, "/");
+        var second = FileOps.NewFolder(_fs, "/");
+        Assert.Equal("New folder", PathUtil.Leaf(first));
+        Assert.Equal("New folder 2", PathUtil.Leaf(second));
+        Assert.True(_fs.DirectoryExists(first) && _fs.DirectoryExists(second));
     }
 
     [Fact]
