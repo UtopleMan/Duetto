@@ -309,24 +309,17 @@ public static class TransferEngine
 
                 session.FileStarted(source, dest, size);
 
-                // Move shortcut: same provider and provider supports native rename.
+                // Move shortcut: same provider instance, CanRename, and same parent directory.
+                // IFileSystemProvider.Rename only renames the leaf within its current parent;
+                // cross-directory moves must fall through to stream copy+delete.
                 if (mode == TransferMode.Move && ReferenceEquals(srcProvider, destProvider)
-                    && srcProvider.Capabilities.CanRename)
+                    && srcProvider.Capabilities.CanRename
+                    && ProviderParent(source, srcSep) == ProviderParent(dest, destSep))
                 {
-                    var destLeaf = ProviderLeaf(dest, destSep);
-                    var destParent = ProviderParent(dest, destSep) ?? destinationDir;
-                    // Rename moves within the same parent; for cross-dir we need to move to a temp
-                    // name if the provider doesn't have a full move. However IFileSystemProvider.Rename
-                    // only renames the leaf. We fall back to stream copy+delete for cross-directory moves.
-                    var srcParent = ProviderParent(source, srcSep);
-                    if (srcParent == destParent)
-                    {
-                        srcProvider.Rename(source, destLeaf);
-                        session.FileProgress(source, size, size);
-                        session.FileDone(source);
-                        continue;
-                    }
-                    // Cross-directory within same provider: fall through to stream copy+delete.
+                    srcProvider.Rename(source, ProviderLeaf(dest, destSep));
+                    session.FileProgress(source, size, size);
+                    session.FileDone(source);
+                    continue;
                 }
 
                 var srcMtime = srcStat?.ModifiedUtc ?? DateTime.UtcNow;
