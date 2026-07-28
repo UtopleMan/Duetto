@@ -20,8 +20,22 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     /// <summary>The active "new folder/file" placeholder row, or null when none is being named.</summary>
     private FileRowViewModel? _editingPlaceholder;
 
-    /// <summary>Reads a directory. Seam for tests; production lists the real filesystem.</summary>
-    public Func<string, IReadOnlyList<FileEntry>> Lister { get; set; } = DirectoryLister.List;
+    /// <summary>
+    /// Maps a path to its provider. Default is a shared local-only instance; tests inject a
+    /// registry pre-populated with an in-memory provider to exercise remote navigation without
+    /// touching the disk. Matches the pattern used by <see cref="MainViewModel.Registry"/>.
+    /// </summary>
+    public FileSystemRegistry Registry { get; set; } = SharedLocalRegistry;
+
+    /// <summary>A local-only registry shared by all panes that have not been given a custom one.</summary>
+    private static readonly FileSystemRegistry SharedLocalRegistry = new();
+
+    /// <summary>
+    /// Reads a directory. Routes through <see cref="Registry"/> so remote addresses
+    /// resolve to the correct provider. Seam for tests: inject a custom registry or
+    /// replace this delegate directly for lower-level overrides.
+    /// </summary>
+    public Func<string, IReadOnlyList<FileEntry>> Lister { get; set; }
 
     /// <summary>
     /// Schedules the listing work. Default runs it inline (synchronous); production
@@ -90,9 +104,7 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     public Action<string> LaunchFile { get; set; } = static path =>
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
 
-    public string DirName => Path.GetFileName(CurrentPath.TrimEnd(Path.DirectorySeparatorChar)) is { Length: > 0 } name
-        ? name
-        : CurrentPath;
+    public string DirName => PathUtil.Leaf(CurrentPath) is { Length: > 0 } name ? name : CurrentPath;
 
     public string VolumeChipText
     {
@@ -118,13 +130,22 @@ public partial class PaneViewModel : ObservableObject, IDisposable
 
     public bool CanGoBack => _back.Count > 0;
     public bool CanGoForward => _forward.Count > 0;
-    public bool CanGoUp => Path.GetDirectoryName(CurrentPath) is not null;
+    public bool CanGoUp => PathUtil.Parent(CurrentPath) is not null;
 
     public DrivePopoverViewModel Drives { get; }
 
-    public PaneViewModel(string initialPath)
+    public PaneViewModel(string initialPath, FileSystemRegistry? registry = null)
     {
         _currentPath = initialPath;
+        if (registry is not null)
+            Registry = registry;
+        // Default lister routes through the registry so remote addresses hit the right provider.
+        // Tests can replace the Lister delegate directly for lower-level overrides.
+        Lister = path =>
+        {
+            var (provider, localPath) = Registry.Resolve(path);
+            return provider.List(localPath);
+        };
         Drives = new DrivePopoverViewModel(this);
         Selection.Source = Rows;
         Selection.SelectionChanged += (_, _) => UpdateStatus();
@@ -138,7 +159,8 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     /// <summary>Navigate, then select <paramref name="selectName"/> once the load lands (else the first row).</summary>
     public void NavigateTo(string path, string? selectName)
     {
-        if (!Directory.Exists(path))
+        var (provider, localPath) = Registry.Resolve(path);
+        if (!provider.DirectoryExists(localPath))
             return;
         _back.Push(CurrentPath);
         _forward.Clear();
@@ -166,9 +188,9 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     [RelayCommand]
     public void Up()
     {
-        if (Path.GetDirectoryName(CurrentPath) is { } parent)
+        if (PathUtil.Parent(CurrentPath) is { } parent)
         {
-            var cameFrom = Path.GetFileName(CurrentPath.TrimEnd(Path.DirectorySeparatorChar));
+            var cameFrom = PathUtil.Leaf(CurrentPath);
             NavigateTo(parent, cameFrom.Length > 0 ? cameFrom : null);
         }
     }
@@ -282,7 +304,7 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         string? cursorName, int cursorIndex, string? selectAfter, bool selectFirst)
     {
         Rows.Clear();
-        if (Path.GetDirectoryName(CurrentPath) is { } parent)
+        if (PathUtil.Parent(CurrentPath) is { } parent)
             Rows.Add(FileRowViewModel.ParentNav(parent));
         foreach (var entry in entries)
             Rows.Add(new FileRowViewModel(entry));
@@ -592,6 +614,11 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     {
         _watcher?.Dispose();
         _watcher = null;
+
+        // Remote paths get manual refresh only — FileSystemWatcher cannot watch a URI.
+        if (PathUtil.IsRemote(CurrentPath))
+            return;
+
         try
         {
             _watcher = new FileSystemWatcher(CurrentPath)

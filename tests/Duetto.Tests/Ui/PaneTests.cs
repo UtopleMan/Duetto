@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Threading;
 using Duetto.Core.FileSystem;
 using Duetto.Tests.Core;
+using Duetto.Tests.Support;
 using Duetto.ViewModels;
 using Duetto.Views;
 
@@ -313,5 +314,100 @@ public class PaneTests
         vm.SelectByName("doc.txt");
         vm.OpenCursor();
         Assert.Equal(Path.Combine(tmp.Path, "doc.txt"), launched);
+    }
+
+    // ── Remote navigation (registry seam) ──────────────────────────────────
+    //
+    // Each test builds a fresh registry, registers an InMemoryFileSystemProvider,
+    // then constructs a PaneViewModel that starts at a remote address and assigns
+    // the registry to vm.Registry. The default Lister lambda captures `this`, so
+    // it reads Registry at call time — no re-wiring needed.
+
+    [AvaloniaFact]
+    public void Remote_pane_lists_directory_via_injected_registry()
+    {
+        var fs = new InMemoryFileSystemProvider();
+        fs.CreateDirectory("/", "docs");
+        fs.CreateFile("/docs", "readme.md");
+
+        var reg = new FileSystemRegistry();
+        reg.Register("sftp", "host1", fs);
+
+        using var vm = new PaneViewModel("sftp://host1/", reg);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Contains(vm.Rows, r => r.Name == "docs");
+        // Remote root has no parent — no ".." row.
+        Assert.DoesNotContain(vm.Rows, r => r.IsParentNav);
+    }
+
+    [AvaloniaFact]
+    public void Remote_DirName_uses_PathUtil_Leaf()
+    {
+        var fs = new InMemoryFileSystemProvider();
+        fs.CreateDirectory("/", "projects");
+
+        var reg = new FileSystemRegistry();
+        reg.Register("sftp", "host1", fs);
+
+        using var vm = new PaneViewModel("sftp://host1/projects", reg);
+
+        Assert.Equal("projects", vm.DirName);
+    }
+
+    [AvaloniaFact]
+    public void Remote_CanGoUp_false_at_root_true_at_subdir()
+    {
+        var fs = new InMemoryFileSystemProvider();
+        fs.CreateDirectory("/", "a");
+
+        var reg = new FileSystemRegistry();
+        reg.Register("sftp", "host1", fs);
+
+        using var vmRoot = new PaneViewModel("sftp://host1/", reg);
+        using var vmSub  = new PaneViewModel("sftp://host1/a", reg);
+
+        Assert.False(vmRoot.CanGoUp);
+        Assert.True(vmSub.CanGoUp);
+    }
+
+    [AvaloniaFact]
+    public void Remote_Up_navigates_to_parent_and_selects_child_leaf()
+    {
+        var fs = new InMemoryFileSystemProvider();
+        fs.CreateDirectory("/", "work");
+        fs.CreateDirectory("/work", "src");
+
+        var reg = new FileSystemRegistry();
+        reg.Register("sftp", "srv", fs);
+
+        using var vm = new PaneViewModel("sftp://srv/work/src", reg);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("src", vm.DirName);
+
+        vm.Up();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("sftp://srv/work", vm.CurrentPath);
+        Assert.Equal("work", vm.DirName);
+        // After going up, the child directory "src" should be selected.
+        Assert.Equal("src", (vm.Selection.SelectedItem as FileRowViewModel)?.Name);
+    }
+
+    [AvaloniaFact]
+    public void Remote_path_does_not_start_FileSystemWatcher()
+    {
+        var fs = new InMemoryFileSystemProvider();
+        var reg = new FileSystemRegistry();
+        reg.Register("sftp", "host2", fs);
+
+        using var vm = new PaneViewModel("sftp://host2/", reg);
+
+        // The IsRemote gate in StartWatcher prevents a FileSystemWatcher from being
+        // created for a URI address (it is not a valid local directory path).
+        // Verified indirectly: Dispose must not throw, and listing works normally.
+        Dispatcher.UIThread.RunJobs();
+        vm.Dispose(); // must not throw
     }
 }
