@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using Duetto.Core.FileSystem;
 
 namespace Duetto.Core.Operations;
 
@@ -206,50 +207,90 @@ public static class TransferEngine
     public const string SkipReasonNewer = "same name, newer at destination";
     private const int ChunkSize = 1024 * 1024;
 
+    private static readonly LocalFileSystemProvider _local = new();
+
     /// <summary>
     /// Starts copying/moving <paramref name="sourcePaths"/> (files or directories)
-    /// into <paramref name="destinationDir"/> on a background task.
-    /// Conflict rule: destination file with the same relative name and an equal or
-    /// newer mtime is skipped; an older one is overwritten.
+    /// into <paramref name="destinationDir"/> on a background task using the local
+    /// file system. Behavior is identical to before this overload was provider-aware.
     /// </summary>
     public static TransferSession Start(
         IReadOnlyList<string> sourcePaths, string destinationDir, TransferMode mode)
+        => Start(sourcePaths, _local, destinationDir, _local, mode);
+
+    /// <summary>
+    /// Provider-aware overload: copies/moves files from <paramref name="srcProvider"/>
+    /// into <paramref name="destProvider"/>. Stream-copy via <c>OpenRead</c>/<c>OpenWrite</c>;
+    /// <c>.part</c>+rename only when <c>dest.Capabilities.AtomicRename</c>; mtime copy only
+    /// when <c>dest.Capabilities.PreservesMTime</c>; move = native <c>Rename</c> when same
+    /// provider instance and <c>CanRename</c>, else copy+delete.
+    /// </summary>
+    public static TransferSession Start(
+        IReadOnlyList<string> sourcePaths,
+        IFileSystemProvider srcProvider,
+        string destinationDir,
+        IFileSystemProvider destProvider,
+        TransferMode mode)
     {
         var session = new TransferSession(mode, destinationDir);
-        session.Completion = Task.Run(() => Run(session, sourcePaths, destinationDir, mode));
+        session.Completion = Task.Run(() => Run(session, sourcePaths, srcProvider, destinationDir, destProvider, mode));
         return session;
     }
 
     private static void Run(
-        TransferSession session, IReadOnlyList<string> sourcePaths, string destinationDir, TransferMode mode)
+        TransferSession session,
+        IReadOnlyList<string> sourcePaths,
+        IFileSystemProvider srcProvider,
+        string destinationDir,
+        IFileSystemProvider destProvider,
+        TransferMode mode)
     {
         try
         {
             var files = new List<(string Source, string Dest, long Size)>();
             var dirPairs = new List<(string Source, string Dest)>();
+            var srcSep = srcProvider.Capabilities.Separator;
+            var destSep = destProvider.Capabilities.Separator;
+
             foreach (var source in sourcePaths)
             {
-                if (Directory.Exists(source))
+                if (srcProvider.DirectoryExists(source))
                 {
-                    var destRoot = Path.Combine(destinationDir, Path.GetFileName(source.TrimEnd(Path.DirectorySeparatorChar)));
+                    var srcLeaf = ProviderLeaf(source, srcSep);
+                    var destRoot = ProviderCombine(destinationDir, srcLeaf, destSep);
                     dirPairs.Add((source, destRoot));
-                    foreach (var dir in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
-                        dirPairs.Add((dir, Path.Combine(destRoot, Path.GetRelativePath(source, dir))));
-                    foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
-                        files.Add((file, Path.Combine(destRoot, Path.GetRelativePath(source, file)), new FileInfo(file).Length));
+                    foreach (var entry in srcProvider.EnumerateRecursive(source))
+                    {
+                        var relPath = ProviderRelativePath(source, entry.FullPath, srcSep);
+                        var destPath = ProviderCombineRel(destRoot, relPath, srcSep, destSep);
+                        if (entry.IsDirectory)
+                            dirPairs.Add((entry.FullPath, destPath));
+                        else
+                            files.Add((entry.FullPath, destPath, entry.SizeBytes));
+                    }
                 }
-                else if (File.Exists(source))
+                else if (srcProvider.FileExists(source))
                 {
-                    files.Add((source, Path.Combine(destinationDir, Path.GetFileName(source)), new FileInfo(source).Length));
+                    var srcLeaf = ProviderLeaf(source, srcSep);
+                    var destPath = ProviderCombine(destinationDir, srcLeaf, destSep);
+                    var stat = srcProvider.Stat(source);
+                    files.Add((source, destPath, stat?.SizeBytes ?? 0));
                 }
             }
 
             session.Plan(files);
 
+            // Create destination directories (in order, so parents come before children).
             foreach (var (_, dest) in dirPairs)
             {
                 session.Token.ThrowIfCancellationRequested();
-                Directory.CreateDirectory(dest);
+                if (!destProvider.DirectoryExists(dest))
+                {
+                    var parent = ProviderParent(dest, destSep);
+                    var name = ProviderLeaf(dest, destSep);
+                    if (parent is not null && name.Length > 0)
+                        destProvider.CreateDirectory(parent, name);
+                }
             }
 
             foreach (var (source, dest, size) in files)
@@ -257,18 +298,41 @@ public static class TransferEngine
                 session.WaitIfPaused();
                 session.Token.ThrowIfCancellationRequested();
 
-                var srcInfo = new FileInfo(source);
-                var destInfo = new FileInfo(dest);
-                if (destInfo.Exists && destInfo.LastWriteTimeUtc >= srcInfo.LastWriteTimeUtc)
+                var srcStat = srcProvider.Stat(source);
+                var destStat = destProvider.Stat(dest);
+                if (destStat is not null && srcStat is not null
+                    && destStat.ModifiedUtc >= srcStat.ModifiedUtc)
                 {
                     session.FileSkipped(source, SkipReasonNewer);
                     continue;
                 }
 
                 session.FileStarted(source, dest, size);
-                CopyFile(session, source, dest, srcInfo.LastWriteTimeUtc);
+
+                // Move shortcut: same provider and provider supports native rename.
+                if (mode == TransferMode.Move && ReferenceEquals(srcProvider, destProvider)
+                    && srcProvider.Capabilities.CanRename)
+                {
+                    var destLeaf = ProviderLeaf(dest, destSep);
+                    var destParent = ProviderParent(dest, destSep) ?? destinationDir;
+                    // Rename moves within the same parent; for cross-dir we need to move to a temp
+                    // name if the provider doesn't have a full move. However IFileSystemProvider.Rename
+                    // only renames the leaf. We fall back to stream copy+delete for cross-directory moves.
+                    var srcParent = ProviderParent(source, srcSep);
+                    if (srcParent == destParent)
+                    {
+                        srcProvider.Rename(source, destLeaf);
+                        session.FileProgress(source, size, size);
+                        session.FileDone(source);
+                        continue;
+                    }
+                    // Cross-directory within same provider: fall through to stream copy+delete.
+                }
+
+                var srcMtime = srcStat?.ModifiedUtc ?? DateTime.UtcNow;
+                CopyFile(session, source, dest, srcMtime, srcProvider, destProvider);
                 if (mode == TransferMode.Move)
-                    File.Delete(source);
+                    srcProvider.Delete(source, toTrash: false);
                 session.FileDone(source);
             }
 
@@ -277,8 +341,9 @@ public static class TransferEngine
                 // Depth-first so children go before parents; only empty dirs are removed.
                 foreach (var (dirSource, _) in dirPairs.OrderByDescending(p => p.Source.Length))
                 {
-                    if (Directory.Exists(dirSource) && !Directory.EnumerateFileSystemEntries(dirSource).Any())
-                        Directory.Delete(dirSource);
+                    if (srcProvider.DirectoryExists(dirSource)
+                        && !srcProvider.EnumerateRecursive(dirSource).Any())
+                        srcProvider.Delete(dirSource, toTrash: false);
                 }
             }
         }
@@ -291,13 +356,20 @@ public static class TransferEngine
         }
     }
 
-    private static void CopyFile(TransferSession session, string source, string dest, DateTime sourceMtimeUtc)
+    private static void CopyFile(
+        TransferSession session,
+        string source,
+        string dest,
+        DateTime sourceMtimeUtc,
+        IFileSystemProvider srcProvider,
+        IFileSystemProvider destProvider)
     {
-        var part = dest + ".part";
+        var useAtomicRename = destProvider.Capabilities.AtomicRename;
+        var writePath = useAtomicRename ? dest + ".part" : dest;
         try
         {
-            using (var input = File.OpenRead(source))
-            using (var output = File.Create(part))
+            using (var input = srcProvider.OpenRead(source))
+            using (var output = destProvider.OpenWrite(writePath))
             {
                 var buffer = new byte[ChunkSize];
                 long total = 0;
@@ -312,14 +384,76 @@ public static class TransferEngine
                 }
             }
 
-            File.Move(part, dest, overwrite: true);
-            File.SetLastWriteTimeUtc(dest, sourceMtimeUtc);
+            if (useAtomicRename)
+            {
+                // Remove a stale destination so the rename does not fail on providers that
+                // do not support overwriting moves (e.g. the local provider uses File.Move
+                // without the overwrite flag).
+                if (destProvider.FileExists(dest))
+                    destProvider.Delete(dest, toTrash: false);
+                destProvider.Rename(writePath, ProviderLeaf(dest, destProvider.Capabilities.Separator));
+            }
+
+            if (destProvider.Capabilities.PreservesMTime)
+                destProvider.SetLastWriteTimeUtc(dest, sourceMtimeUtc);
         }
-        catch
+        catch (Exception e) when (e is not OperationCanceledException)
         {
-            if (File.Exists(part))
-                File.Delete(part);
+            if (useAtomicRename && destProvider.FileExists(writePath))
+                destProvider.Delete(writePath, toTrash: false);
             throw;
         }
+    }
+
+    // ── Provider path helpers ────────────────────────────────────────────────
+
+    private static string ProviderLeaf(string path, char sep)
+    {
+        var trimmed = path.TrimEnd(sep);
+        var idx = trimmed.LastIndexOf(sep);
+        return idx < 0 ? trimmed : trimmed[(idx + 1)..];
+    }
+
+    private static string? ProviderParent(string path, char sep)
+    {
+        var trimmed = path.TrimEnd(sep);
+        var idx = trimmed.LastIndexOf(sep);
+        if (idx < 0)
+            return null;
+        var parent = trimmed[..idx];
+        // Preserve a bare separator root (e.g. "/" on unix or in-memory).
+        return parent.Length == 0 ? sep.ToString() : parent;
+    }
+
+    private static string ProviderCombine(string parent, string name, char sep)
+    {
+        var p = parent.TrimEnd(sep);
+        return p.Length == 0 ? sep + name : p + sep + name;
+    }
+
+    /// <summary>
+    /// Returns the relative portion of <paramref name="fullPath"/> below <paramref name="basePath"/>
+    /// using the source separator. E.g. base="/a" full="/a/b/c" sep='/' → "b/c".
+    /// </summary>
+    private static string ProviderRelativePath(string basePath, string fullPath, char sep)
+    {
+        var b = basePath.TrimEnd(sep);
+        if (fullPath.StartsWith(b + sep, StringComparison.Ordinal))
+            return fullPath[(b.Length + 1)..];
+        return fullPath;
+    }
+
+    /// <summary>
+    /// Appends a source-relative path segment onto a dest base, translating separators.
+    /// E.g. destBase="/dst", relPath="sub/file.txt", srcSep='/', destSep='/' → "/dst/sub/file.txt".
+    /// When source and dest use different separators the rel path segments are split and rejoined.
+    /// </summary>
+    private static string ProviderCombineRel(string destBase, string relPath, char srcSep, char destSep)
+    {
+        var segments = relPath.Split(srcSep, StringSplitOptions.RemoveEmptyEntries);
+        var result = destBase.TrimEnd(destSep);
+        foreach (var seg in segments)
+            result = result + destSep + seg;
+        return result;
     }
 }
