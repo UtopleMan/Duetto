@@ -72,22 +72,39 @@ public sealed class LocalFileSystemProvider : IFileSystemProvider
 
     public IEnumerable<FileEntry> EnumerateRecursive(string path)
     {
-        IEnumerable<FileSystemInfo> children;
+        // Guard every MoveNext: macOS TCC can deny individual entries mid-iteration.
+        IEnumerator<FileSystemInfo>? iterator;
         try
         {
-            children = new DirectoryInfo(path).EnumerateFileSystemInfos();
+            iterator = new DirectoryInfo(path).EnumerateFileSystemInfos().GetEnumerator();
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             yield break;
         }
 
-        foreach (var info in children)
+        using (iterator)
         {
-            yield return DirectoryLister.ToEntry(info);
-            if (info is DirectoryInfo dir)
-                foreach (var descendant in EnumerateRecursive(dir.FullName))
-                    yield return descendant;
+            while (true)
+            {
+                FileSystemInfo info;
+                try
+                {
+                    if (!iterator.MoveNext())
+                        break;
+                    info = iterator.Current;
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    break;
+                }
+
+                yield return DirectoryLister.ToEntry(info);
+                // Recurse into real directories only; symlinked dirs risk cycles.
+                if (info is DirectoryInfo dir && dir.LinkTarget is null)
+                    foreach (var descendant in EnumerateRecursive(dir.FullName))
+                        yield return descendant;
+            }
         }
     }
 

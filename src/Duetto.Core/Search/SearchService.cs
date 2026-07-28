@@ -22,97 +22,90 @@ public static class SearchService
 {
     private const long MaxContentSearchBytes = 4 * 1024 * 1024;
 
+    private static readonly FileSystemRegistry _defaultRegistry = new();
+
     /// <summary>
     /// Streams hits below <paramref name="scopeDir"/> whose name contains
     /// <paramref name="query"/> (ordinal, case-insensitive) or, when
     /// <paramref name="includeContents"/> is set, whose text content contains it.
     /// Unreadable directories are skipped. <paramref name="stats"/> updates live.
+    /// Returns no results when the resolved provider's
+    /// <see cref="FileSystemCapabilities.SupportsSearch"/> is false.
+    /// </summary>
+    public static IAsyncEnumerable<SearchHit> Search(
+        string scopeDir,
+        string query,
+        bool includeContents,
+        SearchStats stats,
+        CancellationToken ct = default)
+        => Search(scopeDir, query, includeContents, stats, _defaultRegistry, ct);
+
+    /// <summary>
+    /// Provider-aware overload: resolves <paramref name="scopeDir"/> via
+    /// <paramref name="registry"/> and walks using the owning provider's
+    /// <see cref="IFileSystemProvider.EnumerateRecursive"/> and
+    /// <see cref="IFileSystemProvider.OpenRead"/>. Gated on
+    /// <see cref="FileSystemCapabilities.SupportsSearch"/>; returns no results
+    /// when the capability is false (clean no-op, no exception).
     /// </summary>
     public static async IAsyncEnumerable<SearchHit> Search(
         string scopeDir,
         string query,
         bool includeContents,
         SearchStats stats,
+        FileSystemRegistry registry,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
+        var (provider, localPath) = registry.Resolve(scopeDir);
+
+        if (!provider.Capabilities.SupportsSearch)
+            yield break;
+
+        var sep = provider.Capabilities.Separator;
         var channel = Channel.CreateUnbounded<SearchHit>();
         var worker = Task.Run(() =>
         {
             try
             {
-                Walk(new DirectoryInfo(scopeDir), "");
-            }
-            finally
-            {
-                channel.Writer.Complete();
-            }
-
-            void Walk(DirectoryInfo dir, string relative)
-            {
-                ct.ThrowIfCancellationRequested();
-                // macOS can also deny access mid-iteration (TCC-protected entries),
-                // so every MoveNext needs guarding, not just the initial call.
-                var children = new List<FileSystemInfo>();
-                try
-                {
-                    using var iterator = dir.EnumerateFileSystemInfos().GetEnumerator();
-                    while (true)
-                    {
-                        try
-                        {
-                            if (!iterator.MoveNext())
-                                break;
-                        }
-                        catch (UnauthorizedAccessException)
-                        {
-                            break;
-                        }
-                        catch (IOException)
-                        {
-                            break;
-                        }
-
-                        children.Add(iterator.Current);
-                    }
-                }
-                catch (UnauthorizedAccessException)
-                {
-                    return;
-                }
-                catch (IOException)
-                {
-                    return;
-                }
-
-                foreach (var info in children)
+                foreach (var entry in provider.EnumerateRecursive(localPath))
                 {
                     ct.ThrowIfCancellationRequested();
-                    if (info is DirectoryInfo sub)
+
+                    // Compute the folder of this entry relative to the scope root.
+                    var entryParent = entry.FullPath.Contains(sep)
+                        ? entry.FullPath[..entry.FullPath.LastIndexOf(sep)]
+                        : "";
+                    var relativeFolder = entryParent.Length > localPath.Length
+                        ? entryParent[(localPath.Length + 1)..]
+                        : "";
+
+                    if (entry.IsDirectory)
                     {
-                        if (sub.Name.Contains(query, StringComparison.OrdinalIgnoreCase))
+                        if (entry.Name.Contains(query, StringComparison.OrdinalIgnoreCase))
                         {
                             stats.Match();
-                            channel.Writer.TryWrite(new SearchHit(DirectoryLister.ToEntry(sub), relative));
+                            channel.Writer.TryWrite(new SearchHit(entry, relativeFolder));
                         }
 
-                        // Recurse into real directories only; symlinked dirs would risk cycles.
-                        if (sub.LinkTarget is null)
-                            Walk(sub, Path.Combine(relative, sub.Name));
                         continue;
                     }
 
                     stats.FileScanned();
-                    var nameMatch = info.Name.Contains(query, StringComparison.OrdinalIgnoreCase);
+                    var nameMatch = entry.Name.Contains(query, StringComparison.OrdinalIgnoreCase);
                     var match = nameMatch;
-                    if (!match && includeContents && info is FileInfo file && file.Length <= MaxContentSearchBytes)
-                        match = ContentContains(file, query, ct);
+                    if (!match && includeContents && entry.SizeBytes <= MaxContentSearchBytes)
+                        match = ContentContains(provider, entry.FullPath, query, ct);
 
                     if (match)
                     {
                         stats.Match();
-                        channel.Writer.TryWrite(new SearchHit(DirectoryLister.ToEntry(info), relative));
+                        channel.Writer.TryWrite(new SearchHit(entry, relativeFolder));
                     }
                 }
+            }
+            finally
+            {
+                channel.Writer.Complete();
             }
         }, ct);
 
@@ -121,11 +114,16 @@ public static class SearchService
         await worker.ConfigureAwait(false);
     }
 
-    private static bool ContentContains(FileInfo file, string query, CancellationToken ct)
+    private static bool ContentContains(
+        IFileSystemProvider provider,
+        string path,
+        string query,
+        CancellationToken ct)
     {
         try
         {
-            using var reader = new StreamReader(file.FullName);
+            using var stream = provider.OpenRead(path);
+            using var reader = new StreamReader(stream);
             // NUL byte in the first chunk = treat as binary, skip.
             var buffer = new char[8192];
             var first = reader.Read(buffer, 0, buffer.Length);
