@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Duetto.Core.FileSystem;
 using Duetto.Core.Operations;
 
 namespace Duetto.ViewModels;
@@ -26,8 +27,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Convenience view of the slot when it holds a transfer (used by tests + transfer wiring).</summary>
     public TransferViewModel? ActiveTransfer => ActiveOperation as TransferViewModel;
 
-    /// <summary>Moves a path to the OS trash. Seam for tests; production uses <see cref="TrashService"/>.</summary>
-    public Func<string, string?> TrashFn { get; set; } = TrashService.Trash;
+    /// <summary>Maps a path to the provider that owns it (local disk, later SFTP/S3).</summary>
+    public FileSystemRegistry Registry { get; } = new();
+
+    /// <summary>
+    /// Moves a path to the OS trash. Seam for tests; production routes through the owning
+    /// provider's <see cref="IFileSystemProvider.Delete"/> so remote paths get a hook later.
+    /// </summary>
+    public Func<string, string?> TrashFn { get; set; }
 
     /// <summary>Schedules the delete loop. Default runs it on a worker thread; tests inject inline.</summary>
     public Func<Action<CancellationToken>, CancellationToken, Task> DeleteScheduler { get; set; }
@@ -50,6 +57,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public MainViewModel(string leftPath, string rightPath, ChromeKind? chrome = null)
     {
+        TrashFn = TrashViaProvider;
         Chrome = chrome ?? Program.Options.Chrome;
         Left = new PaneViewModel(leftPath);
         Right = new PaneViewModel(rightPath);
@@ -258,6 +266,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ActiveOperation = op;
 
         DeleteCompletion = RunDeleteAsync(paths, op, cts.Token, fromSearch);
+    }
+
+    /// <summary>
+    /// Default <see cref="TrashFn"/>: routes the delete through the owning provider's trash
+    /// (local disk today; a remote provider without <see cref="FileSystemCapabilities.HasTrash"/>
+    /// falls back to a permanent delete on its side later). Returns null — the caller ignores it.
+    /// </summary>
+    private string? TrashViaProvider(string path)
+    {
+        var (provider, localPath) = Registry.Resolve(path);
+        provider.Delete(localPath, toTrash: true);
+        return null;
     }
 
     /// <summary>

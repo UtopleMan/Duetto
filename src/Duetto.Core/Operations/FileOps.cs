@@ -1,21 +1,22 @@
+using Duetto.Core.FileSystem;
+
 namespace Duetto.Core.Operations;
 
 public static class FileOps
 {
-    /// <summary>Renames a file or directory in place. Returns the new full path.</summary>
-    public static string Rename(string fullPath, string newName)
-    {
-        if (newName.Contains(Path.DirectorySeparatorChar) || newName.Contains(Path.AltDirectorySeparatorChar))
-            throw new ArgumentException("Name cannot contain path separators", nameof(newName));
+    /// <summary>The default backend used by the provider-less overloads (the local disk).</summary>
+    private static readonly IFileSystemProvider Local = new LocalFileSystemProvider();
 
-        var parent = Path.GetDirectoryName(fullPath)
-                     ?? throw new ArgumentException("Cannot rename a root", nameof(fullPath));
-        var target = Path.Combine(parent, newName);
-        if (Directory.Exists(fullPath))
-            Directory.Move(fullPath, target);
-        else
-            File.Move(fullPath, target);
-        return target;
+    /// <summary>Renames a file or directory in place. Returns the new full path.</summary>
+    public static string Rename(string fullPath, string newName) => Rename(Local, fullPath, newName);
+
+    /// <summary>Renames the leaf of <paramref name="fullPath"/> through <paramref name="provider"/>. Returns the new full path.</summary>
+    public static string Rename(IFileSystemProvider provider, string fullPath, string newName)
+    {
+        RejectSeparators(newName, nameof(newName));
+        if (PathUtil.Parent(fullPath) is null)
+            throw new ArgumentException("Cannot rename a root", nameof(fullPath));
+        return provider.Rename(fullPath, newName);
     }
 
     /// <summary>Creates "New folder" (or "New folder 2", …) inside <paramref name="parentDir"/>.</summary>
@@ -27,43 +28,60 @@ public static class FileOps
     /// <paramref name="baseName"/> ("New folder", "New folder 2", …). Checks both files
     /// and directories; does not create anything.
     /// </summary>
-    public static string SuggestEntryName(string parentDir, string baseName)
+    public static string SuggestEntryName(string parentDir, string baseName) =>
+        SuggestEntryName(Local, parentDir, baseName);
+
+    /// <summary>First free entry name inside <paramref name="parentDir"/> on <paramref name="provider"/>; creates nothing.</summary>
+    public static string SuggestEntryName(IFileSystemProvider provider, string parentDir, string baseName)
     {
         var name = baseName;
         var n = 1;
-        while (Directory.Exists(Path.Combine(parentDir, name)) || File.Exists(Path.Combine(parentDir, name)))
+        while (Exists(provider, parentDir, name))
             name = $"{baseName} {++n}";
         return name;
     }
 
     /// <summary>Creates a directory named exactly <paramref name="name"/>. Returns the full path.</summary>
-    public static string CreateFolder(string parentDir, string name)
+    public static string CreateFolder(string parentDir, string name) => CreateFolder(Local, parentDir, name);
+
+    /// <summary>Creates a directory named exactly <paramref name="name"/> on <paramref name="provider"/>. Returns the full path.</summary>
+    public static string CreateFolder(IFileSystemProvider provider, string parentDir, string name)
     {
-        var target = ValidateNewEntry(parentDir, name);
-        Directory.CreateDirectory(target);
-        return target;
+        ValidateNewEntry(provider, parentDir, name);
+        return provider.CreateDirectory(parentDir, name);
     }
 
     /// <summary>Creates an empty file named exactly <paramref name="name"/>. Returns the full path.</summary>
-    public static string CreateFile(string parentDir, string name)
+    public static string CreateFile(string parentDir, string name) => CreateFile(Local, parentDir, name);
+
+    /// <summary>Creates an empty file named exactly <paramref name="name"/> on <paramref name="provider"/>. Returns the full path.</summary>
+    public static string CreateFile(IFileSystemProvider provider, string parentDir, string name)
     {
-        var target = ValidateNewEntry(parentDir, name);
-        File.Create(target).Dispose();
-        return target;
+        ValidateNewEntry(provider, parentDir, name);
+        return provider.CreateFile(parentDir, name);
+    }
+
+    /// <summary>True when a file or directory named <paramref name="name"/> already exists under <paramref name="parentDir"/>.</summary>
+    private static bool Exists(IFileSystemProvider provider, string parentDir, string name)
+    {
+        var target = PathUtil.Combine(parentDir, name);
+        return provider.DirectoryExists(target) || provider.FileExists(target);
     }
 
     /// <summary>
     /// Guards a to-be-created entry: rejects path separators and refuses to clobber an
-    /// existing file or directory. Returns the validated full target path.
+    /// existing file or directory.
     /// </summary>
-    private static string ValidateNewEntry(string parentDir, string name)
+    private static void ValidateNewEntry(IFileSystemProvider provider, string parentDir, string name)
     {
-        if (name.Contains(Path.DirectorySeparatorChar) || name.Contains(Path.AltDirectorySeparatorChar))
-            throw new ArgumentException("Name cannot contain path separators", nameof(name));
-
-        var target = Path.Combine(parentDir, name);
-        if (Directory.Exists(target) || File.Exists(target))
+        RejectSeparators(name, nameof(name));
+        if (Exists(provider, parentDir, name))
             throw new IOException($"\"{name}\" already exists");
-        return target;
+    }
+
+    private static void RejectSeparators(string name, string paramName)
+    {
+        if (name.Contains('/') || name.Contains('\\'))
+            throw new ArgumentException("Name cannot contain path separators", paramName);
     }
 }

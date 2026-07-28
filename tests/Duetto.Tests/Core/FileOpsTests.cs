@@ -1,4 +1,6 @@
+using Duetto.Core.FileSystem;
 using Duetto.Core.Operations;
+using Duetto.Tests.Support;
 
 namespace Duetto.Tests.Core;
 
@@ -116,4 +118,69 @@ public class TrashServiceTests : IDisposable
     [Fact]
     public void Trash_missing_file_throws() =>
         Assert.Throws<FileNotFoundException>(() => TrashService.Trash(Path.Combine(_tmp.Path, "ghost")));
+}
+
+/// <summary>
+/// Pins the provider-aware <see cref="FileOps"/> overloads: they route entirely through the
+/// <see cref="IFileSystemProvider"/> seam (proven against the '/'-rooted in-memory fake, which
+/// never touches local disk) while keeping the shared name validation and clobber guards.
+/// </summary>
+public class FileOpsProviderTests
+{
+    private readonly InMemoryFileSystemProvider _fs = new();
+
+    [Fact]
+    public void CreateFolder_routes_through_the_provider()
+    {
+        var created = FileOps.CreateFolder(_fs, "/", "Photos");
+        Assert.Equal("/Photos", created);
+        Assert.True(_fs.DirectoryExists(created));
+    }
+
+    [Fact]
+    public void CreateFolder_throws_when_target_exists()
+    {
+        FileOps.CreateFolder(_fs, "/", "Photos");
+        Assert.Throws<IOException>(() => FileOps.CreateFolder(_fs, "/", "Photos"));
+    }
+
+    [Fact]
+    public void CreateFile_throws_when_target_exists()
+    {
+        FileOps.CreateFile(_fs, "/", "notes.txt");
+        Assert.Throws<IOException>(() => FileOps.CreateFile(_fs, "/", "notes.txt"));
+    }
+
+    [Fact]
+    public void CreateFile_rejects_path_separators() =>
+        Assert.Throws<ArgumentException>(() => FileOps.CreateFile(_fs, "/", "a/b.txt"));
+
+    [Fact]
+    public void SuggestEntryName_uniquifies_against_provider_entries()
+    {
+        _fs.CreateDirectory("/", "New folder");
+        _fs.CreateFile("/", "New folder 2");
+        Assert.Equal("New folder 3", FileOps.SuggestEntryName(_fs, "/", "New folder"));
+    }
+
+    [Fact]
+    public void Rename_routes_through_the_provider()
+    {
+        var file = FileOps.CreateFile(_fs, "/", "old.txt");
+        var renamed = FileOps.Rename(_fs, file, "new.txt");
+        Assert.False(_fs.FileExists(file));
+        Assert.True(_fs.FileExists(renamed));
+        Assert.Equal("new.txt", PathUtil.Leaf(renamed));
+    }
+
+    [Fact]
+    public void Rename_rejects_path_separators()
+    {
+        var file = FileOps.CreateFile(_fs, "/", "a.txt");
+        Assert.Throws<ArgumentException>(() => FileOps.Rename(_fs, file, "../evil.txt"));
+    }
+
+    [Fact]
+    public void Rename_rejects_a_root() =>
+        Assert.Throws<ArgumentException>(() => FileOps.Rename(_fs, "/", "x"));
 }

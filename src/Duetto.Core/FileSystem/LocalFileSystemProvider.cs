@@ -24,9 +24,31 @@ public sealed class LocalFileSystemProvider : IFileSystemProvider
         return null;
     }
 
-    public string CreateDirectory(string parent, string name) => FileOps.CreateFolder(parent, name);
-    public string CreateFile(string parent, string name) => FileOps.CreateFile(parent, name);
-    public string Rename(string fullPath, string newName) => FileOps.Rename(fullPath, newName);
+    public string CreateDirectory(string parent, string name)
+    {
+        var target = Path.Combine(parent, name);
+        Directory.CreateDirectory(target);
+        return target;
+    }
+
+    public string CreateFile(string parent, string name)
+    {
+        var target = Path.Combine(parent, name);
+        File.Create(target).Dispose();
+        return target;
+    }
+
+    public string Rename(string fullPath, string newName)
+    {
+        var parent = Path.GetDirectoryName(fullPath)
+                     ?? throw new ArgumentException("Cannot rename a root", nameof(fullPath));
+        var target = Path.Combine(parent, newName);
+        if (Directory.Exists(fullPath))
+            Directory.Move(fullPath, target);
+        else
+            File.Move(fullPath, target);
+        return target;
+    }
 
     public void Delete(string path, bool toTrash)
     {
