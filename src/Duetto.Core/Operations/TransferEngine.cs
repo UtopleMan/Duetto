@@ -378,14 +378,7 @@ public static class TransferEngine
             }
 
             if (useAtomicRename)
-            {
-                // Remove a stale destination so the rename does not fail on providers that
-                // do not support overwriting moves (e.g. the local provider uses File.Move
-                // without the overwrite flag).
-                if (destProvider.FileExists(dest))
-                    destProvider.Delete(dest, toTrash: false);
-                destProvider.Rename(writePath, ProviderLeaf(dest, destProvider.Capabilities.Separator));
-            }
+                destProvider.ReplaceFile(writePath, dest);
 
             if (destProvider.Capabilities.PreservesMTime)
                 destProvider.SetLastWriteTimeUtc(dest, sourceMtimeUtc);

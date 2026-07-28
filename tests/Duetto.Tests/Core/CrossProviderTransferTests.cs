@@ -252,6 +252,7 @@ public class CrossProviderTransferTests
         public string CreateDirectory(string parent, string name)  => inner.CreateDirectory(parent, name);
         public string CreateFile(string parent, string name)       => inner.CreateFile(parent, name);
         public string Rename(string fullPath, string newName)      => inner.Rename(fullPath, newName);
+        public void ReplaceFile(string from, string to)            => inner.ReplaceFile(from, to);
         public void Delete(string path, bool toTrash)              => inner.Delete(path, toTrash);
         public Stream OpenRead(string path)                        => inner.OpenRead(path);
         public Stream OpenWrite(string path)                       => inner.OpenWrite(path);

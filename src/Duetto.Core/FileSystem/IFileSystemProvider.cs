@@ -28,6 +28,13 @@ public interface IFileSystemProvider
     string Rename(string fullPath, string newName);
 
     /// <summary>
+    /// Moves the file at <paramref name="from"/> onto <paramref name="to"/>, replacing any
+    /// existing file there — atomically when the backend supports it (a same-directory
+    /// POSIX rename). Used to finish a ".part" transfer without a visible gap at the target.
+    /// </summary>
+    void ReplaceFile(string from, string to);
+
+    /// <summary>
     /// Removes an entry (recursively for directories). <paramref name="toTrash"/> is honored
     /// only when <see cref="FileSystemCapabilities.HasTrash"/>; otherwise it is a permanent delete.
     /// </summary>

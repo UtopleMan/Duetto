@@ -100,6 +100,16 @@ public sealed class InMemoryFileSystemProvider : IFileSystemProvider
             _nodes.Remove(key);
     }
 
+    public void ReplaceFile(string from, string to)
+    {
+        var source = Norm(from);
+        var target = Norm(to);
+        // Single dictionary re-key: the old target (if any) is replaced in one step,
+        // mirroring the atomic same-directory rename of a real backend.
+        _nodes[target] = _nodes[source];
+        _nodes.Remove(source);
+    }
+
     public Stream OpenRead(string path) => new MemoryStream(_nodes[Norm(path)].Bytes, writable: false);
 
     public Stream OpenWrite(string path)

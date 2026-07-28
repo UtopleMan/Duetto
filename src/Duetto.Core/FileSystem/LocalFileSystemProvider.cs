@@ -50,6 +50,8 @@ public sealed class LocalFileSystemProvider : IFileSystemProvider
         return target;
     }
 
+    public void ReplaceFile(string from, string to) => File.Move(from, to, overwrite: true);
+
     public void Delete(string path, bool toTrash)
     {
         if (toTrash)

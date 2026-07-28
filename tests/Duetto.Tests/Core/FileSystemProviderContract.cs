@@ -46,6 +46,41 @@ public abstract class FileSystemProviderContract
     }
 
     [Fact]
+    public void ReplaceFile_overwrites_the_target_and_removes_the_source()
+    {
+        var target = Provider.CreateFile(Root, "final.txt");
+        using (var w = Provider.OpenWrite(target))
+            w.Write(Encoding.UTF8.GetBytes("stale"));
+
+        var part = Provider.CreateFile(Root, "final.txt.part");
+        using (var w = Provider.OpenWrite(part))
+            w.Write(Encoding.UTF8.GetBytes("fresh"));
+
+        Provider.ReplaceFile(part, target);
+
+        Assert.False(Provider.FileExists(part));
+        Assert.True(Provider.FileExists(target));
+        using var r = Provider.OpenRead(target);
+        using var ms = new MemoryStream();
+        r.CopyTo(ms);
+        Assert.Equal("fresh", Encoding.UTF8.GetString(ms.ToArray()));
+    }
+
+    [Fact]
+    public void ReplaceFile_moves_onto_a_missing_target()
+    {
+        var part = Provider.CreateFile(Root, "new.txt.part");
+        using (var w = Provider.OpenWrite(part))
+            w.Write(Encoding.UTF8.GetBytes("payload"));
+
+        var target = PathUtil.Combine(Root, "new.txt");
+        Provider.ReplaceFile(part, target);
+
+        Assert.False(Provider.FileExists(part));
+        Assert.True(Provider.FileExists(target));
+    }
+
+    [Fact]
     public void Delete_permanent_removes_the_entry()
     {
         var file = Provider.CreateFile(Root, "doomed.txt");
