@@ -108,7 +108,7 @@ Deferred for later phases: Back/Forward bypass the `DirectoryExists` guard
 `.part` sibling-name collision (pre-existing).
 
 ## Phase 2: SFTP provider over SSH.NET
-Status: Not started
+Status: In progress (SSH.NET pinned 2025.1.0)
 
 - [ ] Add `Renci.SshNet` PackageReference to `Duetto.Core`; confirm net10 restore +
   pin version (Context7 / `dotnet add package`).
