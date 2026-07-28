@@ -309,14 +309,13 @@ public static class TransferEngine
 
                 session.FileStarted(source, dest, size);
 
-                // Move shortcut: same provider instance, CanRename, and same parent directory.
-                // IFileSystemProvider.Rename only renames the leaf within its current parent;
-                // cross-directory moves must fall through to stream copy+delete.
+                // Move shortcut: same provider instance, CanRename capability, and the
+                // destination does not already exist → use native Move (cross-directory allowed).
                 if (mode == TransferMode.Move && ReferenceEquals(srcProvider, destProvider)
                     && srcProvider.Capabilities.CanRename
-                    && ProviderParent(source, srcSep) == ProviderParent(dest, destSep))
+                    && !srcProvider.FileExists(dest) && !srcProvider.DirectoryExists(dest))
                 {
-                    srcProvider.Rename(source, ProviderLeaf(dest, destSep));
+                    srcProvider.Move(source, dest);
                     session.FileProgress(source, size, size);
                     session.FileDone(source);
                     continue;
@@ -359,6 +358,7 @@ public static class TransferEngine
     {
         var useAtomicRename = destProvider.Capabilities.AtomicRename;
         var writePath = useAtomicRename ? dest + ".part" : dest;
+        var succeeded = false;
         try
         {
             using (var input = srcProvider.OpenRead(source))
@@ -382,12 +382,13 @@ public static class TransferEngine
 
             if (destProvider.Capabilities.PreservesMTime)
                 destProvider.SetLastWriteTimeUtc(dest, sourceMtimeUtc);
+
+            succeeded = true;
         }
-        catch (Exception e) when (e is not OperationCanceledException)
+        finally
         {
-            if (useAtomicRename && destProvider.FileExists(writePath))
+            if (!succeeded && useAtomicRename && destProvider.FileExists(writePath))
                 destProvider.Delete(writePath, toTrash: false);
-            throw;
         }
     }
 

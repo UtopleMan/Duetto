@@ -118,4 +118,36 @@ public class TransferEngineTests : IDisposable
         Assert.True(session.Snapshot().IsComplete);
         Assert.Equal(big.Length, session.Snapshot().BytesDone);
     }
+
+    /// <summary>
+    /// Deterministic: pause mid-copy so the engine is blocked inside the chunk loop,
+    /// then cancel. The .part file must be cleaned up even though an
+    /// OperationCanceledException interrupted the write.
+    /// </summary>
+    [Fact]
+    public async Task Cancel_mid_copy_cleans_up_part_file()
+    {
+        // Large enough (10 MB) that the engine is definitely mid-copy when we pause.
+        var big = new string('z', 10 * 1024 * 1024);
+        _src.File("big.bin", big);
+
+        using var session = TransferEngine.Start(
+            [Path.Combine(_src.Path, "big.bin")], _dst.Path, TransferMode.Copy);
+
+        // Pause immediately; spin until at least one chunk has been written so the
+        // .part file exists on disk before we cancel.
+        session.Pause();
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (session.Snapshot().BytesDone == 0 && DateTime.UtcNow < deadline)
+            await Task.Delay(10);
+        Assert.True(session.Snapshot().BytesDone > 0, "transfer never started — increase file size");
+
+        // Cancel (also unblocks the pause).
+        session.Cancel();
+        await session.Completion;
+
+        Assert.True(session.Snapshot().IsCancelled);
+        // No orphaned .part files may remain.
+        Assert.Empty(Directory.EnumerateFiles(_dst.Path, "*.part", SearchOption.AllDirectories));
+    }
 }

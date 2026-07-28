@@ -28,6 +28,15 @@ public interface IFileSystemProvider
     string Rename(string fullPath, string newName);
 
     /// <summary>
+    /// Moves <paramref name="fromPath"/> to <paramref name="toPath"/> within this provider.
+    /// Cross-directory moves are allowed. The operation is atomic where the backend supports it
+    /// (e.g. same-filesystem POSIX rename). Throws <see cref="IOException"/> when the
+    /// destination already exists; throws <see cref="NotSupportedException"/> when the
+    /// capability is off.
+    /// </summary>
+    void Move(string fromPath, string toPath);
+
+    /// <summary>
     /// Moves the file at <paramref name="from"/> onto <paramref name="to"/>, replacing any
     /// existing file there — atomically when the backend supports it (a same-directory
     /// POSIX rename). Used to finish a ".part" transfer without a visible gap at the target.

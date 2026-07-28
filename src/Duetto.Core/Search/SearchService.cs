@@ -62,6 +62,8 @@ public static class SearchService
             yield break;
 
         var sep = provider.Capabilities.Separator;
+        // Trim any trailing separator so slice offsets are stable even for root ("/").
+        var scopeBase = localPath.TrimEnd(sep);
         var channel = Channel.CreateUnbounded<SearchHit>();
         var worker = Task.Run(() =>
         {
@@ -75,8 +77,8 @@ public static class SearchService
                     var entryParent = entry.FullPath.Contains(sep)
                         ? entry.FullPath[..entry.FullPath.LastIndexOf(sep)]
                         : "";
-                    var relativeFolder = entryParent.Length > localPath.Length
-                        ? entryParent[(localPath.Length + 1)..]
+                    var relativeFolder = entryParent.Length > scopeBase.Length
+                        ? entryParent[(scopeBase.Length + 1)..]
                         : "";
 
                     if (entry.IsDirectory)

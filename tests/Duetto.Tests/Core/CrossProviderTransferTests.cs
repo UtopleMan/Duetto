@@ -232,7 +232,27 @@ public class CrossProviderTransferTests
         Assert.Equal("newer-dest", ReadText(dst, "/d/f.txt"));
     }
 
-    // ── spy wrapper ───────────────────────────────────────────────────────────
+    [Fact]
+    public async Task Same_provider_move_cross_directory_uses_native_Move()
+    {
+        // A single in-memory provider wrapped in a spy so we can confirm Move() was called.
+        var inner = MakeMemFs();
+        inner.CreateDirectory("/", "src");
+        inner.CreateDirectory("/", "dst");
+        Seed(inner, "/src/file.txt", "native move content");
+
+        var spy = new MoveCallSpy(inner);
+
+        var session = TransferEngine.Start(["/src/file.txt"], spy, "/dst", spy, TransferMode.Move);
+        await session.Completion;
+
+        Assert.True(session.Snapshot().IsComplete);
+        Assert.True(spy.MoveWasCalled, "TransferEngine must use provider.Move for same-provider cross-directory moves");
+        Assert.False(inner.FileExists("/src/file.txt"), "source must be gone");
+        Assert.Equal("native move content", ReadText(inner, "/dst/file.txt"));
+    }
+
+    // ── spy wrappers ──────────────────────────────────────────────────────────
 
     /// <summary>
     /// Thin forwarding wrapper around an <see cref="IFileSystemProvider"/> that
@@ -252,6 +272,7 @@ public class CrossProviderTransferTests
         public string CreateDirectory(string parent, string name)  => inner.CreateDirectory(parent, name);
         public string CreateFile(string parent, string name)       => inner.CreateFile(parent, name);
         public string Rename(string fullPath, string newName)      => inner.Rename(fullPath, newName);
+        public void Move(string fromPath, string toPath)           => inner.Move(fromPath, toPath);
         public void ReplaceFile(string from, string to)            => inner.ReplaceFile(from, to);
         public void Delete(string path, bool toTrash)              => inner.Delete(path, toTrash);
         public Stream OpenRead(string path)                        => inner.OpenRead(path);
@@ -263,6 +284,37 @@ public class CrossProviderTransferTests
         {
             MTimeWasSet = true;
             inner.SetLastWriteTimeUtc(path, utc);
+        }
+    }
+
+    /// <summary>
+    /// Thin forwarding wrapper that records whether <see cref="Move"/> was invoked.
+    /// Used to verify the TransferEngine takes the native-move path for same-provider moves.
+    /// </summary>
+    private sealed class MoveCallSpy(IFileSystemProvider inner) : IFileSystemProvider
+    {
+        public bool MoveWasCalled { get; private set; }
+
+        public FileSystemCapabilities Capabilities => inner.Capabilities;
+        public IReadOnlyList<FileEntry> List(string path)          => inner.List(path);
+        public bool DirectoryExists(string path)                   => inner.DirectoryExists(path);
+        public bool FileExists(string path)                        => inner.FileExists(path);
+        public FileEntry? Stat(string path)                        => inner.Stat(path);
+        public string CreateDirectory(string parent, string name)  => inner.CreateDirectory(parent, name);
+        public string CreateFile(string parent, string name)       => inner.CreateFile(parent, name);
+        public string Rename(string fullPath, string newName)      => inner.Rename(fullPath, newName);
+        public void ReplaceFile(string from, string to)            => inner.ReplaceFile(from, to);
+        public void Delete(string path, bool toTrash)              => inner.Delete(path, toTrash);
+        public Stream OpenRead(string path)                        => inner.OpenRead(path);
+        public Stream OpenWrite(string path)                       => inner.OpenWrite(path);
+        public void SetLastWriteTimeUtc(string path, DateTime utc) => inner.SetLastWriteTimeUtc(path, utc);
+        public IEnumerable<FileEntry> EnumerateRecursive(string path) => inner.EnumerateRecursive(path);
+        public VolumeInfo? VolumeFor(string path)                  => inner.VolumeFor(path);
+
+        public void Move(string fromPath, string toPath)
+        {
+            MoveWasCalled = true;
+            inner.Move(fromPath, toPath);
         }
     }
 }

@@ -93,6 +93,20 @@ public sealed class InMemoryFileSystemProvider : IFileSystemProvider
         return target;
     }
 
+    public void Move(string fromPath, string toPath)
+    {
+        var from = Norm(fromPath);
+        var to   = Norm(toPath);
+        if (_nodes.ContainsKey(to))
+            throw new IOException($"Destination already exists: {to}");
+        foreach (var key in _nodes.Keys.Where(k => k == from || k.StartsWith(from + "/", StringComparison.Ordinal)).ToList())
+        {
+            var moved = to + key[from.Length..];
+            _nodes[moved] = _nodes[key];
+            _nodes.Remove(key);
+        }
+    }
+
     public void Delete(string path, bool toTrash)
     {
         var target = Norm(path);

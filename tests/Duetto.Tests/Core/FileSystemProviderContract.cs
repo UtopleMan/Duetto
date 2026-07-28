@@ -1,5 +1,6 @@
 using System.Text;
 using Duetto.Core.FileSystem;
+using Duetto.Tests.Support;
 
 namespace Duetto.Tests.Core;
 
@@ -101,6 +102,53 @@ public abstract class FileSystemProviderContract
         Assert.Contains("d", names);
         Assert.Contains("inner.txt", names);
     }
+
+    [Fact]
+    public void Move_file_cross_directory()
+    {
+        var src = Provider.CreateDirectory(Root, "src-dir");
+        var dst = Provider.CreateDirectory(Root, "dst-dir");
+        var file = Provider.CreateFile(src, "data.txt");
+        var sep = Provider.Capabilities.Separator;
+        var destPath = dst.TrimEnd(sep) + sep + "data.txt";
+        Provider.Move(file, destPath);
+        Assert.False(Provider.FileExists(file));
+        Assert.True(Provider.FileExists(destPath));
+    }
+
+    [Fact]
+    public void Move_directory_with_children()
+    {
+        var src = Provider.CreateDirectory(Root, "tree");
+        Provider.CreateFile(src, "child.txt");
+        var sep = Provider.Capabilities.Separator;
+        var destPath = Root.TrimEnd(sep) + sep + "tree-moved";
+        Provider.Move(src, destPath);
+        Assert.False(Provider.DirectoryExists(src));
+        Assert.True(Provider.DirectoryExists(destPath));
+        Assert.True(Provider.FileExists(destPath.TrimEnd(sep) + sep + "child.txt"));
+    }
+
+    [Fact]
+    public void Move_onto_existing_target_throws()
+    {
+        var src = Provider.CreateDirectory(Root, "src-exists");
+        var file = Provider.CreateFile(src, "f.txt");
+        var dst = Provider.CreateDirectory(Root, "dst-exists");
+        var sep = Provider.Capabilities.Separator;
+        var destFile = dst.TrimEnd(sep) + sep + "f.txt";
+        Provider.CreateFile(dst, "f.txt"); // pre-create the target
+        Assert.Throws<IOException>(() => Provider.Move(file, destFile));
+        // Source must still be intact after the failed move.
+        Assert.True(Provider.FileExists(file));
+    }
+}
+
+public sealed class InMemoryFileSystemProviderContractTests : FileSystemProviderContract
+{
+    private readonly InMemoryFileSystemProvider _mem = new();
+    protected override IFileSystemProvider Provider => _mem;
+    protected override string Root => "/";
 }
 
 public sealed class LocalFileSystemProviderTests : FileSystemProviderContract, IDisposable

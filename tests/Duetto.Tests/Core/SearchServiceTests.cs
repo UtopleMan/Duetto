@@ -97,6 +97,73 @@ public class SearchServiceTests : IDisposable
 }
 
 /// <summary>
+/// Verifies RelativeFolder correctness when the search scope is the provider root "/",
+/// i.e. localPath has a trailing separator. Exercises the scopeBase trimming fix.
+/// </summary>
+public class SearchServiceRootScopeTests
+{
+    [Fact]
+    public async Task RelativeFolder_correct_when_scope_is_root()
+    {
+        // Build a registry that routes "mem://host" to an in-memory provider rooted at "/".
+        var mem = new InMemoryFileSystemProvider
+        {
+            Capabilities = new Duetto.Core.FileSystem.FileSystemCapabilities
+            {
+                CanRename         = true,
+                CanCreateEmptyDir = true,
+                CanCreateFile     = true,
+                CanDelete         = true,
+                HasTrash          = false,
+                HasPermissions    = false,
+                PreservesMTime    = false,
+                AtomicRename      = false,
+                CanWatch          = false,
+                ReportsCapacity   = false,
+                SupportsSearch    = true,
+                CaseSensitive     = true,
+                Separator         = '/',
+            }
+        };
+
+        // Seed files: root-level, docs/, and docs/sub/
+        var rootFile = mem.CreateFile("/", "root.txt");
+        {
+            using var w = mem.OpenWrite(rootFile);
+            w.Write(System.Text.Encoding.UTF8.GetBytes("root-content"));
+        }
+        mem.CreateDirectory("/", "docs");
+        var docsFile = mem.CreateFile("/docs", "guide.txt");
+        {
+            using var w = mem.OpenWrite(docsFile);
+            w.Write(System.Text.Encoding.UTF8.GetBytes("docs-content"));
+        }
+        mem.CreateDirectory("/docs", "sub");
+        var subFile = mem.CreateFile("/docs/sub", "index.txt");
+        {
+            using var w = mem.OpenWrite(subFile);
+            w.Write(System.Text.Encoding.UTF8.GetBytes("sub-content"));
+        }
+
+        var reg = new Duetto.Core.FileSystem.FileSystemRegistry();
+        reg.Register("mem", "host", mem);
+
+        // Scope is the root with a trailing slash — this is the bug-trigger case.
+        var scope = "mem://host/";
+
+        var stats = new SearchStats();
+        var hits  = new List<SearchHit>();
+        await foreach (var hit in SearchService.Search(scope, ".txt", includeContents: false, stats, reg))
+            hits.Add(hit);
+
+        Assert.Equal(3, hits.Count);
+        Assert.Single(hits, h => h.Entry.Name == "root.txt"  && h.RelativeFolder == "");
+        Assert.Single(hits, h => h.Entry.Name == "guide.txt" && h.RelativeFolder == "docs");
+        Assert.Single(hits, h => h.Entry.Name == "index.txt" && h.RelativeFolder == "docs/sub");
+    }
+}
+
+/// <summary>
 /// Exercises the provider-aware <see cref="SearchService.Search"/> overload via an
 /// <see cref="InMemoryFileSystemProvider"/> injected through a <see cref="FileSystemRegistry"/>.
 /// These tests never touch the real disk.
