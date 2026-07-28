@@ -61,6 +61,9 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     /// <summary>Completes when the in-flight rename finishes; tests await this to settle.</summary>
     public Task RenameCompletion { get; private set; } = Task.CompletedTask;
 
+    /// <summary>True when a FileSystemWatcher is live for the current path. Remote panes never have one.</summary>
+    public bool HasActiveWatcher => _watcher is not null;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DirName), nameof(VolumeChipText), nameof(PathTailText))]
     private string _currentPath;

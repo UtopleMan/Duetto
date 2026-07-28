@@ -399,15 +399,28 @@ public class PaneTests
     public void Remote_path_does_not_start_FileSystemWatcher()
     {
         var fs = new InMemoryFileSystemProvider();
+        fs.CreateDirectory("/", "sub");
         var reg = new FileSystemRegistry();
         reg.Register("sftp", "host2", fs);
 
-        using var vm = new PaneViewModel("sftp://host2/", reg);
+        // Positive control: a local pane gets a live watcher.
+        using var tmp = new TempDir();
+        using var localVm = new PaneViewModel(tmp.Path);
+        Assert.True(localVm.HasActiveWatcher);
 
-        // The IsRemote gate in StartWatcher prevents a FileSystemWatcher from being
-        // created for a URI address (it is not a valid local directory path).
-        // Verified indirectly: Dispose must not throw, and listing works normally.
+        // Remote pane: the IsRemote gate must prevent any watcher from starting.
+        using var vm = new PaneViewModel("sftp://host2/", reg);
         Dispatcher.UIThread.RunJobs();
-        vm.Dispose(); // must not throw
+        Assert.False(vm.HasActiveWatcher);
+
+        // Still none after navigating within the remote tree.
+        vm.NavigateTo("sftp://host2/sub");
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(vm.HasActiveWatcher);
+
+        // Navigating back to a local path re-arms the watcher.
+        vm.NavigateTo(tmp.Path);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(vm.HasActiveWatcher);
     }
 }
