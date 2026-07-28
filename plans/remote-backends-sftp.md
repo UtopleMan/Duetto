@@ -53,7 +53,7 @@ full browse + manage + copy/move + search over SFTP, replacing the Connect stub.
 ---
 
 ## Phase 1: Provider abstraction + local refactor (behavior-preserving)
-Status: In progress
+Status: Complete
 
 - [x] Add `Duetto.Core/FileSystem/IFileSystemProvider.cs` and
   `FileSystemCapabilities.cs` (record as specified in Architecture).
@@ -65,19 +65,19 @@ Status: In progress
   (IFileSystemProvider, string localPath)`; default resolves everything to the
   local provider) and `Duetto.Core/FileSystem/PathUtil.cs` (`Parent`, `Combine`,
   `Leaf`, `IsRemote`, scheme parsing) that delegates to the resolved separator.
-- [ ] Route `FileOps` (`SuggestEntryName`, `CreateFolder`, `CreateFile`, `Rename`)
+- [x] Route `FileOps` (`SuggestEntryName`, `CreateFolder`, `CreateFile`, `Rename`)
   and `TrashService` through a provider parameter/registry instead of calling
   `Directory`/`File` directly. Keep existing public signatures working via a local
   default so callers compile.
-- [ ] Route `PaneViewModel.Lister` default and navigation helpers (`DirName`,
+- [x] Route `PaneViewModel.Lister` default and navigation helpers (`DirName`,
   `Up`, breadcrumb math, `CanGoUp`) through `PathUtil`/registry rather than raw
   `Path.*`, so a remote address parses correctly. Local behavior unchanged.
-- [ ] Generalize `TransferEngine` to take source+dest `IFileSystemProvider`
+- [x] Generalize `TransferEngine` to take source+dest `IFileSystemProvider`
   (stream copy via `OpenRead`/`OpenWrite`; `.part`+rename only when
   `dest.Capabilities.AtomicRename`; mtime copy only when `PreservesMTime`; move =
   native `Rename` when same provider and `CanRename`, else copy+delete). Local↔local
   path must be byte-for-byte equivalent to today.
-- [ ] Generalize `SearchService` recursive walk to `provider.EnumerateRecursive` +
+- [x] Generalize `SearchService` recursive walk to `provider.EnumerateRecursive` +
   `OpenRead` for content search, gated on `SupportsSearch`.
 
 ### Verification Plan
@@ -89,7 +89,23 @@ Status: In progress
   `PathUtil` parses both a local path and `sftp://id/a/b` (parent/leaf/combine).
 
 ### Phase Summary
-_(write when phase completes)_
+Done 2026-07-28, commits 2da9e91..c37779f. Every consumer now routes through the
+seam: `FileOps` (+ provider-aware `NewFolder`) and trash via
+`provider.Delete(path, toTrash)`; `PaneViewModel` navigation through
+`PathUtil`/injectable `FileSystemRegistry` with the `FileSystemWatcher` gated
+off for remote addresses (`HasActiveWatcher` test seam); `TransferEngine` takes
+source+dest providers with capability-gated `.part`/mtime/move strategies —
+review caught and fixed an atomicity regression by adding
+`IFileSystemProvider.ReplaceFile` (local = `File.Move(overwrite: true)`, single
+`rename(2)`); `SearchService` walks `provider.EnumerateRecursive` + `OpenRead`
+gated on `SupportsSearch` (symlink-skip and TCC per-MoveNext guards ported into
+`LocalFileSystemProvider.EnumerateRecursive` verbatim). Suite 154 → 208 green,
+no pre-existing test modified; build has 0 errors and only the 5 pre-existing
+branch warnings (3× CS4014, MVVMTK0034, xUnit2031 — untouched, out of scope).
+Deferred for later phases: Back/Forward bypass the `DirectoryExists` guard
+(pre-existing, matters when remote mounts vanish — Phase 5);
+`SearchViewModel.ScopeDirName` still raw `Path.GetFileName` (Phase 4);
+`.part` sibling-name collision (pre-existing).
 
 ## Phase 2: SFTP provider over SSH.NET
 Status: Not started
