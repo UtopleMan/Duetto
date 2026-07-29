@@ -1,3 +1,4 @@
+using Duetto.Core.FileSystem;
 using Duetto.Core.Operations;
 
 namespace Duetto.Tests.Core;
@@ -120,34 +121,119 @@ public class TransferEngineTests : IDisposable
     }
 
     /// <summary>
-    /// Deterministic: pause mid-copy so the engine is blocked inside the chunk loop,
-    /// then cancel. The .part file must be cleaned up even though an
-    /// OperationCanceledException interrupted the write.
+    /// Deterministic: the source provider's read stream signals on its SECOND Read call
+    /// and then blocks. The engine's chunk loop is Read → pause-check → cancel-check →
+    /// Write → progress, so at the signal the first chunk has already been written to
+    /// the .part file. We then cancel and release the blocked read; the next
+    /// cancellation check throws mid-copy and the .part file must be cleaned up.
     /// </summary>
     [Fact]
     public async Task Cancel_mid_copy_cleans_up_part_file()
     {
-        // Large enough (10 MB) that the engine is definitely mid-copy when we pause.
-        var big = new string('z', 10 * 1024 * 1024);
+        // 4 chunks of 1 MB — the gate fires on the second chunk read, so the copy
+        // can never complete before we cancel.
+        var big = new string('z', 4 * 1024 * 1024);
         _src.File("big.bin", big);
 
+        var midCopy = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var release = new ManualResetEventSlim(false);
+        var local = new LocalFileSystemProvider();
+        var gatedSrc = new GatedReadProvider(local, midCopy, release);
+
         using var session = TransferEngine.Start(
-            [Path.Combine(_src.Path, "big.bin")], _dst.Path, TransferMode.Copy);
+            [Path.Combine(_src.Path, "big.bin")], gatedSrc, _dst.Path, local, TransferMode.Copy);
+        try
+        {
+            // Deterministic gate: resolves exactly when the engine is mid-copy
+            // (chunk 1 written, chunk 2 read in flight and blocked).
+            await midCopy.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            Assert.True(File.Exists(Path.Combine(_dst.Path, "big.bin.part")),
+                ".part file must exist mid-copy");
+            session.Cancel();
+        }
+        finally
+        {
+            // Always unblock the worker, even if an assert above failed.
+            release.Set();
+        }
 
-        // Pause immediately; spin until at least one chunk has been written so the
-        // .part file exists on disk before we cancel.
-        session.Pause();
-        var deadline = DateTime.UtcNow.AddSeconds(10);
-        while (session.Snapshot().BytesDone == 0 && DateTime.UtcNow < deadline)
-            await Task.Delay(10);
-        Assert.True(session.Snapshot().BytesDone > 0, "transfer never started — increase file size");
-
-        // Cancel (also unblocks the pause).
-        session.Cancel();
         await session.Completion;
 
         Assert.True(session.Snapshot().IsCancelled);
         // No orphaned .part files may remain.
         Assert.Empty(Directory.EnumerateFiles(_dst.Path, "*.part", SearchOption.AllDirectories));
+    }
+
+    /// <summary>
+    /// Forwards everything to the inner provider but wraps <see cref="OpenRead"/> streams
+    /// in a <see cref="GatedReadStream"/> so a test can deterministically catch the
+    /// transfer engine mid-copy.
+    /// </summary>
+    private sealed class GatedReadProvider(
+        IFileSystemProvider inner, TaskCompletionSource midCopy, ManualResetEventSlim release)
+        : IFileSystemProvider
+    {
+        public FileSystemCapabilities Capabilities => inner.Capabilities;
+        public IReadOnlyList<FileEntry> List(string path)          => inner.List(path);
+        public bool DirectoryExists(string path)                   => inner.DirectoryExists(path);
+        public bool FileExists(string path)                        => inner.FileExists(path);
+        public FileEntry? Stat(string path)                        => inner.Stat(path);
+        public string CreateDirectory(string parent, string name)  => inner.CreateDirectory(parent, name);
+        public string CreateFile(string parent, string name)       => inner.CreateFile(parent, name);
+        public string Rename(string fullPath, string newName)      => inner.Rename(fullPath, newName);
+        public void Move(string fromPath, string toPath)           => inner.Move(fromPath, toPath);
+        public void ReplaceFile(string from, string to)            => inner.ReplaceFile(from, to);
+        public void Delete(string path, bool toTrash)              => inner.Delete(path, toTrash);
+        public Stream OpenWrite(string path)                       => inner.OpenWrite(path);
+        public void SetLastWriteTimeUtc(string path, DateTime utc) => inner.SetLastWriteTimeUtc(path, utc);
+        public IEnumerable<FileEntry> EnumerateRecursive(string path) => inner.EnumerateRecursive(path);
+        public VolumeInfo? VolumeFor(string path)                  => inner.VolumeFor(path);
+
+        public Stream OpenRead(string path) =>
+            new GatedReadStream(inner.OpenRead(path), midCopy, release);
+    }
+
+    /// <summary>
+    /// Read-only stream wrapper: the second <see cref="Read"/> call completes
+    /// <paramref name="midCopy"/> and blocks on <paramref name="release"/> before
+    /// delegating, freezing the copy loop at a precisely known point.
+    /// </summary>
+    private sealed class GatedReadStream(
+        Stream inner, TaskCompletionSource midCopy, ManualResetEventSlim release) : Stream
+    {
+        private int _reads;
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (Interlocked.Increment(ref _reads) == 2)
+            {
+                midCopy.TrySetResult();
+                release.Wait();
+            }
+
+            return inner.Read(buffer, offset, count);
+        }
+
+        public override bool CanRead => inner.CanRead;
+        public override bool CanSeek => inner.CanSeek;
+        public override bool CanWrite => false;
+        public override long Length => inner.Length;
+        public override long Position
+        {
+            get => inner.Position;
+            set => inner.Position = value;
+        }
+
+        public override void Flush() => inner.Flush();
+        public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                inner.Dispose();
+            base.Dispose(disposing);
+        }
     }
 }
