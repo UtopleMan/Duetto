@@ -240,14 +240,20 @@ dialog, edit + remove affordances, Disconnect row paralleling Eject); remove
 disconnects live connections and navigates affected panes home; failed
 background connects reopen the dialog prefilled instead of failing silently.
 Remote chip shows the connection name, PathTailText shows the provider-local
-path, GNOME Places rail lists saved connections. Suite 369 → 408 green.
+path, GNOME Places rail lists saved connections. Suite 369 → 408 green; final
+phase review fix wave (0b35ab9) broadened the connect-error catch space
+(SshException/IOException/InvalidOperationException fallbacks at all four
+sites, timeout pinned by test), wired MainWindow.OnClosed → MainViewModel
+dispose, and pinned the (incidental, now tested) no-capacity behavior for
+remote paths — explicit ReportsCapacity gating moves to Phase 5's
+capability-gating item. Suite at phase close: 410.
 Deferred (recorded): DisconnectRowVisible staleness between popover opens,
 StatusTextColor hardcode, ConnectionNameFor per-evaluation store read,
 visual-tree IsVisible asserts, PaneView Connected-subscription pattern
 (drive nav off ShowDialog return), File.Exists on UI thread in dialog Validate.
 
 ## Phase 5: End-to-end remote ops (copy/move, delete, rename, mkdir, search)
-Status: Not started
+Status: In progress
 
 - [ ] Copy/move (F5/F6) across providers through the reworked `TransferEngine`,
   shown in the existing two-tone progress strip: local→remote (upload),
