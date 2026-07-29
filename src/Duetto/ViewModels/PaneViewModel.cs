@@ -433,6 +433,10 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     {
         if (Selection.SelectedItem is not { IsParentNav: false } row)
             return null;
+        // Capability gate: no-op when the provider doesn't support rename.
+        var (provider, _) = Registry.Resolve(CurrentPath);
+        if (!provider.Capabilities.CanRename)
+            return null;
         row.EditName = row.Name;
         row.IsEditing = true;
         return row;
@@ -575,10 +579,24 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    public void NewFolder() => BeginNewEntry(isDirectory: true, baseName: "New folder");
+    public void NewFolder()
+    {
+        // Capability gate: no-op when the provider doesn't support directory creation.
+        var (provider, _) = Registry.Resolve(CurrentPath);
+        if (!provider.Capabilities.CanCreateEmptyDir)
+            return;
+        BeginNewEntry(isDirectory: true, baseName: "New folder");
+    }
 
     [RelayCommand]
-    public void NewFile() => BeginNewEntry(isDirectory: false, baseName: "New file");
+    public void NewFile()
+    {
+        // Capability gate: no-op when the provider doesn't support file creation.
+        var (provider, _) = Registry.Resolve(CurrentPath);
+        if (!provider.Capabilities.CanCreateFile)
+            return;
+        BeginNewEntry(isDirectory: false, baseName: "New file");
+    }
 
     /// <summary>
     /// Inserts an editable placeholder row (no disk write) so the user names the entry in

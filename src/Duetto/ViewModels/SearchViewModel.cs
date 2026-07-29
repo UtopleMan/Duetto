@@ -5,6 +5,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Duetto.Core.FileSystem;
+using Duetto.Core.Remote;
 using Duetto.Core.Search;
 
 namespace Duetto.ViewModels;
@@ -75,6 +76,25 @@ public partial class SearchViewModel : ObservableObject
     [ObservableProperty]
     private bool _isSearching;
 
+    /// <summary>
+    /// True when the active pane's provider supports search. Defaults to true (local panes always support it).
+    /// Updated by <see cref="RefreshSearchSupported"/> which <see cref="MainViewModel"/> calls when
+    /// the active pane changes.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SearchWatermark))]
+    private bool _isSearchSupported = true;
+
+    /// <summary>
+    /// The placeholder text shown in the search box. Switches to a "search unavailable" message
+    /// when the active pane's provider does not support search (<see cref="IsSearchSupported"/> is false),
+    /// so the disabled text box still communicates why it is disabled.
+    /// </summary>
+    public string SearchWatermark =>
+        IsSearchSupported
+            ? "Search everything below this folder…"
+            : "Search unavailable for this provider";
+
     /// <summary>"Open as pane": results stay visible after the query clears, until Esc or a new search.</summary>
     [ObservableProperty]
     private bool _isPinned;
@@ -143,6 +163,17 @@ public partial class SearchViewModel : ObservableObject
         _scopeProvider = scopeProvider;
         _registry = registry;
         Selection.Source = Results;
+    }
+
+    /// <summary>
+    /// Recomputes <see cref="IsSearchSupported"/> from the current active pane's provider.
+    /// Call from <see cref="MainViewModel"/> whenever the active pane changes.
+    /// </summary>
+    public void RefreshSearchSupported()
+    {
+        var scope = _scopeProvider();
+        IsSearchSupported = _registry is null
+            || _registry.Resolve(scope).Provider.Capabilities.SupportsSearch;
     }
 
     partial void OnQueryChanged(string value)
@@ -221,6 +252,7 @@ public partial class SearchViewModel : ObservableObject
         IsSearching = true;
         ScopeDir = _scopeProvider();
         OnPropertyChanged(nameof(ScopeDirName));
+        RefreshSearchSupported();
         var cts = _cts = new CancellationTokenSource();
         var stats = new SearchStats();
         var clock = Stopwatch.StartNew();
@@ -247,6 +279,11 @@ public partial class SearchViewModel : ObservableObject
         catch (OperationCanceledException)
         {
             DebugLog.Write($"search: cancelled '{query}'");
+        }
+        catch (HostKeyChangedException ex)
+        {
+            MatchText = $"Host key changed: {ex.Host} — reconnect via the Connect dialog";
+            DebugLog.Write($"search: host key changed '{query}': {ex}");
         }
         catch (Exception e)
         {

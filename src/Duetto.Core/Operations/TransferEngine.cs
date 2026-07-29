@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Duetto.Core.FileSystem;
+using Duetto.Core.Remote;
 
 namespace Duetto.Core.Operations;
 
@@ -44,7 +45,8 @@ public sealed record TransferSnapshot(
     bool IsPaused,
     bool IsComplete,
     bool IsCancelled,
-    IReadOnlyList<SkippedFile> Skipped);
+    IReadOnlyList<SkippedFile> Skipped,
+    string? FaultMessage = null);
 
 public sealed class TransferSession : IDisposable
 {
@@ -61,6 +63,7 @@ public sealed class TransferSession : IDisposable
     private long _currentFileBytesDone;
     private long _currentFileSize;
     private volatile bool _complete;
+    private string? _faultMessage;
 
     public TransferMode Mode { get; }
     public string DestinationDir { get; }
@@ -69,6 +72,7 @@ public sealed class TransferSession : IDisposable
     public Task Completion { get; internal set; } = Task.CompletedTask;
     public bool IsPaused => !_resume.IsSet;
     public bool IsCancelled => _cts.IsCancellationRequested;
+    public string? FaultMessage => _faultMessage;
 
     /// <summary>Raised from the worker thread whenever progress advances.</summary>
     public event Action? Changed;
@@ -98,6 +102,17 @@ public sealed class TransferSession : IDisposable
         Changed?.Invoke();
     }
 
+    /// <summary>
+    /// Marks the transfer as faulted with a human-readable message, cancels it, and
+    /// triggers the Changed event. The <see cref="Finished"/> call in the worker's
+    /// finally block will still run normally.
+    /// </summary>
+    internal void Fault(string message)
+    {
+        _faultMessage = message;
+        Cancel();
+    }
+
     public TransferFileStatus? StatusOf(string sourcePath) =>
         _states.TryGetValue(sourcePath, out var s) ? s.Status : null;
 
@@ -117,7 +132,8 @@ public sealed class TransferSession : IDisposable
                 Mode, DestinationDir, TotalFiles, _filesDone, _skipped.Count,
                 TotalBytes, _bytesDone,
                 _currentFileName, _currentFileBytesDone, _currentFileSize,
-                speed, remaining, IsPaused, _complete, IsCancelled, _skipped.ToArray());
+                speed, remaining, IsPaused, _complete, IsCancelled, _skipped.ToArray(),
+                FaultMessage: _faultMessage);
         }
     }
 
@@ -230,9 +246,10 @@ public static class TransferEngine
         IFileSystemProvider srcProvider,
         string destinationDir,
         IFileSystemProvider destProvider,
-        TransferMode mode)
+        TransferMode mode,
+        string? displayDestination = null)
     {
-        var session = new TransferSession(mode, destinationDir);
+        var session = new TransferSession(mode, displayDestination ?? destinationDir);
         session.Completion = Task.Run(() => Run(session, sourcePaths, srcProvider, destinationDir, destProvider, mode));
         return session;
     }
@@ -338,6 +355,10 @@ public static class TransferEngine
                         srcProvider.Delete(dirSource, toTrash: false);
                 }
             }
+        }
+        catch (HostKeyChangedException ex)
+        {
+            session.Fault($"Host key changed: {ex.Host} — reconnect via the Connect dialog");
         }
         catch (OperationCanceledException)
         {

@@ -105,9 +105,11 @@ public partial class TransferViewModel : ObservableObject, IStripOperation
             : 0;
 
         var verb = snap.Mode == TransferMode.Copy ? "Copying" : "Moving";
-        Title = snap.IsComplete
-            ? (snap.IsCancelled ? $"{verb} cancelled" : $"{(snap.Mode == TransferMode.Copy ? "Copied" : "Moved")} to {snap.DestinationDir}")
-            : $"{verb} to {snap.DestinationDir}";
+        Title = snap.FaultMessage is not null
+            ? snap.FaultMessage
+            : snap.IsComplete
+                ? (snap.IsCancelled ? $"{verb} cancelled" : $"{(snap.Mode == TransferMode.Copy ? "Copied" : "Moved")} to {snap.DestinationDir}")
+                : $"{verb} to {snap.DestinationDir}";
 
         CurrentFileLine = snap.CurrentFileName is { } name && !snap.IsComplete
             ? $"{name} — {FormatUtil.HumanSize(snap.CurrentFileBytesDone)} of {FormatUtil.HumanSize(snap.CurrentFileSize)}" +

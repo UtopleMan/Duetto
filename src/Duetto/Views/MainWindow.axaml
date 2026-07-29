@@ -131,7 +131,8 @@
             <TextBlock DockPanel.Dock="Right" Text="{Binding SearchHint}" FontFamily="{StaticResource MonoFont}"
                        FontSize="10.5" Foreground="{StaticResource TextHint}" VerticalAlignment="Center" />
             <TextBox x:Name="SearchBox" Text="{Binding Search.Query}"
-                     Watermark="Search everything below this folder…"
+                     Watermark="{Binding Search.SearchWatermark}"
+                     IsEnabled="{Binding Search.IsSearchSupported}"
                      FontSize="12.5" Foreground="{StaticResource TextBody}"
                      Background="Transparent" BorderThickness="0" MinHeight="0" Padding="0"
                      VerticalContentAlignment="Center"

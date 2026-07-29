@@ -136,7 +136,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         };
         Search.RevealRequested += entry =>
         {
-            if (Path.GetDirectoryName(entry.FullPath) is { } dir)
+            var fullAddress = ToAddress(Search.ScopeDir, entry.FullPath);
+            var dir = PathUtil.Parent(fullAddress);
+            if (dir is not null)
             {
                 Left.NavigateTo(dir, entry.Name);
                 Activate(Left);
@@ -152,6 +154,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             if (e.PropertyName == nameof(PaneViewModel.DirName) && ActivePane == Right)
                 OnPropertyChanged(nameof(ActiveDirName));
+        };
+        PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ActivePane))
+                Search.RefreshSearchSupported();
         };
     }
 
@@ -427,7 +434,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var (destProvider, destLocalDir) = Registry.Resolve(destinationDir);
 
         ActiveOperation?.Dispose();
-        var session = TransferEngine.Start(paths, srcProvider, destLocalDir, destProvider, mode);
+        var session = TransferEngine.Start(paths, srcProvider, destLocalDir, destProvider, mode,
+            displayDestination: destinationDir);
         var transfer = new TransferViewModel(session, sourcePane);
         transfer.Dismissed += () =>
         {
@@ -443,6 +451,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     public void DeleteSelected()
     {
+        // Capability gate: no-op when the owning provider doesn't support delete.
+        var checkPath = Search.IsActive ? Search.ScopeDir : ActivePane.CurrentPath;
+        var (gateProvider, _) = Registry.Resolve(checkPath);
+        if (!gateProvider.Capabilities.CanDelete)
+            return;
+
         // Rows and search hits carry provider-local paths ("/home/user/f.txt" on a remote
         // pane/scope); rebuild the full scheme://id/... address so TrashFn's Registry.Resolve
         // hits the owning provider and can never touch a same-named local path.
