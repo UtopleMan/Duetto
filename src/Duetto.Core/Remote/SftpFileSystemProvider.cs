@@ -1,5 +1,6 @@
 using Duetto.Core.FileSystem;
 using Renci.SshNet.Common;
+using Renci.SshNet.Sftp;
 
 namespace Duetto.Core.Remote;
 
@@ -45,7 +46,22 @@ public sealed class SftpFileSystemProvider : IFileSystemProvider, IDisposable
         Separator = '/',
     };
 
-    public FileSystemCapabilities Capabilities => SftpCapabilities;
+    /// <summary>
+    /// Per-instance capabilities: starts as a copy of <see cref="SftpCapabilities"/> and may
+    /// have <see cref="FileSystemCapabilities.AtomicRename"/> flipped to false after the first
+    /// POSIX-rename probe fails (see <see cref="ReplaceFile"/>).
+    /// </summary>
+    private FileSystemCapabilities _capabilities = SftpCapabilities;
+
+    public FileSystemCapabilities Capabilities => _capabilities;
+
+    /// <summary>
+    /// Tracks whether the POSIX-rename extension is supported by this server.
+    /// Set to false on first <see cref="SftpException"/> with
+    /// <see cref="StatusCode.OperationUnsupported"/> from <see cref="ReplaceFile"/>;
+    /// read and written only inside the <see cref="_lock"/> via <see cref="Exec"/>.
+    /// </summary>
+    private bool _posixRenameWorked = true;
 
     /// <param name="connection">
     ///   A fully-constructed (not yet necessarily connected) <see cref="SftpConnection"/>.
@@ -190,11 +206,35 @@ public sealed class SftpFileSystemProvider : IFileSystemProvider, IDisposable
     }
 
     /// <summary>
-    /// Atomic overwrite: uses POSIX-rename (<c>RenameFile(old, new, isPosix: true)</c>)
-    /// so the replace is atomic on the server and works even when the target does not exist.
+    /// Atomic overwrite: tries POSIX-rename (<c>RenameFile(old, new, isPosix: true)</c>) on
+    /// the first call. If the server returns <see cref="StatusCode.OperationUnsupported"/> it
+    /// falls back to delete-then-rename and disables the POSIX path for all future calls
+    /// (also clears <see cref="FileSystemCapabilities.AtomicRename"/>).
     /// </summary>
-    public void ReplaceFile(string from, string to) =>
-        Exec(a => a.RenameFile(from, to, isPosix: true));
+    public void ReplaceFile(string from, string to)
+    {
+        Exec(a =>
+        {
+            if (_posixRenameWorked)
+            {
+                try
+                {
+                    a.RenameFile(from, to, isPosix: true);
+                    return;
+                }
+                catch (SftpException ex) when (ex.StatusCode == StatusCode.OperationUnsupported)
+                {
+                    _posixRenameWorked = false;
+                    _capabilities = _capabilities with { AtomicRename = false };
+                }
+            }
+
+            // Fallback: delete existing target (if any) then regular rename.
+            if (a.Exists(to))
+                a.DeleteFile(to);
+            a.RenameFile(from, to);
+        });
+    }
 
     /// <summary>
     /// Permanent recursive delete. <paramref name="toTrash"/> is ignored (<see cref="FileSystemCapabilities.HasTrash"/> = false).
@@ -211,7 +251,10 @@ public sealed class SftpFileSystemProvider : IFileSystemProvider, IDisposable
 
         if (entry.IsDirectory)
         {
-            foreach (var child in a.ListDirectory(path))
+            // Materialise the listing before any child deletion so a reconnect
+            // mid-delete does not re-enumerate from the top.
+            var children = a.ListDirectory(path).ToList();
+            foreach (var child in children)
             {
                 if (child.Name is "." or "..")
                     continue;

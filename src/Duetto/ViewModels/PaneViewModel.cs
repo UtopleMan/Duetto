@@ -493,10 +493,11 @@ public partial class PaneViewModel : ObservableObject, IDisposable
 
         try
         {
+            var (provider, localParent) = Registry.Resolve(CurrentPath);
             if (row.IsDirectory)
-                FileOps.CreateFolder(CurrentPath, name);
+                FileOps.CreateFolder(provider, localParent, name);
             else
-                FileOps.CreateFile(CurrentPath, name);
+                FileOps.CreateFile(provider, localParent, name);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
         {
@@ -514,10 +515,13 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     /// <summary>Null when <paramref name="name"/> is a legal, free entry name; else the reason.</summary>
     private string? NewEntryNameError(string name)
     {
-        if (name.Contains(Path.DirectorySeparatorChar) || name.Contains(Path.AltDirectorySeparatorChar))
+        if (name.Contains('/') || name.Contains('\\'))
             return "Name cannot contain path separators";
-        var target = Path.Combine(CurrentPath, name);
-        if (Directory.Exists(target) || File.Exists(target))
+        var (provider, localParent) = Registry.Resolve(CurrentPath);
+        var localTarget = PathUtil.IsRemote(CurrentPath)
+            ? localParent.TrimEnd('/') + "/" + name
+            : Path.Combine(localParent, name);
+        if (provider.DirectoryExists(localTarget) || provider.FileExists(localTarget))
             return $"\"{name}\" already exists";
         return null;
     }
@@ -543,7 +547,10 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         var ok = true;
         try
         {
-            await RenameScheduler(() => FileOps.Rename(fullPath, newName));
+            // fullPath is the provider-local path (FileEntry.FullPath); resolve the provider
+            // from CurrentPath (the pane's full URL) to get the correct provider instance.
+            var (provider, _) = Registry.Resolve(CurrentPath);
+            await RenameScheduler(() => FileOps.Rename(provider, fullPath, newName));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
         {
@@ -574,7 +581,8 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     /// </summary>
     private void BeginNewEntry(bool isDirectory, string baseName)
     {
-        var suggested = FileOps.SuggestEntryName(CurrentPath, baseName);
+        var (provider, localParent) = Registry.Resolve(CurrentPath);
+        var suggested = FileOps.SuggestEntryName(provider, localParent, baseName);
         var row = FileRowViewModel.NewPlaceholder(CurrentPath, suggested, isDirectory);
         _editingPlaceholder = row;
         var insertAt = Rows.Count > 0 && Rows[0].IsParentNav ? 1 : 0;

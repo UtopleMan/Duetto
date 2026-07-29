@@ -413,8 +413,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (paths.Count == 0 || ActiveOperation is { IsFinished: false })
             return;
 
+        // Source provider: use the source pane's current path when available (pane transfer);
+        // fall back to resolving paths[0] directly for search-result transfers (local paths).
+        var (srcProvider, _) = sourcePane is not null
+            ? Registry.Resolve(sourcePane.CurrentPath)
+            : Registry.Resolve(paths[0]);
+
+        // Destination provider and local dir.
+        var (destProvider, destLocalDir) = Registry.Resolve(destinationDir);
+
+        // Source paths are already provider-local (FileEntry.FullPath is the local path).
+        var srcLocalPaths = paths;
+
         ActiveOperation?.Dispose();
-        var session = TransferEngine.Start(paths, destinationDir, mode);
+        var session = TransferEngine.Start(srcLocalPaths, srcProvider, destLocalDir, destProvider, mode);
         var transfer = new TransferViewModel(session, sourcePane);
         transfer.Dismissed += () =>
         {
@@ -506,9 +518,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Right.Reload(preserveSelection: true);
 
         if (token.IsCancellationRequested)
+        {
             op.Dismiss();
+        }
         else
-            op.Finish();
+        {
+            // Resolve the provider that owns the deleted items via the active pane's path,
+            // because paths[0] is a provider-local path (not a full URL).
+            var hasTrash = Registry.Resolve(ActivePane.CurrentPath).Provider.Capabilities.HasTrash;
+            var n = trashed.Count;
+            var what = n == 1 ? "item" : "items";
+            var finalTitle = hasTrash
+                ? $"Moved {n} {what} to Trash"
+                : $"Deleted {n} {what}";
+            op.Finish(finalTitle);
+        }
     }
 
     public void Activate(PaneViewModel pane)
