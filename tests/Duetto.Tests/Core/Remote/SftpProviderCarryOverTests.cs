@@ -106,14 +106,14 @@ public class SftpProviderCarryOverTests
     /// children. The materialization prevents a reconnect mid-delete from re-enumerating
     /// from the top with a stale iterator.
     ///
-    /// Verified by using a tracking adapter: after the first DeleteFile the adapter
-    /// checks that the listing was fully materialised (not lazy) by observing that no
-    /// second ListDirectory call is issued during the recursive walk.
+    /// Guard: the adapter's ListDirectory returns a lazy sequence that THROWS if it is
+    /// advanced after any delete call — a lazy foreach-then-delete walk trips it; the
+    /// materialised (.ToList-first) walk consumes the sequence fully before deleting.
     /// </summary>
     [Fact]
     public void DeleteRecursive_materializes_children_before_deleting()
     {
-        var adapter = new MaterializationTrackingAdapter();
+        var adapter = new EnumerationGuardAdapter();
         adapter.CreateDirectory("/dir");
         adapter.CreateFile("/dir/a.txt");
         adapter.CreateFile("/dir/b.txt");
@@ -126,10 +126,6 @@ public class SftpProviderCarryOverTests
         Assert.False(adapter.Exists("/dir"));
         Assert.False(adapter.Exists("/dir/a.txt"));
         Assert.False(adapter.Exists("/dir/b.txt"));
-
-        // ListDirectory must have been called exactly once (for /dir) — materialized before
-        // any deletion, so no re-listing occurred mid-delete.
-        Assert.Equal(1, adapter.ListDirectoryCallCount);
         conn.Dispose();
     }
 
@@ -204,15 +200,15 @@ public class SftpProviderCarryOverTests
     }
 
     /// <summary>
-    /// Adapter that counts <see cref="ListDirectory"/> calls so we can verify
-    /// that the listing is materialised exactly once (not lazily re-iterated).
+    /// Adapter whose <see cref="ListDirectory"/> returns a lazy sequence that throws
+    /// <see cref="InvalidOperationException"/> when advanced after any delete call.
+    /// A lazy list-then-delete-inside-the-loop walk trips the guard; a walk that
+    /// materialises the listing first (the DeleteRecursive fix) never does.
     /// </summary>
-    private sealed class MaterializationTrackingAdapter : ISftpClientAdapter
+    private sealed class EnumerationGuardAdapter : ISftpClientAdapter
     {
         private readonly FakeSftpClientAdapter _inner = new();
-        private int _listDirCount;
-
-        public int ListDirectoryCallCount => _listDirCount;
+        private int _deleteCount;
 
         public bool IsConnected => true;
         public void Connect() { }
@@ -225,19 +221,37 @@ public class SftpProviderCarryOverTests
         public void CreateDirectory(string path) => _inner.CreateDirectory(path);
         public void CreateFile(string path) => _inner.CreateFile(path);
         public void RenameFile(string oldPath, string newPath, bool isPosix = false) => _inner.RenameFile(oldPath, newPath, isPosix);
-        public void DeleteFile(string path) => _inner.DeleteFile(path);
-        public void DeleteDirectory(string path) => _inner.DeleteDirectory(path);
         public Stream OpenRead(string path) => _inner.OpenRead(path);
         public Stream OpenWrite(string path) => _inner.OpenWrite(path);
         public void SetLastWriteTimeUtc(string path, DateTime utc) => _inner.SetLastWriteTimeUtc(path, utc);
         public void Dispose() => _inner.Dispose();
 
-        public IEnumerable<SftpEntry> ListDirectory(string path)
+        public void DeleteFile(string path)
         {
-            // Only count non-root listings (the recursive delete only lists /dir, not /).
-            if (path != "/")
-                Interlocked.Increment(ref _listDirCount);
-            return _inner.ListDirectory(path);
+            _deleteCount++;
+            _inner.DeleteFile(path);
+        }
+
+        public void DeleteDirectory(string path)
+        {
+            _deleteCount++;
+            _inner.DeleteDirectory(path);
+        }
+
+        public IEnumerable<SftpEntry> ListDirectory(string path) =>
+            Guarded(_inner.ListDirectory(path).ToList());
+
+        private IEnumerable<SftpEntry> Guarded(IReadOnlyList<SftpEntry> items)
+        {
+            var deletesAtStart = _deleteCount;
+            foreach (var item in items)
+            {
+                if (_deleteCount != deletesAtStart)
+                    throw new InvalidOperationException(
+                        "ListDirectory enumeration advanced after a delete — " +
+                        "DeleteRecursive must materialise the listing before deleting children.");
+                yield return item;
+            }
         }
     }
 }

@@ -499,7 +499,10 @@ public partial class PaneViewModel : ObservableObject, IDisposable
             else
                 FileOps.CreateFile(provider, localParent, name);
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
+        // NotSupportedException: capability belt — a provider without CanCreateEmptyDir /
+        // CanCreateFile degrades to a graceful no-op (P5c disables the command as well).
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException
+            or NotSupportedException)
         {
             if (fromBlur)
                 DiscardPlaceholder(row);
@@ -552,7 +555,9 @@ public partial class PaneViewModel : ObservableObject, IDisposable
             var (provider, _) = Registry.Resolve(CurrentPath);
             await RenameScheduler(() => FileOps.Rename(provider, fullPath, newName));
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
+        // NotSupportedException: capability belt — a provider without CanRename no-ops.
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException
+            or NotSupportedException)
         {
             ok = false;
         }

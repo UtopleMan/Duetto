@@ -88,6 +88,88 @@ public class RemoteOpsTests
         Assert.True(remoteFs.FileExists("/incoming/data.txt"));
     }
 
+    /// <summary>
+    /// Download: remote (in-memory) source file gets copied to a local TempDir destination.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Cross_provider_transfer_remote_to_local_download()
+    {
+        var remoteFs = MakeRemoteFs();
+        SeedFile(remoteFs, "/", "report.txt", "remote bytes");
+        var reg = MakeRegistry("fake", "host", remoteFs);
+
+        using var dst = new TempDir();
+        using var vm = new MainViewModel("fake://host/", dst.Path, registry: reg);
+        await vm.Left.LoadCompletion;
+        await vm.Right.LoadCompletion;
+
+        vm.Left.SelectByName("report.txt");
+        vm.CopySelected();
+
+        Assert.NotNull(vm.ActiveTransfer);
+        await vm.ActiveTransfer!.Session.Completion;
+
+        var landed = Path.Combine(dst.Path, "report.txt");
+        Assert.True(File.Exists(landed));
+        Assert.Equal("remote bytes", File.ReadAllText(landed));
+    }
+
+    /// <summary>
+    /// Move within one remote (same provider instance on both panes): the source must be
+    /// gone and the destination present — the engine takes the native-Move path.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Move_within_one_remote_removes_source_and_delivers_destination()
+    {
+        var fs = MakeRemoteFs();
+        fs.CreateDirectory("/", "a");
+        fs.CreateDirectory("/", "b");
+        SeedFile(fs, "/a", "doc.txt");
+
+        var reg = MakeRegistry("sftp", "srv1", fs);
+        using var vm = new MainViewModel("sftp://srv1/a", "sftp://srv1/b", registry: reg);
+        await vm.Left.LoadCompletion;
+
+        vm.Left.SelectByName("doc.txt");
+        vm.MoveSelected();
+
+        Assert.NotNull(vm.ActiveTransfer);
+        await vm.ActiveTransfer!.Session.Completion;
+
+        Assert.False(fs.FileExists("/a/doc.txt"));
+        Assert.True(fs.FileExists("/b/doc.txt"));
+    }
+
+    /// <summary>
+    /// Move between two DIFFERENT remote providers: falls back to copy+delete — the file
+    /// lands on the destination provider and is removed from the source provider.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Move_across_two_remotes_copies_then_deletes()
+    {
+        var srcFs = MakeRemoteFs();
+        var dstFs = MakeRemoteFs();
+        SeedFile(srcFs, "/", "payload.txt", "across servers");
+        dstFs.CreateDirectory("/", "in");
+
+        var reg = new FileSystemRegistry();
+        reg.Register("sftp", "one", srcFs);
+        reg.Register("sftp", "two", dstFs);
+
+        using var vm = new MainViewModel("sftp://one/", "sftp://two/in", registry: reg);
+        await vm.Left.LoadCompletion;
+        await vm.Right.LoadCompletion;
+
+        vm.Left.SelectByName("payload.txt");
+        vm.MoveSelected();
+
+        Assert.NotNull(vm.ActiveTransfer);
+        await vm.ActiveTransfer!.Session.Completion;
+
+        Assert.False(srcFs.FileExists("/payload.txt"));
+        Assert.True(dstFs.FileExists("/in/payload.txt"));
+    }
+
     // ── Req 2: New folder/file on remote pane ────────────────────────────────
 
     /// <summary>
@@ -192,11 +274,13 @@ public class RemoteOpsTests
     // ── Req 4: Delete status text ────────────────────────────────────────────
 
     /// <summary>
-    /// After deleting from a remote pane (HasTrash = false), the strip title must say
-    /// "Deleted N items", not "Moved … to Trash".
+    /// Delete on a remote pane uses the DEFAULT TrashFn (no test override): the provider-local
+    /// row path must be rebuilt to its full sftp://id/... address so the delete lands on the
+    /// remote provider — never on a same-named local path. The strip title must say
+    /// "Deleted N items" (HasTrash = false), not "Moved … to Trash".
     /// </summary>
     [AvaloniaFact]
-    public async Task Delete_status_text_says_deleted_not_trash_for_remote()
+    public async Task Delete_on_remote_pane_uses_provider_and_says_deleted_not_trash()
     {
         var fs = MakeRemoteFs();
         SeedFile(fs, "/", "file.txt");
@@ -205,20 +289,15 @@ public class RemoteOpsTests
         using var vm = new MainViewModel("sftp://srv/", "sftp://srv/", registry: reg);
         await vm.Left.LoadCompletion;
 
-        // Use inline scheduler so the test is synchronous.
+        // Inline scheduler so the test is synchronous; TrashFn stays the production default
+        // (TrashViaProvider) so this exercises the real remote routing.
         vm.DeleteScheduler = (work, ct) => { work(ct); return Task.CompletedTask; };
-        // TrashFn via provider (default TrashViaProvider) calls provider.Delete which always
-        // deletes permanently for remote. Register an explicit override to route through registry.
-        vm.TrashFn = path =>
-        {
-            var (provider, localPath) = reg.Resolve(path);
-            provider.Delete(localPath, toTrash: false);
-            return null;
-        };
 
         vm.Left.SelectByName("file.txt");
         vm.DeleteSelectedCommand.Execute(null);
         await vm.DeleteCompletion;
+
+        Assert.False(fs.FileExists("/file.txt"));
 
         var op = vm.ActiveOperation as SimpleOperationViewModel;
         Assert.NotNull(op);

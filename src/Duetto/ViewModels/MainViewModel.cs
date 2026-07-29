@@ -399,34 +399,35 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (Search.IsActive)
         {
             var entries = Search.SelectedEntries;
-            StartTransfer(entries.Select(e => e.FullPath).ToList(), Left.CurrentPath, mode, sourcePane: null);
+            StartTransfer(entries.Select(e => e.FullPath).ToList(), Left.CurrentPath, mode,
+                sourcePane: null, sourceScope: Search.ScopeDir);
             return;
         }
 
         var source = ActivePane;
         var paths = source.SelectedRows.Select(r => r.Entry.FullPath).ToList();
-        StartTransfer(paths, InactivePane.CurrentPath, mode, source);
+        StartTransfer(paths, InactivePane.CurrentPath, mode, source, sourceScope: source.CurrentPath);
     }
 
-    private void StartTransfer(IReadOnlyList<string> paths, string destinationDir, TransferMode mode, PaneViewModel? sourcePane)
+    /// <param name="paths">Provider-local source paths (what pane rows / search hits carry).</param>
+    /// <param name="destinationDir">Destination directory as a full address (local path or scheme://id/…).</param>
+    /// <param name="sourcePane">The pane the rows came from, for per-row status; null for search results.</param>
+    /// <param name="sourceScope">
+    ///   The full address of the directory the sources live under (pane path or search scope);
+    ///   resolves the source provider — the paths themselves are already provider-local.
+    /// </param>
+    private void StartTransfer(
+        IReadOnlyList<string> paths, string destinationDir, TransferMode mode,
+        PaneViewModel? sourcePane, string sourceScope)
     {
         if (paths.Count == 0 || ActiveOperation is { IsFinished: false })
             return;
 
-        // Source provider: use the source pane's current path when available (pane transfer);
-        // fall back to resolving paths[0] directly for search-result transfers (local paths).
-        var (srcProvider, _) = sourcePane is not null
-            ? Registry.Resolve(sourcePane.CurrentPath)
-            : Registry.Resolve(paths[0]);
-
-        // Destination provider and local dir.
+        var (srcProvider, _) = Registry.Resolve(sourceScope);
         var (destProvider, destLocalDir) = Registry.Resolve(destinationDir);
 
-        // Source paths are already provider-local (FileEntry.FullPath is the local path).
-        var srcLocalPaths = paths;
-
         ActiveOperation?.Dispose();
-        var session = TransferEngine.Start(srcLocalPaths, srcProvider, destLocalDir, destProvider, mode);
+        var session = TransferEngine.Start(paths, srcProvider, destLocalDir, destProvider, mode);
         var transfer = new TransferViewModel(session, sourcePane);
         transfer.Dismissed += () =>
         {
@@ -442,10 +443,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     public void DeleteSelected()
     {
+        // Rows and search hits carry provider-local paths ("/home/user/f.txt" on a remote
+        // pane/scope); rebuild the full scheme://id/... address so TrashFn's Registry.Resolve
+        // hits the owning provider and can never touch a same-named local path.
         var fromSearch = Search.IsActive;
         var paths = (fromSearch
-                ? Search.SelectedEntries.Select(e => e.FullPath)
-                : ActivePane.SelectedRows.Select(r => r.Entry.FullPath))
+                ? Search.SelectedEntries.Select(e => ToAddress(Search.ScopeDir, e.FullPath))
+                : ActivePane.SelectedRows.Select(r => ToAddress(ActivePane.CurrentPath, r.Entry.FullPath)))
             .ToList();
 
         if (paths.Count == 0 || ActiveOperation is { IsFinished: false })
@@ -462,13 +466,26 @@ public partial class MainViewModel : ObservableObject, IDisposable
         };
         ActiveOperation = op;
 
-        DeleteCompletion = RunDeleteAsync(paths, op, cts.Token, fromSearch);
+        // Capture the trash capability NOW (from the first path's provider) — the active pane
+        // may change while the async delete runs, so it cannot be resolved at finish time.
+        var hasTrash = Registry.Resolve(paths[0]).Provider.Capabilities.HasTrash;
+        DeleteCompletion = RunDeleteAsync(paths, op, cts.Token, fromSearch, hasTrash);
     }
 
     /// <summary>
-    /// Default <see cref="TrashFn"/>: routes the delete through the owning provider's trash
-    /// (local disk today; a remote provider without <see cref="FileSystemCapabilities.HasTrash"/>
-    /// falls back to a permanent delete on its side later). Returns null — the caller ignores it.
+    /// Rebuilds the full <c>scheme://id/…</c> address for a provider-local row path when the
+    /// owning pane shows a remote directory; local pane paths pass through unchanged.
+    /// </summary>
+    private static string ToAddress(string panePath, string rowPath) =>
+        PathUtil.ParseRemote(panePath) is { } r
+            ? $"{r.Scheme}://{r.Id}{rowPath}"
+            : rowPath;
+
+    /// <summary>
+    /// Default <see cref="TrashFn"/>: routes the delete through the owning provider —
+    /// local paths go to the OS trash; a remote provider without
+    /// <see cref="FileSystemCapabilities.HasTrash"/> deletes permanently on its side.
+    /// Returns null — the caller ignores it.
     /// </summary>
     private string? TrashViaProvider(string path)
     {
@@ -483,7 +500,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// per-item failure is swallowed so one bad entry doesn't abort the batch.
     /// </summary>
     private async Task RunDeleteAsync(
-        IReadOnlyList<string> paths, SimpleOperationViewModel op, CancellationToken token, bool fromSearch)
+        IReadOnlyList<string> paths, SimpleOperationViewModel op, CancellationToken token, bool fromSearch,
+        bool hasTrash)
     {
         var trashed = new HashSet<string>();
         try
@@ -498,7 +516,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
                         TrashFn(path);
                         trashed.Add(path);
                     }
-                    catch (Exception e) when (e is IOException or UnauthorizedAccessException or FileNotFoundException)
+                    // NotSupportedException: capability belt — a provider without CanDelete
+                    // skips the item instead of faulting the batch.
+                    catch (Exception e) when (e is IOException or UnauthorizedAccessException
+                        or FileNotFoundException or NotSupportedException)
                     {
                     }
                 }
@@ -510,7 +531,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         if (fromSearch)
         {
-            foreach (var row in Search.Results.Where(r => trashed.Contains(r.Entry.FullPath)).ToList())
+            // trashed holds full addresses; rebase each row the same way before comparing.
+            foreach (var row in Search.Results
+                         .Where(r => trashed.Contains(ToAddress(Search.ScopeDir, r.Entry.FullPath))).ToList())
                 Search.Results.Remove(row);
         }
 
@@ -523,9 +546,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         else
         {
-            // Resolve the provider that owns the deleted items via the active pane's path,
-            // because paths[0] is a provider-local path (not a full URL).
-            var hasTrash = Registry.Resolve(ActivePane.CurrentPath).Provider.Capabilities.HasTrash;
+            // "Moved to Trash" vs "Deleted" keyed on the owning provider's HasTrash,
+            // captured at DeleteSelected time (remote deletes are permanent).
             var n = trashed.Count;
             var what = n == 1 ? "item" : "items";
             var finalTitle = hasTrash
