@@ -198,24 +198,24 @@ JsonHostKeyPersistence read-modify-write runs under the HostKeyStore lock —
 acceptable at pin scale, watch on slow mounts in Phase 4.
 
 ## Phase 4: Connect dialog + popover shares + lifecycle UX
-Status: Not started
+Status: Complete
 
-- [ ] Replace `ConnectStubWindow` with a real **Connect** dialog (Duetto styling):
+- [x] Replace `ConnectStubWindow` with a real **Connect** dialog (Duetto styling):
   fields — Name, Protocol (SFTP, only option enabled), Host, Port (22), Username,
   Auth radio (Password | Key file + browse + passphrase), initial Remote path,
   "Save password" checkbox. Validate + Test/Connect + Cancel.
-- [ ] `ViewModels/ConnectDialogViewModel.cs` — builds a `ConnectionInfo`, invokes
+- [x] `ViewModels/ConnectDialogViewModel.cs` — builds a `ConnectionInfo`, invokes
   `ConnectionManager.Connect`, surfaces connect errors (auth failure, timeout,
   `HostKeyChangedException` → explicit accept-new-key confirmation), saves via
   `ConnectionStore` on success.
-- [ ] `DrivePopoverViewModel` — populate the **CONNECTED SHARES** section from saved
+- [x] `DrivePopoverViewModel` — populate the **CONNECTED SHARES** section from saved
   connections (name + host); clicking connects (prompting for an unsaved secret) and
   `pane.NavigateTo("sftp://<id>/<remotePath>")`; a **Disconnect** row for the current
   remote (parallels Eject); an edit/remove affordance for saved connections.
-- [ ] Remote pane presentation: volume chip shows the connection name; `PathTailText`
+- [x] Remote pane presentation: volume chip shows the connection name; `PathTailText`
   uses `PathUtil` for the remote tail; capacity bar hidden when
   `!ReportsCapacity`. GNOME Places rail **Remote** section lists connections.
-- [ ] Wire `ConnectionManager` + `FileSystemRegistry` + `ConnectionStore` into app
+- [x] Wire `ConnectionManager` + `FileSystemRegistry` + `ConnectionStore` into app
   composition (`App`/`Program`/`MainViewModel`).
 
 ### Verification Plan
@@ -227,7 +227,24 @@ Status: Not started
 - `dotnet test` full suite green.
 
 ### Phase Summary
-_(write when phase completes)_
+Done 2026-07-29, commits 8d5deb8..64665b0 (Tasks I+J with review fix rounds).
+ConnectStubWindow replaced by a real ConnectWindow + ConnectDialogViewModel:
+validation, background-thread connect, specific error surfacing, the
+HostKeyChangedException accept-new-key flow (Forget(StoreKey) + single retry),
+saves via ConnectionStore honoring SavePassword. App composition unified: ONE
+FileSystemRegistry/ConnectionManager/ConnectionStore/HostKeyStore owned by
+MainViewModel, shared by both panes and search; JsonHostKeyPersistence attached
+in production; manager disposed with the app. Popover gained the CONNECTED
+SHARES section (status dots, click = navigate / background-connect / prompt via
+dialog, edit + remove affordances, Disconnect row paralleling Eject); remove
+disconnects live connections and navigates affected panes home; failed
+background connects reopen the dialog prefilled instead of failing silently.
+Remote chip shows the connection name, PathTailText shows the provider-local
+path, GNOME Places rail lists saved connections. Suite 369 → 408 green.
+Deferred (recorded): DisconnectRowVisible staleness between popover opens,
+StatusTextColor hardcode, ConnectionNameFor per-evaluation store read,
+visual-tree IsVisible asserts, PaneView Connected-subscription pattern
+(drive nav off ShowDialog return), File.Exists on UI thread in dialog Validate.
 
 ## Phase 5: End-to-end remote ops (copy/move, delete, rename, mkdir, search)
 Status: Not started
