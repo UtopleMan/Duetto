@@ -53,8 +53,11 @@ public sealed class HostKeyStore
     public void HandleHostKeyReceived(object? sender, HostKeyEventArgs e)
     {
         var host = sender is Renci.SshNet.IBaseClient c ? c.ConnectionInfo.Host : "<unknown>";
-        var trusted = Verify(host, e.HostKeyName, e.FingerPrintSHA256);
-        e.CanTrust = trusted;
+
+        // SSH.NET initialises CanTrust to true. Drop trust before verifying so a thrown
+        // HostKeyChangedException can never leave the presented key trusted.
+        e.CanTrust = false;
+        e.CanTrust = Verify(host, e.HostKeyName, e.FingerPrintSHA256);
     }
 
     /// <summary>

@@ -181,15 +181,28 @@ public sealed class SftpConnection : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        // Dispose any stale adapter before creating a fresh one.
+        // Dispose any stale adapter before creating a fresh one; null it out so a failed
+        // Connect below leaves the connection observably disconnected instead of pointing
+        // at a disposed adapter.
         _adapter?.Dispose();
+        _adapter = null;
 
         var adapter = _factory.Create(_info, _secret);
+        try
+        {
+            if (_hostKeyStore is not null)
+                adapter.SetHostKeyReceived(_hostKeyStore.HandleHostKeyReceived);
 
-        if (_hostKeyStore is not null)
-            adapter.SetHostKeyReceived(_hostKeyStore.HandleHostKeyReceived);
+            adapter.Connect();
+        }
+        catch (Exception)
+        {
+            // Failed handshake / bad credentials / HostKeyChangedException: the fresh
+            // adapter was never published to _adapter, so dispose it here and rethrow.
+            adapter.Dispose();
+            throw;
+        }
 
-        adapter.Connect();
         _adapter = adapter;
     }
 

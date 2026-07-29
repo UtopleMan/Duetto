@@ -63,6 +63,24 @@ public class SftpConnectionTests
         Assert.Equal(1, factory.CreateCount);
     }
 
+    [Fact]
+    public void Connect_failure_disposes_the_fresh_adapter_and_stays_disconnected()
+    {
+        var factory = new FakeFactory
+        {
+            OnConnectThrow = new SshConnectionException("handshake failed"),
+        };
+        using var conn = new SftpConnection(MakeInfo(), MakeSecret(), factory);
+
+        Assert.Throws<SshConnectionException>(() => conn.Connect());
+
+        // The fresh adapter must not leak, and the connection must not point at
+        // a disposed adapter.
+        Assert.True(factory.LastAdapter!.IsDisposed);
+        Assert.False(conn.IsConnected);
+        Assert.Throws<InvalidOperationException>(() => conn.Client);
+    }
+
     // ── reconnect logic ──────────────────────────────────────────────────────
 
     [Fact]
@@ -95,8 +113,6 @@ public class SftpConnectionTests
     public void WithReconnect_reconnects_once_on_SshConnectionException_then_retries()
     {
         var factory = new FakeFactory();
-        factory.OnOpThrow = new SshConnectionException("dropped");
-
         using var conn = new SftpConnection(MakeInfo(), MakeSecret(), factory);
         conn.Connect();
 
@@ -225,9 +241,6 @@ internal sealed class FakeFactory : ISftpClientFactory
 
     /// <summary>When set, the fake adapter's Connect call will throw this.</summary>
     public Exception? OnConnectThrow { get; set; }
-
-    /// <summary>Not used directly here but kept for future op-level throws.</summary>
-    public Exception? OnOpThrow { get; set; }
 
     public ISftpClientAdapter Create(DuettoConnectionInfo info, ConnectSecret secret)
     {
