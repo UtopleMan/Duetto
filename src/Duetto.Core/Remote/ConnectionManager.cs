@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using Duetto.Core.FileSystem;
 
 namespace Duetto.Core.Remote;
@@ -39,7 +38,7 @@ public sealed class ConnectionManager : IDisposable
     private readonly object _lock = new();
 
     /// <summary>Tracks live (connected) session+provider pairs by connection id.</summary>
-    private readonly Dictionary<string, Entry> _entries = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Entry> _entries = [];
 
     private bool _disposed;
 
@@ -111,12 +110,33 @@ public sealed class ConnectionManager : IDisposable
     /// On failure (auth, host-key change, network) the manager is left clean: no registration,
     /// no tracking entry.
     /// </para>
+    ///
+    /// <para>
+    /// <b>Lock scope:</b> the SSH handshake (<see cref="SftpConnection.Connect"/>) can take
+    /// seconds or hang, so it runs OUTSIDE the manager lock — concurrent
+    /// <see cref="IsConnected"/> / <see cref="ConnectedIds"/> / <see cref="Disconnect"/> /
+    /// <see cref="Dispose"/> calls stay responsive during a slow connect.  Races during the
+    /// unlocked window resolve last-writer-wins:
+    /// <list type="bullet">
+    ///   <item><description>Manager disposed during the handshake → the fresh connection is
+    ///     disposed and <see cref="ObjectDisposedException"/> is thrown.</description></item>
+    ///   <item><description>A concurrent <see cref="Connect"/> for the same id published first →
+    ///     its entry is evicted and disposed; this call's entry registers.</description></item>
+    ///   <item><description>A concurrent <see cref="Disconnect(string)"/> for the id during the
+    ///     handshake → no entry exists at publish time; this call's entry simply
+    ///     registers.</description></item>
+    /// </list>
+    /// </para>
     /// </summary>
     /// <exception cref="HostKeyChangedException">
     ///   Propagated when the server presents a key that differs from the stored pin.
     /// </exception>
+    /// <exception cref="ObjectDisposedException">
+    ///   Thrown when the manager is disposed, whether before or during the handshake.
+    /// </exception>
     public void Connect(ConnectionInfo info, ConnectSecret secret)
     {
+        SftpConnection conn;
         lock (_lock)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -129,16 +149,39 @@ public sealed class ConnectionManager : IDisposable
                 old.Dispose();
             }
 
-            // Build and connect — if this throws, nothing has been registered or tracked.
-            var conn = new SftpConnection(info, secret, _factory, _hostKeyStore);
-            try
-            {
-                conn.Connect();
-            }
-            catch (Exception)
+            conn = new SftpConnection(info, secret, _factory, _hostKeyStore);
+        }
+
+        // Handshake outside the lock: only this thread references `conn` until it is
+        // published below, so the non-thread-safe SftpConnection is not shared yet.
+        // If this throws, nothing has been registered or tracked.
+        try
+        {
+            conn.Connect();
+        }
+        catch (Exception)
+        {
+            conn.Dispose();
+            throw;
+        }
+
+        lock (_lock)
+        {
+            // The manager may have been disposed while the handshake ran.
+            if (_disposed)
             {
                 conn.Dispose();
-                throw;
+                throw new ObjectDisposedException(nameof(ConnectionManager));
+            }
+
+            // A concurrent Connect for the same id may have published meanwhile:
+            // last writer wins — evict the raced entry before publishing ours.
+            // (A concurrent Disconnect just means no entry exists; we register normally.)
+            if (_entries.TryGetValue(info.Id, out var raced))
+            {
+                _registry.Unregister("sftp", info.Id);
+                _entries.Remove(info.Id);
+                raced.Dispose();
             }
 
             var provider = new SftpFileSystemProvider(conn);

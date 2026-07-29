@@ -300,4 +300,84 @@ public sealed class ConnectionManagerTests
             Assert.Empty(manager.ConnectedIds);
         }
     }
+
+    [Fact]
+    public void Connect_on_disposed_manager_throws_ObjectDisposedException()
+    {
+        var (manager, _, _) = Make();
+        manager.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(
+            () => manager.Connect(MakeInfo(), MakeSecret()));
+    }
+
+    // ── lock scope during the handshake ──────────────────────────────────────
+
+    private static readonly TimeSpan GateTimeout = TimeSpan.FromSeconds(10);
+
+    [Fact]
+    public async Task State_queries_respond_while_handshake_is_blocked()
+    {
+        var registry = new FileSystemRegistry();
+        var store = new HostKeyStore();
+        using var entered = new ManualResetEventSlim(false);
+        using var gate = new ManualResetEventSlim(false);
+        var adapter = new FakeSftpClientAdapter { ConnectEntered = entered, ConnectGate = gate };
+        var factory = new SingleAdapterFactory(adapter);
+        using var manager = new ConnectionManager(registry, store, factory);
+
+        var connectTask = Task.Run(() => manager.Connect(MakeInfo(), MakeSecret()));
+        try
+        {
+            Assert.True(entered.Wait(GateTimeout), "handshake never started");
+
+            // While the handshake is blocked, state queries must NOT block on the manager
+            // lock.  Each runs on its own task; WaitAsync throws TimeoutException on a
+            // regression instead of hanging the test run.
+            Assert.False(await Task.Run(() => manager.IsConnected("conn1")).WaitAsync(GateTimeout));
+            Assert.Empty(await Task.Run(() => manager.ConnectedIds).WaitAsync(GateTimeout));
+            await Task.Run(() => manager.Disconnect("other-id")).WaitAsync(GateTimeout);
+        }
+        finally
+        {
+            gate.Set(); // always release so connectTask cannot leak a blocked thread
+        }
+
+        // Release the handshake: the connect must now complete and register.
+        await connectTask;
+        Assert.True(manager.IsConnected("conn1"));
+        var (provider, _) = registry.Resolve("sftp://conn1/");
+        Assert.NotNull(provider);
+    }
+
+    [Fact]
+    public async Task Dispose_during_handshake_disposes_fresh_connection_and_throws()
+    {
+        var registry = new FileSystemRegistry();
+        var store = new HostKeyStore();
+        using var entered = new ManualResetEventSlim(false);
+        using var gate = new ManualResetEventSlim(false);
+        var adapter = new FakeSftpClientAdapter { ConnectEntered = entered, ConnectGate = gate };
+        var factory = new SingleAdapterFactory(adapter);
+        var manager = new ConnectionManager(registry, store, factory);
+
+        var connectTask = Task.Run(() => manager.Connect(MakeInfo(), MakeSecret()));
+        try
+        {
+            Assert.True(entered.Wait(GateTimeout), "handshake never started");
+
+            // Dispose while the handshake is blocked — must not block on the manager lock.
+            // WaitAsync throws TimeoutException on a regression instead of hanging the run.
+            await Task.Run(manager.Dispose).WaitAsync(GateTimeout);
+        }
+        finally
+        {
+            gate.Set();
+        }
+
+        // The post-connect guard must dispose the fresh connection and throw.
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => connectTask);
+        Assert.False(adapter.IsConnected);
+        Assert.Throws<InvalidOperationException>(() => registry.Resolve("sftp://conn1/"));
+    }
 }

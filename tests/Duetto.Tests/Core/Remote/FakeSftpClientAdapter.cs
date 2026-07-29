@@ -105,8 +105,23 @@ internal sealed class FakeSftpClientAdapter : ISftpClientAdapter
     /// </summary>
     public Dictionary<string, Exception> ListThrowsByPath { get; } = new();
 
+    /// <summary>
+    /// When non-null, <see cref="Connect"/> signals this event on entry.
+    /// Used by lock-scope tests to detect that a (blocked) handshake has started.
+    /// </summary>
+    public ManualResetEventSlim? ConnectEntered { get; set; }
+
+    /// <summary>
+    /// When non-null, <see cref="Connect"/> blocks on this gate before completing.
+    /// Used by lock-scope tests to simulate a slow SSH handshake.
+    /// </summary>
+    public ManualResetEventSlim? ConnectGate { get; set; }
+
     public void Connect()
     {
+        ConnectEntered?.Set();
+        ConnectGate?.Wait();
+
         if (NextConnectThrow is { } ex)
         {
             NextConnectThrow = null;
