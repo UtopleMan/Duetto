@@ -165,18 +165,18 @@ zombie-agent incidents during execution reconciled — all committed work
 controller-verified.
 
 ## Phase 3: Connection config store + secrets
-Status: Not started
+Status: Complete
 
-- [ ] Add `Duetto.Core/Remote/AppPaths.cs` — per-OS config dir (mac Application
+- [x] Add `Duetto.Core/Remote/AppPaths.cs` — per-OS config dir (mac Application
   Support / linux XDG / win APPDATA), `connections.json`, `hostkeys.json`.
-- [ ] Add `Duetto.Core/Remote/SecretCodec.cs` — reversible obfuscation with a
+- [x] Add `Duetto.Core/Remote/SecretCodec.cs` — reversible obfuscation with a
   machine-derived key (e.g. AES from a machine-id + app-salt); explicitly documented
   as obfuscation, not secure storage.
-- [ ] Add `Duetto.Core/Remote/ConnectionStore.cs` — load/save `ConnectionInfo[]`
+- [x] Add `Duetto.Core/Remote/ConnectionStore.cs` — load/save `ConnectionInfo[]`
   (JSON); per-connection `SavePassword` flag; when false the secret field is empty
   and resolved at connect time from a prompt; key path always saved; passphrase
   optional. Injectable file IO + codec for tests.
-- [ ] Persist host-key fingerprints via `HostKeyStore` into `hostkeys.json`.
+- [x] Persist host-key fingerprints via `HostKeyStore` into `hostkeys.json`.
 
 ### Verification Plan
 - `dotnet test` Core: config round-trips (save→load equality) incl. save-password
@@ -185,7 +185,17 @@ Status: Not started
   persists and reloads pinned fingerprints.
 
 ### Phase Summary
-_(write when phase completes)_
+Done 2026-07-29, commits f7d6bb3 + 64bb8e6 (single-task phase; task review served
+as the phase gate). AppPaths (per-OS config dir, XDG-aware), SecretCodec
+(AES-256-CBC, SHA-256 machine-derived key, random IV per encrypt, documented as
+obfuscation-not-security, whole-block length guard, decode failures surface as
+prompt-at-connect), ConnectionStore (StoredConnection DTO separate from
+ConnectionInfo, SavePassword flag, injectable IO + codec, atomic sibling-tmp
+writes, corrupt/missing loads empty, case-insensitive property names,
+Resolve/Pack helpers for Phase 4), JsonHostKeyPersistence storing MakeStoreKey
+format verbatim with an Attach helper. Suite 316 → 369 green. Deferred note:
+JsonHostKeyPersistence read-modify-write runs under the HostKeyStore lock —
+acceptable at pin scale, watch on slow mounts in Phase 4.
 
 ## Phase 4: Connect dialog + popover shares + lifecycle UX
 Status: Not started
