@@ -115,21 +115,65 @@ public sealed class SftpFileSystemProviderContractTests : FileSystemProviderCont
     }
 
     /// <summary>
-    /// Simulates a connection drop mid-session: the fake adapter throws
-    /// <see cref="SshConnectionException"/> on the first call to List(), which triggers
-    /// <see cref="SftpConnection.WithReconnect{T}"/> to reconnect and retry exactly once.
-    /// The second call must succeed.
+    /// Exercises WithReconnect's !IsConnected branch: after an explicit Disconnect the
+    /// next provider call auto-connects and succeeds.
+    /// </summary>
+    [Fact]
+    public void List_auto_connects_after_explicit_disconnect()
+    {
+        // Prime the tree with a file before dropping the connection.
+        _provider.CreateFile(Root, "ping.txt");
+
+        _conn.Disconnect();
+        var entries = _provider.List(Root);
+        Assert.Contains(entries, e => e.Name == "ping.txt");
+    }
+
+    /// <summary>
+    /// Exercises WithReconnect's SshConnectionException-catch branch: the fake adapter
+    /// throws <see cref="SshConnectionException"/> from ListDirectory exactly once
+    /// (simulating a mid-operation connection drop).  WithReconnect must reconnect
+    /// exactly once and retry; the retried op's result must reach the caller.
     /// </summary>
     [Fact]
     public void Reconnect_once_on_SshConnectionException_then_retries()
     {
-        // Prime the tree with a file before simulating the drop.
+        // Prime the tree with a file (this lazily connects: ConnectCount becomes 1).
         _provider.CreateFile(Root, "ping.txt");
+        Assert.Equal(1, _adapter.ConnectCount);
 
-        // Force-disconnect and verify that WithReconnect auto-connects on the next call.
-        _conn.Disconnect();
+        // One-shot connection drop on the next ListDirectory enumeration.
+        _adapter.NextListThrow = new SshConnectionException("dropped mid-list");
+
         var entries = _provider.List(Root);
+
+        // The retried op succeeded and exactly one reconnect happened.
         Assert.Contains(entries, e => e.Name == "ping.txt");
+        Assert.Equal(2, _adapter.ConnectCount);
+    }
+
+    /// <summary>
+    /// A per-directory low-level <see cref="SshException"/> (not a connection drop) must
+    /// not abort the whole recursive walk: the failing directory's contents are skipped
+    /// and the rest of the tree is still yielded.
+    /// </summary>
+    [Fact]
+    public void EnumerateRecursive_skips_directory_that_throws_SshException_and_continues()
+    {
+        var okDir = _provider.CreateDirectory(Root, "ok");
+        _provider.CreateFile(okDir, "visible.txt");
+        var badDir = _provider.CreateDirectory(Root, "bad");
+        _provider.CreateFile(badDir, "hidden.txt");
+
+        // Every ListDirectory on badDir throws a low-level SFTP protocol error.
+        _adapter.ListThrowsByPath[badDir] = new SshException("SFTP protocol error");
+
+        var names = _provider.EnumerateRecursive(Root).Select(e => e.Name).ToList();
+
+        Assert.Contains("ok", names);
+        Assert.Contains("visible.txt", names);
+        Assert.Contains("bad", names);            // the entry itself comes from listing Root
+        Assert.DoesNotContain("hidden.txt", names); // but its contents are skipped
     }
 }
 

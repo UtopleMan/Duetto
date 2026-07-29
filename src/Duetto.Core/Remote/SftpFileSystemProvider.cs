@@ -226,9 +226,29 @@ public sealed class SftpFileSystemProvider : IFileSystemProvider, IDisposable
         }
     }
 
+    /// <summary>
+    /// Opens <paramref name="path"/> for sequential reading.
+    /// <para>
+    /// <b>Stream lifetime:</b> the returned stream is bound to the connection that was live
+    /// at open time; a reconnect does not migrate it — after a connection drop the held
+    /// stream fails with a channel error, not a clean <see cref="SshConnectionException"/>.
+    /// Callers must treat stream failures as fatal for the operation and retry the whole
+    /// operation (re-open the stream), not just the individual read.
+    /// </para>
+    /// </summary>
     public Stream OpenRead(string path) =>
         Exec(a => a.OpenRead(path));
 
+    /// <summary>
+    /// Opens <paramref name="path"/> for writing, creating or truncating the target.
+    /// <para>
+    /// <b>Stream lifetime:</b> the returned stream is bound to the connection that was live
+    /// at open time; a reconnect does not migrate it — after a connection drop the held
+    /// stream fails with a channel error, not a clean <see cref="SshConnectionException"/>.
+    /// Callers must treat stream failures as fatal for the operation and retry the whole
+    /// operation (re-open the stream), not just the individual write.
+    /// </para>
+    /// </summary>
     public Stream OpenWrite(string path) =>
         Exec(a => a.OpenWrite(path));
 
@@ -239,10 +259,14 @@ public sealed class SftpFileSystemProvider : IFileSystemProvider, IDisposable
     /// Depth-first walk: yields each entry, then recurses into real directories.
     /// Symlinked directories are NOT recursed (cycle guard, matching
     /// <see cref="LocalFileSystemProvider"/> policy).
-    /// Per-directory <see cref="SftpPermissionDeniedException"/> and
-    /// <see cref="SftpPathNotFoundException"/> are swallowed — same approach as
-    /// <see cref="LocalFileSystemProvider.EnumerateRecursive"/> swallowing
-    /// <see cref="IOException"/> / <see cref="UnauthorizedAccessException"/>.
+    /// Per-directory SFTP failures (<see cref="SftpPermissionDeniedException"/>,
+    /// <see cref="SftpPathNotFoundException"/>, and other non-connection
+    /// <see cref="SshException"/>s) are swallowed so the walk continues past bad
+    /// directories — same approach as <see cref="LocalFileSystemProvider.EnumerateRecursive"/>
+    /// swallowing <see cref="IOException"/> / <see cref="UnauthorizedAccessException"/>.
+    /// A <see cref="SshConnectionException"/> reaching this frame means
+    /// <see cref="SftpConnection.WithReconnect{T}"/>'s single reconnect retry already
+    /// failed, so it propagates to the caller.
     /// </summary>
     public IEnumerable<FileEntry> EnumerateRecursive(string path)
     {
@@ -255,12 +279,10 @@ public sealed class SftpFileSystemProvider : IFileSystemProvider, IDisposable
                                  .Where(e => e.Name is not ("." or ".."))
                                  .ToList());
         }
-        catch (SftpPermissionDeniedException)
+        catch (SshException e) when (e is not SshConnectionException)
         {
-            yield break;
-        }
-        catch (SftpPathNotFoundException)
-        {
+            // Covers SftpPermissionDeniedException, SftpPathNotFoundException, and
+            // low-level per-directory SFTP protocol errors: skip this directory.
             yield break;
         }
 

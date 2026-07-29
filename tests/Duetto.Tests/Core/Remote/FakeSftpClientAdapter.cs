@@ -90,6 +90,21 @@ internal sealed class FakeSftpClientAdapter : ISftpClientAdapter
     /// </summary>
     public Exception? NextConnectThrow { get; set; }
 
+    /// <summary>Total number of successful <see cref="Connect"/> calls (initial + reconnects).</summary>
+    public int ConnectCount { get; private set; }
+
+    /// <summary>
+    /// When non-null the next <see cref="ListDirectory"/> enumeration will throw this
+    /// exception and then clear the field (one-shot).  Used by reconnect-retry tests.
+    /// </summary>
+    public Exception? NextListThrow { get; set; }
+
+    /// <summary>
+    /// Per-path persistent throws for <see cref="ListDirectory"/> — every enumeration of a
+    /// listed path throws the mapped exception.  Used by per-directory failure tests.
+    /// </summary>
+    public Dictionary<string, Exception> ListThrowsByPath { get; } = new();
+
     public void Connect()
     {
         if (NextConnectThrow is { } ex)
@@ -99,6 +114,7 @@ internal sealed class FakeSftpClientAdapter : ISftpClientAdapter
         }
 
         _connected = true;
+        ConnectCount++;
     }
 
     public void Disconnect() => _connected = false;
@@ -109,6 +125,17 @@ internal sealed class FakeSftpClientAdapter : ISftpClientAdapter
 
     public IEnumerable<SftpEntry> ListDirectory(string path)
     {
+        // Deferred to first MoveNext, which is fine: the provider materializes the
+        // enumeration inside WithReconnect, so the throw lands inside the guarded op.
+        if (NextListThrow is { } listEx)
+        {
+            NextListThrow = null;
+            throw listEx;
+        }
+
+        if (ListThrowsByPath.TryGetValue(Norm(path), out var pathEx))
+            throw pathEx;
+
         var dir = Norm(path);
         var node = Require(dir);
         if (!node.IsDirectory)
