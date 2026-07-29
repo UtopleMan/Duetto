@@ -1,8 +1,10 @@
+using System.Net.Sockets;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Duetto.Core.FileSystem;
 using Duetto.Core.Operations;
 using Duetto.Core.Remote;
+using Renci.SshNet.Common;
 
 namespace Duetto.ViewModels;
 
@@ -122,6 +124,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Right.Reload(preserveSelection: true);
         };
         Search = new SearchViewModel(() => ActivePane.CurrentPath, Registry);
+        // Wire connection-name lookup so ScopeDirName shows the connection name at remote roots.
+        Search.ConnectionNameResolver = id =>
+        {
+            foreach (var stored in ConnectionStore.Load())
+            {
+                if (string.Equals(stored.Id, id, StringComparison.OrdinalIgnoreCase))
+                    return stored.Name;
+            }
+            return null;
+        };
         Search.RevealRequested += entry =>
         {
             if (Path.GetDirectoryName(entry.FullPath) is { } dir)
@@ -157,6 +169,93 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Right.LoadScheduler = PaneViewModel.BackgroundScheduler;
         Left.RenameScheduler = PaneViewModel.BackgroundRenameScheduler;
         Right.RenameScheduler = PaneViewModel.BackgroundRenameScheduler;
+    }
+
+    /// <summary>
+    /// Opens the connect dialog for the given stored connection and pane.
+    /// <para>
+    /// Seam: replace in tests to capture dialog-open calls without instantiating a real window.
+    /// Signature: <c>(StoredConnection? forEdit, PaneViewModel targetPane)</c>.
+    /// </para>
+    /// </summary>
+    public Action<StoredConnection?, PaneViewModel> OpenConnectDialog { get; set; } = (_, _) => { };
+
+    /// <summary>
+    /// Runs a background connect task.
+    /// <para>
+    /// Seam: replace in tests to execute the action synchronously without <c>Task.Run</c>.
+    /// Signature: <c>connectBody => Task</c> where <c>connectBody</c> is the work to perform.
+    /// </para>
+    /// </summary>
+    public Func<Action, Task> ConnectScheduler { get; set; } =
+        static work => Task.Run(work);
+
+    /// <summary>
+    /// Connects to a share and navigates the target pane to it, or opens the connect dialog on failure.
+    /// <para>
+    /// This is the single implementation of the share-connect flow used by both
+    /// <c>PaneView.ActivateShare</c> (drive popover click) and
+    /// <c>MainWindow.OnRemotePlaceClicked</c> (GNOME rail click). Both callers resolve the
+    /// <see cref="StoredConnection"/> and target pane, then delegate here.
+    /// </para>
+    /// <para>
+    /// <b>Flow:</b>
+    /// <list type="number">
+    ///   <item>Already connected → navigate directly, return.</item>
+    ///   <item>Secret saved → connect on <see cref="ConnectScheduler"/> then navigate.
+    ///     On any of the documented connection exceptions open the dialog prefilled; never navigate.</item>
+    ///   <item>No secret → open dialog prefilled.</item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>Caught exceptions (background connect):</b>
+    /// <see cref="SshAuthenticationException"/>, <see cref="SshConnectionException"/>,
+    /// <see cref="SocketException"/>, <see cref="HostKeyChangedException"/>,
+    /// <see cref="ObjectDisposedException"/>, <see cref="SshException"/>,
+    /// <see cref="IOException"/>, <see cref="InvalidOperationException"/>.
+    /// All other exceptions propagate as unobserved task faults (genuine bugs).
+    /// </para>
+    /// </summary>
+    /// <param name="stored">The saved connection to activate. Must not be null.</param>
+    /// <param name="pane">The pane to navigate on success.</param>
+    public void ConnectToShare(StoredConnection stored, PaneViewModel pane)
+    {
+        if (ConnectionManager.IsConnected(stored.Id))
+        {
+            var path = $"sftp://{stored.Id}{stored.InitialRemotePath}";
+            pane.NavigateTo(path);
+            return;
+        }
+
+        var secret = ConnectionStore.ResolveSecret(stored, Codec);
+        if (secret is not null)
+        {
+            var info = ConnectionStore.ResolveInfo(stored);
+            var capturedPath = $"sftp://{info.Id}{info.InitialRemotePath}";
+            _ = ConnectScheduler(() =>
+            {
+                try
+                {
+                    ConnectionManager.Connect(info, secret);
+                }
+                catch (Exception ex) when (ex is SshAuthenticationException
+                    or SshConnectionException
+                    or SocketException
+                    or HostKeyChangedException
+                    or ObjectDisposedException
+                    or SshException
+                    or IOException
+                    or InvalidOperationException)
+                {
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() => OpenConnectDialog(stored, pane));
+                    return;
+                }
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => pane.NavigateTo(capturedPath));
+            });
+            return;
+        }
+
+        OpenConnectDialog(stored, pane);
     }
 
     /// <summary>

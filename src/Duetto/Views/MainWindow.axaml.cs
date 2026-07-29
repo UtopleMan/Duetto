@@ -1,4 +1,3 @@
-using System.Net.Sockets;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -7,7 +6,6 @@ using Avalonia.Media;
 using Avalonia.Platform;
 using Duetto.Core.Remote;
 using Duetto.ViewModels;
-using Renci.SshNet.Common;
 
 namespace Duetto.Views;
 
@@ -116,59 +114,24 @@ public partial class MainWindow : Window
             return;
 
         var pane = Vm.ActivePane;
-        if (Vm.ConnectionManager.IsConnected(remotePlace.Id))
-        {
-            var path = $"sftp://{remotePlace.Id}{remotePlace.InitialRemotePath}";
-            pane.NavigateTo(path);
-            return;
-        }
-
-        // Try saved secret.
+        // Resolve the freshest stored record; fall back to the place's own Stored when absent.
         var stored = Vm.ConnectionStore.Load()
-            .FirstOrDefault(c => string.Equals(c.Id, remotePlace.Id, StringComparison.OrdinalIgnoreCase));
-        if (stored is not null)
-        {
-            var secret = ConnectionStore.ResolveSecret(stored, Vm.Codec);
-            if (secret is not null)
-            {
-                // Connect on a background thread then navigate. On failure (stale
-                // password, changed host key, network) open the dialog prefilled so
-                // the user retries there and sees the real error; never navigate.
-                var info = ConnectionStore.ResolveInfo(stored);
-                var path = $"sftp://{info.Id}{info.InitialRemotePath}";
-                _ = Task.Run(() =>
-                {
-                    try
-                    {
-                        Vm.ConnectionManager.Connect(info, secret);
-                    }
-                    catch (Exception ex) when (ex is SshAuthenticationException
-                        or SshConnectionException
-                        or SocketException
-                        or HostKeyChangedException
-                        or ObjectDisposedException
-                        or SshException
-                        or IOException
-                        or InvalidOperationException)
-                    {
-                        Avalonia.Threading.Dispatcher.UIThread.Post(() => OpenRemoteConnectDialog(stored, pane));
-                        return;
-                    }
-                    Avalonia.Threading.Dispatcher.UIThread.Post(() => pane.NavigateTo(path));
-                });
-                return;
-            }
-        }
+                         .FirstOrDefault(c => string.Equals(c.Id, remotePlace.Id, StringComparison.OrdinalIgnoreCase))
+                     ?? remotePlace.Stored;
 
-        // No saved secret: open Connect dialog pre-filled.
-        OpenRemoteConnectDialog(stored ?? remotePlace.Stored, pane);
+        // Wire the dialog seam so ConnectToShare can open this window's connect dialog.
+        var capturedWindow = this;
+        Vm.OpenConnectDialog = (forEdit, targetPane) =>
+            OpenRemoteConnectDialog(forEdit, targetPane, capturedWindow);
+
+        Vm.ConnectToShare(stored, pane);
     }
 
     /// <summary>
     /// Opens ConnectWindow (optionally pre-filled via ForEdit) for a remote place click;
     /// on success navigates <paramref name="pane"/> to the connection root.
     /// </summary>
-    private void OpenRemoteConnectDialog(StoredConnection? stored, PaneViewModel pane)
+    private void OpenRemoteConnectDialog(StoredConnection? stored, PaneViewModel pane, Window owner)
     {
         var dialogVm = new ConnectDialogViewModel(
             Vm.ConnectionManager,
@@ -184,7 +147,7 @@ public partial class MainWindow : Window
             pane.NavigateTo(remotePath);
             Vm.RebuildRemotePlaces();
         };
-        new ConnectWindow(dialogVm).ShowDialog(this);
+        new ConnectWindow(dialogVm).ShowDialog(owner);
     }
 
     protected override void OnClosed(EventArgs e)

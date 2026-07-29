@@ -1,4 +1,3 @@
-using System.Net.Sockets;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -7,7 +6,6 @@ using Avalonia.Threading;
 using Duetto.Core.FileSystem;
 using Duetto.Core.Remote;
 using Duetto.ViewModels;
-using Renci.SshNet.Common;
 
 namespace Duetto.Views;
 
@@ -258,6 +256,15 @@ public partial class PaneView : UserControl
             owner.DataContext is not MainViewModel mainVm)
             return;
 
+        OpenConnectDialogCore(mainVm, paneVm, forEdit, owner);
+    }
+
+    /// <summary>
+    /// Core helper: builds and shows the ConnectWindow against <paramref name="owner"/>.
+    /// Called both from the direct-edit path and from the <see cref="MainViewModel.OpenConnectDialog"/> seam.
+    /// </summary>
+    private static void OpenConnectDialogCore(MainViewModel mainVm, PaneViewModel paneVm, StoredConnection? forEdit, Window owner)
+    {
         var dialogVm = new ConnectDialogViewModel(
             mainVm.ConnectionManager,
             mainVm.ConnectionStore,
@@ -306,8 +313,7 @@ public partial class PaneView : UserControl
     }
 
     /// <summary>
-    /// Handles a share row click: if already connected navigate; if secret saved connect
-    /// on background thread then navigate; otherwise open ConnectWindow prefilled.
+    /// Handles a share row click: delegates to <see cref="MainViewModel.ConnectToShare"/>.
     /// </summary>
     private void ActivateShare(PaneViewModel paneVm, ShareRowViewModel share)
     {
@@ -316,56 +322,17 @@ public partial class PaneView : UserControl
             owner.DataContext is not MainViewModel mainVm)
             return;
 
-        if (share.IsConnected)
-        {
-            // Already live: navigate directly.
-            var path = $"sftp://{share.Id}{share.InitialRemotePath}";
-            paneVm.NavigateTo(path);
-            return;
-        }
-
-        // Try to resolve a saved secret.
+        // Resolve the freshest stored record for this share (the share row's Stored may
+        // be stale after an edit); fall back to the share row's own Stored when absent.
         var stored = mainVm.ConnectionStore.Load()
-            .FirstOrDefault(c => string.Equals(c.Id, share.Id, StringComparison.OrdinalIgnoreCase));
-        if (stored is null)
-        {
-            OpenConnectDialog(paneVm, share.Stored);
-            return;
-        }
+                         .FirstOrDefault(c => string.Equals(c.Id, share.Id, StringComparison.OrdinalIgnoreCase))
+                     ?? share.Stored;
 
-        var secret = ConnectionStore.ResolveSecret(stored, mainVm.Codec);
-        if (secret is not null)
-        {
-            // Secret saved: connect on background thread then navigate. On failure
-            // (stale password, changed host key, network) open the dialog prefilled
-            // so the user retries there and sees the real error; never navigate.
-            var info = ConnectionStore.ResolveInfo(stored);
-            var capturedPath = $"sftp://{info.Id}{info.InitialRemotePath}";
-            _ = Task.Run(() =>
-            {
-                try
-                {
-                    mainVm.ConnectionManager.Connect(info, secret);
-                }
-                catch (Exception ex) when (ex is SshAuthenticationException
-                    or SshConnectionException
-                    or SocketException
-                    or HostKeyChangedException
-                    or ObjectDisposedException
-                    or SshException
-                    or IOException
-                    or InvalidOperationException)
-                {
-                    Dispatcher.UIThread.Post(() => OpenConnectDialog(paneVm, stored));
-                    return;
-                }
-                Dispatcher.UIThread.Post(() => paneVm.NavigateTo(capturedPath));
-            });
-            return;
-        }
+        // Wire the dialog seam for this call site so ConnectToShare can open the window.
+        mainVm.OpenConnectDialog = (forEdit, targetPane) =>
+            OpenConnectDialogCore(mainVm, targetPane, forEdit, owner);
 
-        // No secret saved: open the dialog pre-filled so the user can enter it.
-        OpenConnectDialog(paneVm, stored);
+        mainVm.ConnectToShare(stored, paneVm);
     }
 
     /// <summary>

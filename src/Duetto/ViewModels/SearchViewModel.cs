@@ -85,7 +85,33 @@ public partial class SearchViewModel : ObservableObject
     /// <summary>Raised when a result should be revealed in the left pane.</summary>
     public event Action<FileEntry>? RevealRequested;
 
-    public string ScopeDirName => Path.GetFileName(ScopeDir.TrimEnd(Path.DirectorySeparatorChar)) is { Length: > 0 } n ? n : ScopeDir;
+    /// <summary>
+    /// The display name for the search scope directory.
+    /// For local paths uses <see cref="PathUtil.Leaf"/>; falls back to the full path at a local root.
+    /// For remote paths uses <see cref="PathUtil.Leaf"/>; at a remote root (leaf is empty) falls
+    /// back to the connection name (from <see cref="ConnectionNameResolver"/>) or the id.
+    /// Choice rationale: the volume chip uses the same connection-name lookup, so the search
+    /// header stays consistent with the chip label already visible in the pane header.
+    /// </summary>
+    public string ScopeDirName
+    {
+        get
+        {
+            var leaf = PathUtil.Leaf(ScopeDir);
+            if (leaf.Length > 0)
+                return leaf;
+
+            // Empty leaf: either a local root ("/" or "C:\") or a remote root ("sftp://id/").
+            if (PathUtil.ParseRemote(ScopeDir) is { } remote)
+            {
+                // Remote root: show the connection name, falling back to the id.
+                return ConnectionNameResolver(remote.Id) ?? remote.Id;
+            }
+
+            // Local root: show the full path (e.g. "/" or "C:\").
+            return ScopeDir;
+        }
+    }
     public string ContentsChipLabel => IncludeContents ? "− Contents" : "+ Contents";
 
     public string SizeFilterLabel => SizeFilter switch
@@ -103,6 +129,14 @@ public partial class SearchViewModel : ObservableObject
         DateFilter.ThisMonth => "This month",
         _ => "Any date",
     };
+
+    /// <summary>
+    /// Resolves the human-readable connection name for a given connection id.
+    /// Seam for tests; wired in <see cref="MainViewModel"/> to look up the name via the
+    /// <see cref="Duetto.Core.Remote.ConnectionStore"/>. Returns <see langword="null"/>
+    /// when the id is not found (caller falls back to showing the id itself).
+    /// </summary>
+    public Func<string, string?> ConnectionNameResolver { get; set; } = _ => null;
 
     public SearchViewModel(Func<string> scopeProvider, FileSystemRegistry? registry = null)
     {

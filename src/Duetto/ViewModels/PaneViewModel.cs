@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Duetto.Core.FileSystem;
 using Duetto.Core.Operations;
+using Renci.SshNet.Common;
 
 namespace Duetto.ViewModels;
 
@@ -272,7 +273,11 @@ public partial class PaneViewModel : ObservableObject, IDisposable
             {
                 return EntrySorter.Sort(Lister(path), sortColumn, ascending);
             }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException or DirectoryNotFoundException)
+            catch (Exception e) when (e is IOException
+                or UnauthorizedAccessException
+                or DirectoryNotFoundException
+                or SshException
+                or InvalidOperationException)
             {
                 return [];
             }
