@@ -253,43 +253,43 @@ visual-tree IsVisible asserts, PaneView Connected-subscription pattern
 (drive nav off ShowDialog return), File.Exists on UI thread in dialog Validate.
 
 ## Phase 5: End-to-end remote ops (copy/move, delete, rename, mkdir, search)
-Status: In progress
+Status: Complete
 
-- [ ] Copy/move (F5/F6) across providers through the reworked `TransferEngine`,
+- [x] Copy/move (F5/F6) across providers through the reworked `TransferEngine`,
   shown in the existing two-tone progress strip: local→remote (upload),
   remote→local (download), remote→remote. Move = native rename within one remote,
   else copy+delete. Conflict/skip-newer + pause/cancel preserved.
-- [ ] New folder / file (Phase-1 placeholder flow) works on a remote pane via the
+- [x] New folder / file (Phase-1 placeholder flow) works on a remote pane via the
   provider; disabled when `!CanCreateEmptyDir` / `!CanCreateFile`.
-- [ ] Rename (F2) on a remote via `provider.Rename`; disabled when `!CanRename`.
-- [ ] Delete (F8/Del) on a remote → permanent recursive delete (no prompt); status
+- [x] Rename (F2) on a remote via `provider.Rename`; disabled when `!CanRename`.
+- [x] Delete (F8/Del) on a remote → permanent recursive delete (no prompt); status
   reflects "deleted" vs local "moved to Trash" based on `HasTrash`.
-- [ ] Ctrl+F search over a remote pane via `EnumerateRecursive` + capped content
+- [x] Ctrl+F search over a remote pane via `EnumerateRecursive` + capped content
   read; search disabled when `!SupportsSearch`.
-- [ ] Capability-gate the command bar / key handlers off the active pane's provider
+- [x] Capability-gate the command bar / key handlers off the active pane's provider
   capabilities (rename, new, delete, eject/disconnect, capacity, search).
-- [ ] (From Phase 2 review) Probe the server's advertised extensions at connect
+- [x] (From Phase 2 review) Probe the server's advertised extensions at connect
   and gate `AtomicRename` per connection (fallback: delete+rename inside
   `ReplaceFile`) — today the capability hard-commits every upload to
   `posix-rename@openssh.com`, which some servers lack.
-- [ ] (From Phase 2 review) Materialize each directory's children (`.ToList()`)
+- [x] (From Phase 2 review) Materialize each directory's children (`.ToList()`)
   before deleting inside `SftpFileSystemProvider.DeleteRecursive` — lazy paged
   `READDIR` while deleting is unspecified server behavior; consider per-node
   `Exec` granularity so a reconnect mid-delete does not retry from the top.
-- [ ] (From Phase 2 review) Re-prefix provider-local search-hit paths with
+- [x] (From Phase 2 review) Re-prefix provider-local search-hit paths with
   `sftp://<id>` before they reach reveal/delete-from-search (`MainViewModel`
   resolves `entry.FullPath` through the registry — a bare `/docs/x` would
   resolve to the LOCAL provider).
-- [ ] (From Phase 4 review) Extract the duplicated share-connect flow
+- [x] (From Phase 4 review) Extract the duplicated share-connect flow
   (PaneView.ActivateShare / MainWindow.OnRemotePlaceClicked) into a testable
   `MainViewModel` seam — FIRST Phase 5 task, before capability gating touches
   those paths.
-- [ ] (From Phase 4 review) Surface provider/registry failures from in-flight
+- [x] (From Phase 4 review) Surface provider/registry failures from in-flight
   listings on disconnect/drop (extend PaneViewModel load catch with
   SshException/InvalidOperationException; reset IsLoading).
-- [ ] (From Phase 4 review, re-deferred from Phase 1) `SearchViewModel.ScopeDirName`
+- [x] (From Phase 4 review, re-deferred from Phase 1) `SearchViewModel.ScopeDirName`
   still raw `Path.GetFileName` — remote root scope displays the connection id.
-- [ ] (From Phase 2 review) Surface `HostKeyChangedException` thrown from a
+- [x] (From Phase 2 review) Surface `HostKeyChangedException` thrown from a
   mid-operation reconnect (deep in a transfer/search, not just Connect) —
   Phase 4's dialog-only handling will not see it.
 
@@ -302,7 +302,37 @@ Status: In progress
 - `dotnet test Duetto.slnx` full suite green; `dotnet build` clean.
 
 ### Phase Summary
-_(write when phase completes)_
+Done 2026-07-29, commits 48867b7..c4186ca (Tasks K/L/M with review fix rounds;
+Tasks E/F/G/L/M each survived a subagent death or session-limit interruption —
+all recovered by takeover/reconcile and every commit controller-verified). K
+extracted the duplicated share-connect flow onto a testable MainViewModel seam
+(one 8-type catch set, seam captured before scheduling to avoid a two-pane
+race), extended the pane load catch (SshException/InvalidOperationException,
+IsLoading always resets), and routed ScopeDirName through PathUtil.Leaf. L wired
+end-to-end remote ops: transfers resolve both sides through the registry to
+TransferEngine's provider overload (upload/download/remote-remote, native move
+when same provider, local-local byte-for-byte unchanged); new/rename/delete on
+remote panes via provider-aware FileOps + provider.Delete; delete status keyed
+on HasTrash; the posix-rename capability gated per connection by an empirical
+first-failure probe (SSH.NET exposes no extension discovery); DeleteRecursive
+materializes children before deleting. L's own first commit shipped a
+data-loss-class bug (remote delete resolved provider-local paths against the
+LOCAL provider, masked by a TrashFn-overriding test) — caught by the implementer
+via revert-and-watch-fail and fixed structurally; the review then audited all
+eight Resolve sites clean. M wired remote search (EnumerateRecursive gated on
+SupportsSearch, disabled search box + watermark), capability-gated every op
+entry point at the method level (key handlers no-op, not just disabled buttons),
+re-prefixed search-hit paths to full sftp://id addresses at reveal AND
+delete-from-search (same data-loss class as L, guard tests fail if reverted),
+surfaced mid-operation HostKeyChangedException in the transfer and search
+workers (fail with status, disconnected, no retry), and showed the full address
+in the transfer strip. Suite 424 → 451 green; clean --no-incremental build
+confirmed (an incremental build had masked a dangling XAML binding the takeover
+resolved). Deferred to Phase 6/backlog: command-bar buttons not visually
+disabled on no-capability providers (method-level no-op is safe; affordance
+polish only); FileOps.Exists PathUtil.Combine on provider-local paths
+(pre-existing, backstopped by server-side collision throw); "Deleted 0 items"
+wording when all items are capability-skipped.
 
 ## Phase 6: Cross-platform build, docs, backlog
 Status: Not started
