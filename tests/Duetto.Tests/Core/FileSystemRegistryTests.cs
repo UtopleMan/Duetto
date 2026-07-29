@@ -38,6 +38,69 @@ public class FileSystemRegistryTests
         reg.Unregister("sftp", "c1");
         Assert.Throws<InvalidOperationException>(() => reg.Resolve("sftp://c1/a"));
     }
+
+    // ── Finding 4: thread-safety under concurrent Register/Unregister/Resolve ─
+
+    [Fact]
+    public async Task Concurrent_Resolve_during_Register_Unregister_does_not_throw()
+    {
+        // Stress test: 4 writer threads alternately Register and Unregister; 4 reader threads
+        // call Resolve in a tight loop.  The readers expect either a valid result or the
+        // "no provider registered" InvalidOperationException — anything else is a bug.
+        // Fixed iteration count (200 each) keeps the test deterministic and fast.
+        const int Iterations = 200;
+
+        var reg = new FileSystemRegistry();
+        var fake = new InMemoryFileSystemProvider();
+
+        var writerErrors = new System.Collections.Concurrent.ConcurrentBag<Exception>();
+        var readerErrors = new System.Collections.Concurrent.ConcurrentBag<Exception>();
+
+        using var startGate = new ManualResetEventSlim(false);
+
+        var writers = Enumerable.Range(0, 4).Select(_ => Task.Run(() =>
+        {
+            startGate.Wait();
+            for (var i = 0; i < Iterations; i++)
+            {
+                try
+                {
+                    reg.Register("sftp", "c1", fake);
+                    reg.Unregister("sftp", "c1");
+                }
+                catch (Exception ex)
+                {
+                    writerErrors.Add(ex);
+                }
+            }
+        })).ToArray();
+
+        var readers = Enumerable.Range(0, 4).Select(_ => Task.Run(() =>
+        {
+            startGate.Wait();
+            for (var i = 0; i < Iterations * 2; i++)
+            {
+                try
+                {
+                    reg.Resolve("sftp://c1/some/path");
+                }
+                catch (InvalidOperationException)
+                {
+                    // Expected: provider not registered at this moment — not a bug.
+                }
+                catch (Exception ex)
+                {
+                    readerErrors.Add(ex);
+                }
+            }
+        })).ToArray();
+
+        startGate.Set();
+        await Task.WhenAll([.. writers, .. readers]);
+
+        Assert.Empty(writerErrors);
+        Assert.Empty(readerErrors);
+    }
 }
 
 public sealed class InMemoryProviderContractTests : FileSystemProviderContract

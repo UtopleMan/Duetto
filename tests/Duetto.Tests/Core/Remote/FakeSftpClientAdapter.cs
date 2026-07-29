@@ -117,6 +117,18 @@ internal sealed class FakeSftpClientAdapter : ISftpClientAdapter
     /// </summary>
     public ManualResetEventSlim? ConnectGate { get; set; }
 
+    /// <summary>
+    /// When non-null, <see cref="Disconnect"/> signals this event on entry.
+    /// Used by lock-scope tests to detect that a (blocked) disconnect has started.
+    /// </summary>
+    public ManualResetEventSlim? DisconnectEntered { get; set; }
+
+    /// <summary>
+    /// When non-null, <see cref="Disconnect"/> (and <see cref="Dispose"/>) blocks on this gate.
+    /// Used by lock-scope tests to simulate a slow or stalled graceful disconnect.
+    /// </summary>
+    public ManualResetEventSlim? DisconnectGate { get; set; }
+
     public void Connect()
     {
         ConnectEntered?.Set();
@@ -132,7 +144,12 @@ internal sealed class FakeSftpClientAdapter : ISftpClientAdapter
         ConnectCount++;
     }
 
-    public void Disconnect() => _connected = false;
+    public void Disconnect()
+    {
+        DisconnectEntered?.Set();
+        DisconnectGate?.Wait();
+        _connected = false;
+    }
 
     public void SetHostKeyReceived(EventHandler<HostKeyEventArgs> handler) { /* no-op in fake */ }
 
@@ -269,7 +286,12 @@ internal sealed class FakeSftpClientAdapter : ISftpClientAdapter
     public void SetLastWriteTimeUtc(string path, DateTime utc) =>
         Require(Norm(path)).LastWriteTimeUtc = utc;
 
-    public void Dispose() => _connected = false;
+    public void Dispose()
+    {
+        DisconnectEntered?.Set();
+        DisconnectGate?.Wait();
+        _connected = false;
+    }
 
     // ── helper: write-back stream ─────────────────────────────────────────────
 

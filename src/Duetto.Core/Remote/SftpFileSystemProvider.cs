@@ -279,10 +279,12 @@ public sealed class SftpFileSystemProvider : IFileSystemProvider, IDisposable
                                  .Where(e => e.Name is not ("." or ".."))
                                  .ToList());
         }
-        catch (SshException e) when (e is not SshConnectionException)
+        catch (SshException e) when (e is not SshConnectionException and not SshAuthenticationException)
         {
             // Covers SftpPermissionDeniedException, SftpPathNotFoundException, and
             // low-level per-directory SFTP protocol errors: skip this directory.
+            // SshConnectionException and SshAuthenticationException propagate so the
+            // caller knows about connection/auth failures rather than silently truncating.
             yield break;
         }
 

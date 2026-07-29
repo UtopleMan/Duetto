@@ -401,4 +401,49 @@ public sealed class ConnectionManagerTests
         Assert.False(adapter.IsConnected);
         Assert.Throws<InvalidOperationException>(() => registry.Resolve("sftp://conn1/"));
     }
+
+    // ── Finding 5: dispose/disconnect outside lock so a stalled peer can't freeze readers ──
+
+    [Fact]
+    public async Task IsConnected_responds_while_Disconnect_is_blocked_on_graceful_close()
+    {
+        // Scenario: Disconnect is called and the adapter's Disconnect/Dispose stalls on a
+        // dead peer.  While it stalls, IsConnected and ConnectedIds must remain responsive
+        // (i.e. must NOT wait for the graceful-close to finish).
+        var registry = new FileSystemRegistry();
+        var store = new HostKeyStore();
+        using var disconnectEntered = new ManualResetEventSlim(false);
+        using var disconnectGate = new ManualResetEventSlim(false);
+
+        var adapter = new FakeSftpClientAdapter
+        {
+            DisconnectEntered = disconnectEntered,
+            DisconnectGate = disconnectGate,
+        };
+        var factory = new SingleAdapterFactory(adapter);
+        using var manager = new ConnectionManager(registry, store, factory);
+
+        // Establish the connection first (no blocking gates during connect).
+        manager.Connect(MakeInfo(), MakeSecret());
+        Assert.True(manager.IsConnected("conn1"));
+
+        // Kick off Disconnect on a background thread — it will block inside the adapter.
+        var disconnectTask = Task.Run(() => manager.Disconnect("conn1"));
+
+        try
+        {
+            Assert.True(disconnectEntered.Wait(GateTimeout), "Disconnect never entered adapter");
+
+            // While the adapter's graceful close is blocked, state queries must NOT block.
+            // WaitAsync surfaces a regression as TimeoutException rather than hanging the run.
+            Assert.False(await Task.Run(() => manager.IsConnected("conn1")).WaitAsync(GateTimeout));
+            Assert.Empty(await Task.Run(() => manager.ConnectedIds).WaitAsync(GateTimeout));
+        }
+        finally
+        {
+            disconnectGate.Set(); // always release so the background thread can finish
+        }
+
+        await disconnectTask;
+    }
 }

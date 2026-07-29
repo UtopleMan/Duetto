@@ -144,21 +144,32 @@ public sealed class ConnectionManager : IDisposable
     public void Connect(ConnectionInfo info, ConnectSecret secret)
     {
         SftpConnection conn;
+        Entry? evicted;
         lock (_lock)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
 
             // Evict any existing connection for this id (replace-on-reconnect).
             // Unregister with the STORED casing — the registry is case-sensitive.
+            // Collect the evicted entry so we can dispose it OUTSIDE the lock (a graceful
+            // network disconnect inside the lock would stall concurrent state queries).
             if (_entries.TryGetValue(info.Id, out var old))
             {
                 _registry.Unregister("sftp", old.Id);
                 _entries.Remove(info.Id);
-                old.Dispose();
+                evicted = old;
+            }
+            else
+            {
+                evicted = null;
             }
 
             conn = new SftpConnection(info, secret, _factory, _hostKeyStore);
         }
+
+        // Dispose the evicted entry outside the lock so a slow/dead peer cannot stall
+        // concurrent IsConnected / ConnectedIds / Connect calls on other threads.
+        evicted?.Dispose();
 
         // Handshake outside the lock: only this thread references `conn` until it is
         // published below, so the non-thread-safe SftpConnection is not shared yet.
@@ -173,6 +184,7 @@ public sealed class ConnectionManager : IDisposable
             throw;
         }
 
+        Entry? racedEntry;
         lock (_lock)
         {
             // The manager may have been disposed while the handshake ran.
@@ -189,32 +201,48 @@ public sealed class ConnectionManager : IDisposable
             {
                 _registry.Unregister("sftp", raced.Id);
                 _entries.Remove(info.Id);
-                raced.Dispose();
+                racedEntry = raced;
+            }
+            else
+            {
+                racedEntry = null;
             }
 
             var provider = new SftpFileSystemProvider(conn);
             _entries[info.Id] = new Entry(info.Id, conn, provider);
             _registry.Register("sftp", info.Id, provider);
         }
+
+        // Dispose the raced entry outside the lock (same reasoning as the pre-handshake eviction).
+        racedEntry?.Dispose();
     }
 
     /// <summary>
     /// Unregisters the provider from the registry and disposes the connection for
     /// <paramref name="id"/>.  No-op when <paramref name="id"/> is not tracked.
+    ///
+    /// <para>
+    /// The actual <see cref="Entry.Dispose"/> (which performs a graceful network disconnect)
+    /// is called AFTER releasing the lock so that a slow or stalled peer cannot freeze
+    /// <see cref="IsConnected"/> / <see cref="ConnectedIds"/> on other threads.
+    /// </para>
     /// </summary>
     public void Disconnect(string id)
     {
+        Entry? entry;
         lock (_lock)
         {
-            if (!_entries.TryGetValue(id, out var entry))
+            if (!_entries.TryGetValue(id, out entry))
                 return;
 
             // Unregister with the STORED casing — the registry is case-sensitive and the
             // caller's id may differ in case (manager lookups are case-insensitive).
             _registry.Unregister("sftp", entry.Id);
             _entries.Remove(id);
-            entry.Dispose();
         }
+
+        // Dispose (graceful network disconnect) outside the lock.
+        entry.Dispose();
     }
 
     /// <summary>
@@ -223,30 +251,43 @@ public sealed class ConnectionManager : IDisposable
     /// </summary>
     public void DisposeAll()
     {
+        List<Entry> toDispose;
         lock (_lock)
-            DisposeAllLocked();
+            toDispose = CollectAndClearLocked();
+
+        foreach (var e in toDispose)
+            e.Dispose();
     }
 
     /// <inheritdoc/>
     public void Dispose()
     {
+        List<Entry> toDispose;
         lock (_lock)
         {
             if (_disposed) return;
             _disposed = true;
-            DisposeAllLocked();
+            toDispose = CollectAndClearLocked();
         }
+
+        foreach (var e in toDispose)
+            e.Dispose();
     }
 
-    /// <summary>Must be called with <c>_lock</c> held.</summary>
-    private void DisposeAllLocked()
+    /// <summary>
+    /// Unregisters all entries and collects them for disposal outside the lock.
+    /// Must be called with <c>_lock</c> held.
+    /// </summary>
+    private List<Entry> CollectAndClearLocked()
     {
+        var entries = new List<Entry>(_entries.Count);
         foreach (var entry in _entries.Values)
         {
             _registry.Unregister("sftp", entry.Id);
-            entry.Dispose();
+            entries.Add(entry);
         }
 
         _entries.Clear();
+        return entries;
     }
 }

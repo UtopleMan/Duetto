@@ -175,6 +175,29 @@ public sealed class SftpFileSystemProviderContractTests : FileSystemProviderCont
         Assert.Contains("bad", names);            // the entry itself comes from listing Root
         Assert.DoesNotContain("hidden.txt", names); // but its contents are skipped
     }
+
+    // ── Finding 6: SshAuthenticationException must not be swallowed ──────────
+
+    /// <summary>
+    /// An <see cref="SshAuthenticationException"/> thrown while listing a subdirectory must
+    /// propagate out of <c>EnumerateRecursive</c> rather than being silently swallowed.
+    /// Swallowing it would silently truncate search results when a mid-walk reconnect fails auth.
+    /// </summary>
+    [Fact]
+    public void EnumerateRecursive_propagates_SshAuthenticationException_from_subdirectory()
+    {
+        var okDir = _provider.CreateDirectory(Root, "good");
+        _provider.CreateFile(okDir, "file.txt");
+        var authFailDir = _provider.CreateDirectory(Root, "authfail");
+
+        // Any listing of authFailDir throws SshAuthenticationException.
+        _adapter.ListThrowsByPath[authFailDir] =
+            new SshAuthenticationException("Authentication failed");
+
+        // The walk must propagate the auth exception rather than skipping the directory.
+        Assert.Throws<SshAuthenticationException>(
+            () => _provider.EnumerateRecursive(Root).ToList());
+    }
 }
 
 /// <summary>

@@ -111,11 +111,11 @@ public class CrossProviderTransferTests
     }
 
     [Fact]
-    public async Task Move_with_same_provider_uses_copy_delete_cross_directory()
+    public async Task Move_with_same_provider_cross_directory_removes_source_and_delivers_content()
     {
-        // IFileSystemProvider.Rename only renames the leaf within its current parent,
-        // so cross-directory moves always fall through to copy+delete — even with the
-        // same provider instance.  After the move, source is gone and dest has content.
+        // IFileSystemProvider.Move (not Rename) is used for cross-directory moves even on the
+        // same provider instance.  After the move, the source is gone and the destination
+        // has the expected content.
         var fs = MakeMemFs();
         fs.CreateDirectory("/", "s");
         fs.CreateDirectory("/", "d");
