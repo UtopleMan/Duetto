@@ -115,6 +115,9 @@ public sealed class ConnectionStore
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
+        // Tolerate hand-edited files whose property names use a different casing
+        // (e.g. "Host" instead of "host") instead of silently loading defaults.
+        PropertyNameCaseInsensitive = true,
         Converters = { new JsonStringEnumConverter() },
     };
 

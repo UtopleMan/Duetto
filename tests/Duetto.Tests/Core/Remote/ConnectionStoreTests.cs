@@ -80,6 +80,50 @@ public class ConnectionStoreTests
     }
 
     [Fact]
+    public void Load_accepts_hand_edited_property_name_casing()
+    {
+        // The on-disk format is camelCase; a hand-edited file may use PascalCase
+        // (or any other casing).  PropertyNameCaseInsensitive must map the fields
+        // instead of silently deserializing them to defaults.
+        var json = """
+            [
+              {
+                "Id": "conn-1",
+                "Name": "My Server",
+                "Host": "example.com",
+                "Port": 2200,
+                "Username": "alice",
+                "AuthMode": "Key",
+                "KeyPath": "/home/alice/.ssh/id_ed25519",
+                "InitialRemotePath": "/home/alice",
+                "SavePassword": true,
+                "ObfuscatedSecret": "abc"
+              }
+            ]
+            """;
+        var files = new Dictionary<string, string> { ["connections.json"] = json };
+        var store = new ConnectionStore(
+            "connections.json",
+            path => files.TryGetValue(path, out var v) ? v : null,
+            (path, content) => files[path] = content);
+
+        var loaded = store.Load();
+
+        Assert.Single(loaded);
+        var sc = loaded[0];
+        Assert.Equal("conn-1", sc.Id);
+        Assert.Equal("My Server", sc.Name);
+        Assert.Equal("example.com", sc.Host);
+        Assert.Equal(2200, sc.Port);
+        Assert.Equal("alice", sc.Username);
+        Assert.Equal(AuthMode.Key, sc.AuthMode);
+        Assert.Equal("/home/alice/.ssh/id_ed25519", sc.KeyPath);
+        Assert.Equal("/home/alice", sc.InitialRemotePath);
+        Assert.True(sc.SavePassword);
+        Assert.Equal("abc", sc.ObfuscatedSecret);
+    }
+
+    [Fact]
     public void Save_and_Load_round_trips_empty_array()
     {
         var store = MakeStore(out _);

@@ -88,8 +88,14 @@ public sealed class SecretCodec
         {
             var raw = Convert.FromBase64String(ciphertext);
 
+            // Valid output of Encrypt is a 16-byte IV followed by at least one whole
+            // AES block (CBC + PKCS7 padding always emits >= 1 block, even for empty
+            // plaintext).  Reject anything shorter — including exactly-16 bytes (an IV
+            // with an empty payload) — and any payload that is not a whole number of
+            // blocks, via the guard rather than relying on a padding exception.
             const int ivLen = 16;
-            if (raw.Length <= ivLen)
+            const int blockLen = 16;
+            if (raw.Length < ivLen + blockLen || (raw.Length - ivLen) % blockLen != 0)
                 return null;
 
             var iv = raw[..ivLen];

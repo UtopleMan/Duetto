@@ -98,6 +98,25 @@ public class SecretCodecTests
     }
 
     [Fact]
+    public void TryDecrypt_exactly_16_bytes_returns_null()
+    {
+        var codec = MakeCodec();
+        // Exactly one IV with an empty payload — invalid by the length guard
+        // (valid ciphertext is IV + at least one whole AES block).
+        var ivOnly = Convert.ToBase64String(new byte[16]);
+        Assert.Null(codec.TryDecrypt(ivOnly));
+    }
+
+    [Fact]
+    public void TryDecrypt_non_block_multiple_payload_returns_null()
+    {
+        var codec = MakeCodec();
+        // IV (16) + 8-byte payload — not a whole number of AES blocks.
+        var ragged = Convert.ToBase64String(new byte[24]);
+        Assert.Null(codec.TryDecrypt(ragged));
+    }
+
+    [Fact]
     public void TryDecrypt_wrong_key_returns_null()
     {
         var codec1 = MakeCodec();
