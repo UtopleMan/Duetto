@@ -235,6 +235,21 @@ Status: Not started
   read; search disabled when `!SupportsSearch`.
 - [ ] Capability-gate the command bar / key handlers off the active pane's provider
   capabilities (rename, new, delete, eject/disconnect, capacity, search).
+- [ ] (From Phase 2 review) Probe the server's advertised extensions at connect
+  and gate `AtomicRename` per connection (fallback: delete+rename inside
+  `ReplaceFile`) — today the capability hard-commits every upload to
+  `posix-rename@openssh.com`, which some servers lack.
+- [ ] (From Phase 2 review) Materialize each directory's children (`.ToList()`)
+  before deleting inside `SftpFileSystemProvider.DeleteRecursive` — lazy paged
+  `READDIR` while deleting is unspecified server behavior; consider per-node
+  `Exec` granularity so a reconnect mid-delete does not retry from the top.
+- [ ] (From Phase 2 review) Re-prefix provider-local search-hit paths with
+  `sftp://<id>` before they reach reveal/delete-from-search (`MainViewModel`
+  resolves `entry.FullPath` through the registry — a bare `/docs/x` would
+  resolve to the LOCAL provider).
+- [ ] (From Phase 2 review) Surface `HostKeyChangedException` thrown from a
+  mid-operation reconnect (deep in a transfer/search, not just Connect) —
+  Phase 4's dialog-only handling will not see it.
 
 ### Verification Plan
 - Headless/VM tests over the fake provider: upload (local→fake) and download
