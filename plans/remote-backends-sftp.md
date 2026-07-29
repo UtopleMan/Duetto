@@ -108,16 +108,16 @@ Deferred for later phases: Back/Forward bypass the `DirectoryExists` guard
 `.part` sibling-name collision (pre-existing).
 
 ## Phase 2: SFTP provider over SSH.NET
-Status: In progress (SSH.NET pinned 2025.1.0)
+Status: Complete
 
-- [ ] Add `Renci.SshNet` PackageReference to `Duetto.Core`; confirm net10 restore +
+- [x] Add `Renci.SshNet` PackageReference to `Duetto.Core`; confirm net10 restore +
   pin version (Context7 / `dotnet add package`).
-- [ ] Add `Duetto.Core/Remote/ConnectionInfo.cs` (record: `Id`, `Name`, `Host`,
+- [x] Add `Duetto.Core/Remote/ConnectionInfo.cs` (record: `Id`, `Name`, `Host`,
   `Port=22`, `Username`, `AuthMode` {Password|Key}, `KeyPath?`, initial `RemotePath`).
-- [ ] Add `Duetto.Core/Remote/SftpConnection.cs` — opens an SSH.NET `SftpClient`
+- [x] Add `Duetto.Core/Remote/SftpConnection.cs` — opens an SSH.NET `SftpClient`
   from `ConnectionInfo` + a resolved secret; exposes connect/disconnect/is-connected;
   single reconnect attempt on a dropped op.
-- [ ] Add `Duetto.Core/Remote/SftpFileSystemProvider.cs` implementing
+- [x] Add `Duetto.Core/Remote/SftpFileSystemProvider.cs` implementing
   `IFileSystemProvider` over the connection: `List`/`Stat` (map SFTP attrs →
   `FileEntry`, Unix perms, mtime), `CreateDirectory`/`CreateFile`, `Rename` (SFTP
   rename), `Delete` (recursive, `HasTrash=false`), `OpenRead`/`OpenWrite`,
@@ -125,11 +125,11 @@ Status: In progress (SSH.NET pinned 2025.1.0)
   `CanRename/CanCreateEmptyDir/CanCreateFile/CanDelete/HasPermissions/PreservesMTime/
   AtomicRename/SupportsSearch = true`, `HasTrash/CanWatch/ReportsCapacity = false`,
   `Separator='/'`, `CaseSensitive=true`.
-- [ ] Add `Duetto.Core/Remote/HostKeyStore.cs` — TOFU: on first connect record the
+- [x] Add `Duetto.Core/Remote/HostKeyStore.cs` — TOFU: on first connect record the
   server fingerprint; on later connects compare and raise a
   `HostKeyChangedException` (carrying old/new fingerprint) when it differs. Wire via
   SSH.NET `HostKeyReceived`.
-- [ ] Add `Duetto.Core/Remote/ConnectionManager.cs` — owns live connections by id,
+- [x] Add `Duetto.Core/Remote/ConnectionManager.cs` — owns live connections by id,
   builds `SftpFileSystemProvider`, registers them with `FileSystemRegistry` for the
   `sftp://<id>/...` scheme; connect/disconnect/dispose-all.
 
@@ -144,7 +144,25 @@ Status: In progress (SSH.NET pinned 2025.1.0)
   is set — documents the manual smoke against a live server.
 
 ### Phase Summary
-_(write when phase completes)_
+Done 2026-07-29, commits 9867739..5d6fbcb. SSH.NET 2025.1.0 pinned (net10 restore
+clean). Connection layer: ConnectionInfo/ConnectSecret records, TOFU HostKeyStore
+(Verify core + IHostKeyPersistence seam for Phase 3, CanTrust forced false before
+verify since SSH.NET defaults it true), SftpConnection with injectable
+ISftpClientFactory + WithReconnect (reconnect once on SshConnectionException,
+then propagate; dispose-on-failed-connect fixed in review). Provider:
+SftpFileSystemProvider implements the full seam incl. ReplaceFile (posix rename)
+and Move; narrow SftpEntry adapter record avoids faking SSH.NET's 90-member
+interfaces; passes the shared FileSystemProviderContract unmodified on an
+in-memory fake; EnumerateRecursive swallows per-directory non-connection
+SshExceptions; OpenRead/OpenWrite documented as connection-bound (mitigation in
+Phase 5's transfer retry). ConnectionManager registers sftp://<id> providers in
+the registry with the SSH handshake outside the manager lock, case-insensitive
+ids unregistering by stored casing, and airtight failed-connect cleanup.
+Suite 228 → 306 green; 2 integration tests gated on DUETTO_SFTP_TEST (no-op
+otherwise). Known deferred: connection-bound stream lifetime (Phase 5 transfer
+retry); fake IsFile true for symlinks; 0-assertion integration skips; three
+zombie-agent incidents during execution reconciled — all committed work
+controller-verified.
 
 ## Phase 3: Connection config store + secrets
 Status: Not started
