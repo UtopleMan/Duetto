@@ -311,6 +311,27 @@ public sealed class ConnectionManagerTests
             () => manager.Connect(MakeInfo(), MakeSecret()));
     }
 
+    [Fact]
+    public void Ids_are_case_insensitive_for_lookup_and_disconnect()
+    {
+        var (manager, registry, _) = Make();
+        using (manager)
+        {
+            manager.Connect(MakeInfo("Server1"), MakeSecret());
+
+            // Manager lookups are case-insensitive.
+            Assert.True(manager.IsConnected("server1"));
+
+            // Disconnect with different casing must still unregister the provider that was
+            // registered under the ORIGINAL casing (the registry itself is case-sensitive).
+            manager.Disconnect("SERVER1");
+
+            Assert.Empty(manager.ConnectedIds);
+            Assert.Throws<InvalidOperationException>(
+                () => registry.Resolve("sftp://Server1/path"));
+        }
+    }
+
     // ── lock scope during the handshake ──────────────────────────────────────
 
     private static readonly TimeSpan GateTimeout = TimeSpan.FromSeconds(10);

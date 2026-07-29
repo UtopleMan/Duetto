@@ -37,13 +37,20 @@ public sealed class ConnectionManager : IDisposable
     private readonly ISftpClientFactory _factory;
     private readonly object _lock = new();
 
-    /// <summary>Tracks live (connected) session+provider pairs by connection id.</summary>
-    private readonly Dictionary<string, Entry> _entries = [];
+    /// <summary>
+    /// Tracks live (connected) session+provider pairs by connection id.
+    /// Lookups are case-insensitive; <see cref="Entry.Id"/> preserves the exact casing the
+    /// provider was registered under (the registry keys are case-sensitive, so unregistering
+    /// must use the stored casing, never the caller's).
+    /// </summary>
+    private readonly Dictionary<string, Entry> _entries = new(StringComparer.OrdinalIgnoreCase);
 
     private bool _disposed;
 
-    private sealed class Entry(SftpConnection Connection, SftpFileSystemProvider Provider) : IDisposable
+    private sealed class Entry(string Id, SftpConnection Connection, SftpFileSystemProvider Provider) : IDisposable
     {
+        /// <summary>The id casing used when registering with the (case-sensitive) registry.</summary>
+        public readonly string Id = Id;
         public readonly SftpConnection Connection = Connection;
         public readonly SftpFileSystemProvider Provider = Provider;
 
@@ -142,9 +149,10 @@ public sealed class ConnectionManager : IDisposable
             ObjectDisposedException.ThrowIf(_disposed, this);
 
             // Evict any existing connection for this id (replace-on-reconnect).
+            // Unregister with the STORED casing — the registry is case-sensitive.
             if (_entries.TryGetValue(info.Id, out var old))
             {
-                _registry.Unregister("sftp", info.Id);
+                _registry.Unregister("sftp", old.Id);
                 _entries.Remove(info.Id);
                 old.Dispose();
             }
@@ -179,13 +187,13 @@ public sealed class ConnectionManager : IDisposable
             // (A concurrent Disconnect just means no entry exists; we register normally.)
             if (_entries.TryGetValue(info.Id, out var raced))
             {
-                _registry.Unregister("sftp", info.Id);
+                _registry.Unregister("sftp", raced.Id);
                 _entries.Remove(info.Id);
                 raced.Dispose();
             }
 
             var provider = new SftpFileSystemProvider(conn);
-            _entries[info.Id] = new Entry(conn, provider);
+            _entries[info.Id] = new Entry(info.Id, conn, provider);
             _registry.Register("sftp", info.Id, provider);
         }
     }
@@ -201,7 +209,9 @@ public sealed class ConnectionManager : IDisposable
             if (!_entries.TryGetValue(id, out var entry))
                 return;
 
-            _registry.Unregister("sftp", id);
+            // Unregister with the STORED casing — the registry is case-sensitive and the
+            // caller's id may differ in case (manager lookups are case-insensitive).
+            _registry.Unregister("sftp", entry.Id);
             _entries.Remove(id);
             entry.Dispose();
         }
@@ -231,9 +241,9 @@ public sealed class ConnectionManager : IDisposable
     /// <summary>Must be called with <c>_lock</c> held.</summary>
     private void DisposeAllLocked()
     {
-        foreach (var (id, entry) in _entries)
+        foreach (var entry in _entries.Values)
         {
-            _registry.Unregister("sftp", id);
+            _registry.Unregister("sftp", entry.Id);
             entry.Dispose();
         }
 
