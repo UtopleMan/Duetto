@@ -4,8 +4,10 @@ using Avalonia.VisualTree;
 using Duetto.Core.FileSystem;
 using Duetto.Core.Remote;
 using Duetto.Tests.Core;
+using Duetto.Tests.Core.Remote;
 using Duetto.ViewModels;
 using Duetto.Views;
+using DuettoConnectionInfo = Duetto.Core.Remote.ConnectionInfo;
 
 namespace Duetto.Tests.Ui;
 
@@ -393,6 +395,54 @@ public sealed class SharesPopoverTests
 
         Assert.Empty(vm.RemotePlaces);
         Assert.False(vm.RemotePlacesVisible);
+    }
+
+    // ── Remove disconnects a live share ───────────────────────────────────────
+
+    /// <summary>Factory returning one fixed fake adapter (mirrors ConnectionManagerTests).</summary>
+    private sealed class FixedAdapterFactory(FakeSftpClientAdapter adapter) : ISftpClientFactory
+    {
+        public ISftpClientAdapter Create(DuettoConnectionInfo info, ConnectSecret secret) => adapter;
+    }
+
+    [AvaloniaFact]
+    public void Removing_connected_share_disconnects_and_navigates_pane_home()
+    {
+        using var tmp = new TempDir();
+        var registry = new FileSystemRegistry();
+        var hks = new HostKeyStore();
+        var manager = new ConnectionManager(registry, hks, new FixedAdapterFactory(new FakeSftpClientAdapter()));
+
+        var storedJson = System.Text.Json.JsonSerializer.Serialize(new[] { MakeStored("srv1", "My Server") });
+        var store = new ConnectionStore(":mem:", _ => storedJson, (_, content) => storedJson = content);
+
+        using var vm = new MainViewModel(
+            tmp.Path, tmp.Path,
+            registry: registry, connectionManager: manager,
+            connectionStore: store, hostKeyStore: hks);
+
+        // Establish the live connection and put the left pane on it.
+        manager.Connect(new DuettoConnectionInfo("srv1", "My Server", "fake.local"), ConnectSecret.FromPassword("pw"));
+        vm.Left.NavigateTo("sftp://srv1/");
+        Assert.True(manager.IsConnected("srv1"));
+        Assert.Equal("sftp://srv1/", vm.Left.CurrentPath);
+
+        var window = new MainWindow(vm);
+        window.Show();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        // Fire the remove affordance for the share (PaneView handles RemoveShareRequested).
+        var share = new ShareRowViewModel(MakeStored("srv1", "My Server"), isConnected: true);
+        vm.Left.Drives.RemoveShare(share);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        // The live session is disconnected, the pane left the share, and the record is gone.
+        Assert.False(manager.IsConnected("srv1"));
+        Assert.Equal(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), vm.Left.CurrentPath);
+        Assert.Empty(store.Load());
+        Assert.Empty(vm.RemotePlaces);
+
+        window.Close();
     }
 }
 
