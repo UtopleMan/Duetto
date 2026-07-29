@@ -274,6 +274,15 @@ Status: Not started
   `sftp://<id>` before they reach reveal/delete-from-search (`MainViewModel`
   resolves `entry.FullPath` through the registry — a bare `/docs/x` would
   resolve to the LOCAL provider).
+- [ ] (From Phase 4 review) Extract the duplicated share-connect flow
+  (PaneView.ActivateShare / MainWindow.OnRemotePlaceClicked) into a testable
+  `MainViewModel` seam — FIRST Phase 5 task, before capability gating touches
+  those paths.
+- [ ] (From Phase 4 review) Surface provider/registry failures from in-flight
+  listings on disconnect/drop (extend PaneViewModel load catch with
+  SshException/InvalidOperationException; reset IsLoading).
+- [ ] (From Phase 4 review, re-deferred from Phase 1) `SearchViewModel.ScopeDirName`
+  still raw `Path.GetFileName` — remote root scope displays the connection id.
 - [ ] (From Phase 2 review) Surface `HostKeyChangedException` thrown from a
   mid-operation reconnect (deep in a transfer/search, not just Connect) —
   Phase 4's dialog-only handling will not see it.

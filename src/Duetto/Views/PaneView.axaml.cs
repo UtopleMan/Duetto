@@ -300,7 +300,7 @@ public partial class PaneView : UserControl
         // Drop the live session and registry entry (no-op for unknown ids),
         // then remove the saved record.
         mainVm.ConnectionManager.Disconnect(id);
-        var all = mainVm.ConnectionStore.Load().Where(c => c.Id != id).ToArray();
+        var all = mainVm.ConnectionStore.Load().Where(c => !string.Equals(c.Id, id, StringComparison.OrdinalIgnoreCase)).ToArray();
         mainVm.ConnectionStore.Save(all);
         mainVm.RebuildRemotePlaces();
     }
@@ -351,7 +351,10 @@ public partial class PaneView : UserControl
                     or SshConnectionException
                     or SocketException
                     or HostKeyChangedException
-                    or ObjectDisposedException)
+                    or ObjectDisposedException
+                    or SshException
+                    or IOException
+                    or InvalidOperationException)
                 {
                     Dispatcher.UIThread.Post(() => OpenConnectDialog(paneVm, stored));
                     return;

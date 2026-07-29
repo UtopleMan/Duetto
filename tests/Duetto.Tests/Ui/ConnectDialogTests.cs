@@ -380,6 +380,23 @@ public sealed class ConnectDialogTests
         vm.Dispose();
     }
 
+    // ── SshException subclass (e.g. timeout) ─────────────────────────────────
+
+    [AvaloniaFact]
+    public async Task SshOperationTimeout_resets_IsConnecting_and_surfaces_error()
+    {
+        var (vm, _, saved, _) = MakeVm(connectOverride: (_, _) =>
+            throw new SshOperationTimeoutException("Connection timed out."));
+        FillValid(vm);
+
+        await vm.ConnectAsync();
+
+        Assert.False(vm.IsConnecting);
+        Assert.True(vm.HasError);
+        Assert.NotEmpty(vm.ErrorText);
+        Assert.Empty(saved);
+    }
+
     // ── Headless UI: popover Connect row still raises request ─────────────────
 
     [AvaloniaFact]

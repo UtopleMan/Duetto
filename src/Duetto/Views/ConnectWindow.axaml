@@ -48,10 +48,9 @@
     <TextBlock Text="AUTHENTICATION" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                Foreground="{StaticResource HeaderText}" Margin="0,0,0,6"/>
     <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,0,0,10">
-      <RadioButton Content="Password" IsChecked="{Binding IsPasswordMode}"
-                   Command="{Binding}" CommandParameter="Password"
+      <RadioButton Content="Password" IsChecked="{Binding IsPasswordMode, Mode=OneWay}"
                    GroupName="AuthMode" Click="OnPasswordModeClicked"/>
-      <RadioButton Content="Key file" IsChecked="{Binding IsKeyMode}"
+      <RadioButton Content="Key file" IsChecked="{Binding IsKeyMode, Mode=OneWay}"
                    GroupName="AuthMode" Click="OnKeyModeClicked"/>
     </StackPanel>
 
@@ -103,6 +102,7 @@
         <TextBlock Text="Only accept if you trust the new server key (key rotation or reinstall)."
                    FontSize="11" Foreground="{StaticResource DangerText}" TextWrapping="Wrap"/>
         <Button Content="Accept new key and connect" Click="OnAcceptNewKey"
+                IsEnabled="{Binding !IsConnecting}"
                 Padding="10,4" CornerRadius="6" Margin="0,4,0,0"/>
       </StackPanel>
     </Border>

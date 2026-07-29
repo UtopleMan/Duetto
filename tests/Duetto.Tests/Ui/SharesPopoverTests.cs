@@ -444,6 +444,31 @@ public sealed class SharesPopoverTests
 
         window.Close();
     }
+
+    // ── Remote path: no volume/capacity in popover ────────────────────────────
+
+    [AvaloniaFact]
+    public void Remote_path_has_no_current_volume_or_capacity_in_popover()
+    {
+        // A pane at a remote (sftp://) path opens the drive popover:
+        // Current must be null (no local volume), CanEject false (no eject row),
+        // and the eject row is hidden — the popover makes no capacity claims.
+        using var tmp = new TempDir();
+        var registry = new FileSystemRegistry();
+        registry.Register("sftp", "srv1", new FakeProvider());
+        using var pane = new PaneViewModel("sftp://srv1/home/user", registry);
+        pane.Lister = _ => [];
+
+        var popover = pane.Drives;
+        popover.ListVolumes = () => [];
+        popover.ListConnections = () => [MakeStored("srv1", "My SFTP")];
+        popover.IsConnected = _ => true;
+        popover.Refresh();
+
+        Assert.Null(popover.Current);
+        Assert.False(popover.CanEject);
+        Assert.False(popover.EjectRowVisible);
+    }
 }
 
 /// <summary>

@@ -146,21 +146,6 @@ public partial class ConnectDialogViewModel : ObservableObject
         _codec = codec;
     }
 
-    /// <summary>
-    /// Internal constructor for tests: caller supplies all three seam actions directly.
-    /// </summary>
-    internal ConnectDialogViewModel(
-        Action<ConnectionInfo, ConnectSecret> connectAction,
-        Action<StoredConnection> saveAction,
-        Action<string> forgetKeyAction,
-        SecretCodec codec)
-    {
-        ConnectAction = connectAction;
-        SaveAction = saveAction;
-        ForgetKeyAction = forgetKeyAction;
-        _codec = codec;
-    }
-
     private readonly SecretCodec _codec;
 
     // ── factory method for editing an existing connection ─────────────────────
@@ -284,6 +269,16 @@ public partial class ConnectDialogViewModel : ObservableObject
             ErrorText = "The connection manager was disposed. Restart the application.";
             return;
         }
+        catch (SshException ex)
+        {
+            ErrorText = ex.Message;
+            return;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            ErrorText = ex.Message;
+            return;
+        }
         finally
         {
             IsConnecting = false;
@@ -343,6 +338,16 @@ public partial class ConnectDialogViewModel : ObservableObject
         catch (ObjectDisposedException)
         {
             ErrorText = "The connection manager was disposed. Restart the application.";
+            return;
+        }
+        catch (SshException ex)
+        {
+            ErrorText = ex.Message;
+            return;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            ErrorText = ex.Message;
             return;
         }
         finally

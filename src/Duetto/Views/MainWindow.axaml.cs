@@ -146,7 +146,10 @@ public partial class MainWindow : Window
                         or SshConnectionException
                         or SocketException
                         or HostKeyChangedException
-                        or ObjectDisposedException)
+                        or ObjectDisposedException
+                        or SshException
+                        or IOException
+                        or InvalidOperationException)
                     {
                         Avalonia.Threading.Dispatcher.UIThread.Post(() => OpenRemoteConnectDialog(stored, pane));
                         return;
@@ -158,7 +161,7 @@ public partial class MainWindow : Window
         }
 
         // No saved secret: open Connect dialog pre-filled.
-        OpenRemoteConnectDialog(stored, pane);
+        OpenRemoteConnectDialog(stored ?? remotePlace.Stored, pane);
     }
 
     /// <summary>
@@ -182,6 +185,13 @@ public partial class MainWindow : Window
             Vm.RebuildRemotePlaces();
         };
         new ConnectWindow(dialogVm).ShowDialog(this);
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+            vm.Dispose();
+        base.OnClosed(e);
     }
 
     protected override void OnOpened(EventArgs e)
