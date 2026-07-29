@@ -1,17 +1,27 @@
 using Renci.SshNet;
 using Renci.SshNet.Common;
+using Renci.SshNet.Sftp;
 
 namespace Duetto.Core.Remote;
 
 /// <summary>
 /// Minimal wrapper around an <see cref="ISftpClient"/> that <see cref="SftpConnection"/> needs
-/// for connect/disconnect/state queries.  SSH.NET's own <see cref="ISftpClient"/> (which extends
-/// <see cref="IBaseClient"/> and therefore carries <c>Connect</c>, <c>Disconnect</c>, and
-/// <c>IsConnected</c>) satisfies this interface directly, so the default factory just returns
-/// the real <see cref="SftpClient"/>.  Tests supply a fake that never opens a socket.
+/// for connect/disconnect/state queries, plus the narrow set of SFTP operations that
+/// <c>SftpFileSystemProvider</c> requires.
+///
+/// <para>
+/// Design rationale: <see cref="ISftpClient"/> has ~90 members and <c>ISftpFile</c> has ~30;
+/// exposing only these ops — and returning the thin <see cref="SftpEntry"/> record instead of
+/// SSH.NET types — keeps the test fake small and avoids implementing large SSH.NET interfaces in tests.
+/// The real adapter maps each call to the underlying <see cref="ISftpClient"/>;
+/// the test fake backs them with an in-memory tree.
+/// The mapping is one-liner mechanical delegation — see <see cref="RealSftpClientAdapter"/>.
+/// </para>
 /// </summary>
 public interface ISftpClientAdapter : IDisposable
 {
+    // ── transport ────────────────────────────────────────────────────────────
+
     /// <summary>Whether the underlying transport is currently connected and authenticated.</summary>
     bool IsConnected { get; }
 
@@ -24,8 +34,56 @@ public interface ISftpClientAdapter : IDisposable
     /// <summary>Wires the host-key verification callback before the first handshake.</summary>
     void SetHostKeyReceived(EventHandler<HostKeyEventArgs> handler);
 
-    /// <summary>Returns the underlying <see cref="ISftpClient"/> for provider operations.</summary>
-    ISftpClient Client { get; }
+    // ── narrow SFTP ops (the only surface SftpFileSystemProvider needs) ──────
+
+    /// <summary>
+    /// Lists the entries under <paramref name="path"/> as thin <see cref="SftpEntry"/> values,
+    /// including "." and ".." entries (the provider filters them out).
+    /// </summary>
+    IEnumerable<SftpEntry> ListDirectory(string path);
+
+    /// <summary>
+    /// Returns a thin <see cref="SftpEntry"/> for <paramref name="path"/>, or
+    /// <see langword="null"/> when the path does not exist.
+    /// </summary>
+    SftpEntry? Get(string path);
+
+    /// <summary>Returns <see langword="true"/> when <paramref name="path"/> is a directory.</summary>
+    bool IsDirectory(string path);
+
+    /// <summary>Returns <see langword="true"/> when <paramref name="path"/> is a regular file.</summary>
+    bool IsFile(string path);
+
+    /// <summary>Creates a directory at <paramref name="path"/>.</summary>
+    void CreateDirectory(string path);
+
+    /// <summary>Creates (or truncates) an empty file at <paramref name="path"/> and immediately closes it.</summary>
+    void CreateFile(string path);
+
+    /// <summary>
+    /// Renames <paramref name="oldPath"/> to <paramref name="newPath"/>.
+    /// When <paramref name="isPosix"/> is <see langword="true"/> the rename is atomic and
+    /// replaces an existing target (POSIX-rename extension).
+    /// </summary>
+    void RenameFile(string oldPath, string newPath, bool isPosix = false);
+
+    /// <summary>Deletes a regular file at <paramref name="path"/>.</summary>
+    void DeleteFile(string path);
+
+    /// <summary>Deletes an empty directory at <paramref name="path"/>.</summary>
+    void DeleteDirectory(string path);
+
+    /// <summary>Returns <see langword="true"/> when <paramref name="path"/> exists (any type).</summary>
+    bool Exists(string path);
+
+    /// <summary>Opens <paramref name="path"/> for sequential reading.</summary>
+    Stream OpenRead(string path);
+
+    /// <summary>Opens <paramref name="path"/> for writing, creating or truncating it.</summary>
+    Stream OpenWrite(string path);
+
+    /// <summary>Sets the last-write time on <paramref name="path"/> to <paramref name="utc"/>.</summary>
+    void SetLastWriteTimeUtc(string path, DateTime utc);
 }
 
 /// <summary>
@@ -82,6 +140,7 @@ public sealed class DefaultSftpClientFactory : ISftpClientFactory
 
 /// <summary>
 /// Production adapter that wraps a real <see cref="SftpClient"/>.
+/// Each narrow op is a one-liner mechanical delegation to the underlying client.
 /// </summary>
 internal sealed class RealSftpClientAdapter : ISftpClientAdapter
 {
@@ -89,13 +148,82 @@ internal sealed class RealSftpClientAdapter : ISftpClientAdapter
 
     internal RealSftpClientAdapter(SftpClient client) => _client = client;
 
+    // ── transport ────────────────────────────────────────────────────────────
+
     public bool IsConnected => _client.IsConnected;
     public void Connect() => _client.Connect();
     public void Disconnect() => _client.Disconnect();
-    public ISftpClient Client => _client;
 
     public void SetHostKeyReceived(EventHandler<HostKeyEventArgs> handler) =>
         _client.HostKeyReceived += handler;
+
+    // ── narrow SFTP ops ──────────────────────────────────────────────────────
+
+    public IEnumerable<SftpEntry> ListDirectory(string path) =>
+        _client.ListDirectory(path).Select(ToEntry);
+
+    public SftpEntry? Get(string path)
+    {
+        try { return ToEntry(_client.Get(path)); }
+        catch (SftpPathNotFoundException) { return null; }
+    }
+
+    public bool IsDirectory(string path)
+    {
+        try { return _client.GetAttributes(path).IsDirectory; }
+        catch (SftpPathNotFoundException) { return false; }
+    }
+
+    public bool IsFile(string path)
+    {
+        try { return _client.GetAttributes(path).IsRegularFile; }
+        catch (SftpPathNotFoundException) { return false; }
+    }
+
+    public void CreateDirectory(string path) =>
+        _client.CreateDirectory(path);
+
+    public void CreateFile(string path) =>
+        _client.Create(path).Dispose();   // Create() returns an open SftpFileStream; close it immediately
+
+    public void RenameFile(string oldPath, string newPath, bool isPosix = false) =>
+        _client.RenameFile(oldPath, newPath, isPosix);
+
+    public void DeleteFile(string path) =>
+        _client.DeleteFile(path);
+
+    public void DeleteDirectory(string path) =>
+        _client.DeleteDirectory(path);
+
+    public bool Exists(string path) =>
+        _client.Exists(path);
+
+    public Stream OpenRead(string path) =>
+        _client.OpenRead(path);
+
+    public Stream OpenWrite(string path) =>
+        _client.OpenWrite(path);
+
+    public void SetLastWriteTimeUtc(string path, DateTime utc) =>
+        _client.SetLastWriteTimeUtc(path, utc);
+
+    /// <summary>Maps an <see cref="ISftpFile"/> to the thin <see cref="SftpEntry"/> value.</summary>
+    private static SftpEntry ToEntry(ISftpFile f) => new(
+        Name: f.Name,
+        FullName: f.FullName,
+        IsDirectory: f.IsDirectory,
+        IsSymbolicLink: f.IsSymbolicLink,
+        Length: f.Length,
+        LastWriteTimeUtc: f.LastWriteTimeUtc,
+        OwnerCanRead: f.OwnerCanRead,
+        OwnerCanWrite: f.OwnerCanWrite,
+        OwnerCanExecute: f.OwnerCanExecute,
+        GroupCanRead: f.GroupCanRead,
+        GroupCanWrite: f.GroupCanWrite,
+        GroupCanExecute: f.GroupCanExecute,
+        OthersCanRead: f.OthersCanRead,
+        OthersCanWrite: f.OthersCanWrite,
+        OthersCanExecute: f.OthersCanExecute);
 
     public void Dispose() => _client.Dispose();
 }
@@ -162,11 +290,11 @@ public sealed class SftpConnection : IDisposable
     public bool IsConnected => _adapter?.IsConnected ?? false;
 
     /// <summary>
-    /// Returns the underlying <see cref="ISftpClient"/> for provider operations.
+    /// Returns the underlying <see cref="ISftpClientAdapter"/> for provider operations.
     /// Throws <see cref="InvalidOperationException"/> when not connected.
     /// </summary>
-    public ISftpClient Client =>
-        _adapter?.Client
+    public ISftpClientAdapter Adapter =>
+        _adapter
         ?? throw new InvalidOperationException("SftpConnection is not connected.");
 
     /// <summary>

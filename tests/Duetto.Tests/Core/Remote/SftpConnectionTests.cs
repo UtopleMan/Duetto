@@ -78,7 +78,7 @@ public class SftpConnectionTests
         // a disposed adapter.
         Assert.True(factory.LastAdapter!.IsDisposed);
         Assert.False(conn.IsConnected);
-        Assert.Throws<InvalidOperationException>(() => conn.Client);
+        Assert.Throws<InvalidOperationException>(() => conn.Adapter);
     }
 
     // ── reconnect logic ──────────────────────────────────────────────────────
@@ -274,8 +274,20 @@ internal sealed class FakeAdapter : ISftpClientAdapter
     public void SetHostKeyReceived(EventHandler<HostKeyEventArgs> handler)
         => HostKeyHandlerWired = true;
 
-    public ISftpClient Client =>
-        throw new InvalidOperationException("Fake adapter has no real SftpClient.");
+    // Narrow SFTP ops — not used by connection-lifecycle tests; stubs that throw.
+    public IEnumerable<Duetto.Core.Remote.SftpEntry> ListDirectory(string path) => throw new NotSupportedException();
+    public Duetto.Core.Remote.SftpEntry? Get(string path) => throw new NotSupportedException();
+    public bool IsDirectory(string path) => throw new NotSupportedException();
+    public bool IsFile(string path) => throw new NotSupportedException();
+    public void CreateDirectory(string path) => throw new NotSupportedException();
+    public void CreateFile(string path) => throw new NotSupportedException();
+    public void RenameFile(string oldPath, string newPath, bool isPosix = false) => throw new NotSupportedException();
+    public void DeleteFile(string path) => throw new NotSupportedException();
+    public void DeleteDirectory(string path) => throw new NotSupportedException();
+    public bool Exists(string path) => throw new NotSupportedException();
+    public Stream OpenRead(string path) => throw new NotSupportedException();
+    public Stream OpenWrite(string path) => throw new NotSupportedException();
+    public void SetLastWriteTimeUtc(string path, DateTime utc) => throw new NotSupportedException();
 
     public void Dispose()
     {
