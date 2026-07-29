@@ -38,6 +38,7 @@ public partial class SearchResultRowViewModel(SearchHit hit) : ObservableObject
 public partial class SearchViewModel : ObservableObject
 {
     private readonly Func<string> _scopeProvider;
+    private readonly FileSystemRegistry? _registry;
     private CancellationTokenSource? _cts;
     private DispatcherTimer? _debounce;
 
@@ -103,9 +104,10 @@ public partial class SearchViewModel : ObservableObject
         _ => "Any date",
     };
 
-    public SearchViewModel(Func<string> scopeProvider)
+    public SearchViewModel(Func<string> scopeProvider, FileSystemRegistry? registry = null)
     {
         _scopeProvider = scopeProvider;
+        _registry = registry;
         Selection.Source = Results;
     }
 
@@ -193,7 +195,10 @@ public partial class SearchViewModel : ObservableObject
         DebugLog.Write($"search: start '{query}' below {ScopeDir} contents={IncludeContents}");
         try
         {
-            await foreach (var hit in SearchService.Search(ScopeDir, query, IncludeContents, stats, cts.Token))
+            var searchEnum = _registry is not null
+                ? SearchService.Search(ScopeDir, query, IncludeContents, stats, _registry, cts.Token)
+                : SearchService.Search(ScopeDir, query, IncludeContents, stats, cts.Token);
+            await foreach (var hit in searchEnum)
             {
                 if (!PassesFilters(hit.Entry))
                     continue;

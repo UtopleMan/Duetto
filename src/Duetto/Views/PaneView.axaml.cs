@@ -30,8 +30,22 @@ public partial class PaneView : UserControl
                 newVm.Drives.ConnectRequested += () => Dispatcher.UIThread.Post(() =>
                 {
                     HideDriveFlyout();
-                    if (TopLevel.GetTopLevel(this) is Window owner)
-                        new ConnectStubWindow().ShowDialog(owner);
+                    if (TopLevel.GetTopLevel(this) is Window owner &&
+                        owner.DataContext is MainViewModel mainVm)
+                    {
+                        var dialogVm = new ConnectDialogViewModel(
+                            mainVm.ConnectionManager,
+                            mainVm.ConnectionStore,
+                            mainVm.HostKeyStore,
+                            mainVm.Codec);
+                        dialogVm.Connected += info =>
+                        {
+                            // Navigate the triggering pane to the connection's initial path.
+                            var remotePath = $"sftp://{info.Id}{info.InitialRemotePath}";
+                            newVm.NavigateTo(remotePath);
+                        };
+                        new ConnectWindow(dialogVm).ShowDialog(owner);
+                    }
                 });
             }
         };

@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Duetto.Core.FileSystem;
 using Duetto.Core.Operations;
+using Duetto.Core.Remote;
 
 namespace Duetto.ViewModels;
 
@@ -27,8 +28,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Convenience view of the slot when it holds a transfer (used by tests + transfer wiring).</summary>
     public TransferViewModel? ActiveTransfer => ActiveOperation as TransferViewModel;
 
-    /// <summary>Maps a path to the provider that owns it (local disk, later SFTP/S3).</summary>
-    public FileSystemRegistry Registry { get; } = new();
+    /// <summary>Maps a path to the provider that owns it (local disk, SFTP, …).</summary>
+    public FileSystemRegistry Registry { get; }
+
+    /// <summary>Manages live SFTP connections; disposed with this view-model.</summary>
+    public ConnectionManager ConnectionManager { get; }
+
+    /// <summary>Persists saved connections to disk.</summary>
+    public ConnectionStore ConnectionStore { get; }
+
+    /// <summary>TOFU host-key store, backed by hostkeys.json in production.</summary>
+    public HostKeyStore HostKeyStore { get; }
+
+    /// <summary>Obfuscates/de-obfuscates stored secrets.</summary>
+    public SecretCodec Codec { get; }
 
     /// <summary>
     /// Moves a path to the OS trash. Seam for tests; production routes through the owning
@@ -55,12 +68,32 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public static string SearchHint => OperatingSystem.IsMacOS() ? "⌘F" : "Ctrl F";
     public string PromptGlyph => IsMacChrome ? " ❯" : " $";
 
-    public MainViewModel(string leftPath, string rightPath, ChromeKind? chrome = null)
+    /// <summary>
+    /// Test constructor: callers supply paths and an optional pre-built registry.
+    /// If <paramref name="registry"/> is null a new local-only registry is created.
+    /// ConnectionManager, ConnectionStore, HostKeyStore, and Codec are not wired in this
+    /// path — pass them explicitly when a test needs them.
+    /// </summary>
+    public MainViewModel(
+        string leftPath,
+        string rightPath,
+        ChromeKind? chrome = null,
+        FileSystemRegistry? registry = null,
+        ConnectionManager? connectionManager = null,
+        ConnectionStore? connectionStore = null,
+        HostKeyStore? hostKeyStore = null,
+        SecretCodec? codec = null)
     {
+        Registry = registry ?? new FileSystemRegistry();
+        HostKeyStore = hostKeyStore ?? new HostKeyStore();
+        ConnectionManager = connectionManager ?? new ConnectionManager(Registry, HostKeyStore);
+        ConnectionStore = connectionStore ?? new ConnectionStore(":memory:", _ => null, (_, _) => { });
+        Codec = codec ?? new SecretCodec();
+
         TrashFn = TrashViaProvider;
         Chrome = chrome ?? Program.Options.Chrome;
-        Left = new PaneViewModel(leftPath);
-        Right = new PaneViewModel(rightPath);
+        Left = new PaneViewModel(leftPath, Registry);
+        Right = new PaneViewModel(rightPath, Registry);
         Left.Drives.PaneSide = "left";
         Right.Drives.PaneSide = "right";
         _activePane = Left;
@@ -72,7 +105,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Left.Reload(preserveSelection: true);
             Right.Reload(preserveSelection: true);
         };
-        Search = new SearchViewModel(() => ActivePane.CurrentPath);
+        Search = new SearchViewModel(() => ActivePane.CurrentPath, Registry);
         Search.RevealRequested += entry =>
         {
             if (Path.GetDirectoryName(entry.FullPath) is { } dir)
@@ -97,7 +130,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public MainViewModel()
         : this(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile))
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            registry: new FileSystemRegistry(),
+            connectionStore: new ConnectionStore(AppPaths.ConnectionsJsonPath),
+            hostKeyStore: BuildProductionHostKeyStore())
     {
         // Production only: run listing and rename off the UI thread. Tests use the
         // explicit ctor above and keep the default inline schedulers for deterministic asserts.
@@ -105,6 +141,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Right.LoadScheduler = PaneViewModel.BackgroundScheduler;
         Left.RenameScheduler = PaneViewModel.BackgroundRenameScheduler;
         Right.RenameScheduler = PaneViewModel.BackgroundRenameScheduler;
+    }
+
+    private static HostKeyStore BuildProductionHostKeyStore()
+    {
+        var persistence = JsonHostKeyPersistence.Attach(AppPaths.HostKeysJsonPath);
+        return new HostKeyStore(persistence);
     }
 
     [RelayCommand]
@@ -341,5 +383,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ActiveOperation?.Dispose();
         Left.Dispose();
         Right.Dispose();
+        // Disconnect all live SFTP connections and unregister their providers.
+        ConnectionManager.Dispose();
     }
 }
