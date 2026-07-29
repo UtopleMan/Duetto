@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform;
+using Duetto.Core.Remote;
 using Duetto.ViewModels;
 
 namespace Duetto.Views;
@@ -105,6 +106,57 @@ public partial class MainWindow : Window
     {
         if ((sender as Button)?.DataContext is Place place)
             Vm.NavigatePlace(place);
+    }
+
+    private void OnRemotePlaceClicked(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.DataContext is not RemotePlace remotePlace)
+            return;
+
+        if (Vm.ConnectionManager.IsConnected(remotePlace.Id))
+        {
+            var path = $"sftp://{remotePlace.Id}{remotePlace.InitialRemotePath}";
+            Vm.ActivePane.NavigateTo(path);
+            return;
+        }
+
+        // Try saved secret.
+        var stored = Vm.ConnectionStore.Load()
+            .FirstOrDefault(c => string.Equals(c.Id, remotePlace.Id, StringComparison.OrdinalIgnoreCase));
+        if (stored is not null)
+        {
+            var secret = ConnectionStore.ResolveSecret(stored, Vm.Codec);
+            if (secret is not null)
+            {
+                var info = ConnectionStore.ResolveInfo(stored);
+                var path = $"sftp://{info.Id}{info.InitialRemotePath}";
+                _ = Task.Run(() =>
+                {
+                    try { Vm.ConnectionManager.Connect(info, secret); }
+                    catch (Exception) { return; }
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() => Vm.ActivePane.NavigateTo(path));
+                });
+                return;
+            }
+        }
+
+        // No saved secret: open Connect dialog pre-filled.
+        var dialogVm = new ConnectDialogViewModel(
+            Vm.ConnectionManager,
+            Vm.ConnectionStore,
+            Vm.HostKeyStore,
+            Vm.Codec);
+        if (stored is not null)
+            dialogVm.ForEdit(stored);
+
+        var pane = Vm.ActivePane;
+        dialogVm.Connected += info =>
+        {
+            var remotePath = $"sftp://{info.Id}{info.InitialRemotePath}";
+            pane.NavigateTo(remotePath);
+            Vm.RebuildRemotePlaces();
+        };
+        new ConnectWindow(dialogVm).ShowDialog(this);
     }
 
     protected override void OnOpened(EventArgs e)

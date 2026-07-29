@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Duetto.Core.FileSystem;
+using Duetto.Core.Remote;
 using Duetto.ViewModels;
 
 namespace Duetto.Views;
@@ -28,25 +29,15 @@ public partial class PaneView : UserControl
                 newVm.Reloaded += OnVmReloaded;
                 newVm.Drives.CloseRequested += () => Dispatcher.UIThread.Post(HideDriveFlyout);
                 newVm.Drives.ConnectRequested += () => Dispatcher.UIThread.Post(() =>
-                {
-                    HideDriveFlyout();
-                    if (TopLevel.GetTopLevel(this) is Window owner &&
-                        owner.DataContext is MainViewModel mainVm)
-                    {
-                        var dialogVm = new ConnectDialogViewModel(
-                            mainVm.ConnectionManager,
-                            mainVm.ConnectionStore,
-                            mainVm.HostKeyStore,
-                            mainVm.Codec);
-                        dialogVm.Connected += info =>
-                        {
-                            // Navigate the triggering pane to the connection's initial path.
-                            var remotePath = $"sftp://{info.Id}{info.InitialRemotePath}";
-                            newVm.NavigateTo(remotePath);
-                        };
-                        new ConnectWindow(dialogVm).ShowDialog(owner);
-                    }
-                });
+                    OpenConnectDialog(newVm, null));
+                newVm.Drives.EditShareRequested += stored => Dispatcher.UIThread.Post(() =>
+                    OpenConnectDialog(newVm, stored));
+                newVm.Drives.RemoveShareRequested += id => Dispatcher.UIThread.Post(() =>
+                    RemoveConnection(id));
+                newVm.Drives.ShareActivated += share => Dispatcher.UIThread.Post(() =>
+                    ActivateShare(newVm, share));
+                newVm.Drives.DisconnectRequested += () => Dispatcher.UIThread.Post(() =>
+                    DisconnectCurrentPane(newVm));
             }
         };
 
@@ -198,6 +189,33 @@ public partial class PaneView : UserControl
         }
     }
 
+    private void OnShareRowClicked(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is { } vm && (sender as Control)?.DataContext is ShareRowViewModel share)
+        {
+            vm.Drives.ActivateShare(share);
+            e.Handled = true;
+        }
+    }
+
+    private void OnShareEditClicked(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is { } vm && (sender as Control)?.DataContext is ShareRowViewModel share)
+        {
+            vm.Drives.EditShare(share);
+            e.Handled = true;
+        }
+    }
+
+    private void OnShareRemoveClicked(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is { } vm && (sender as Control)?.DataContext is ShareRowViewModel share)
+        {
+            vm.Drives.RemoveShare(share);
+            e.Handled = true;
+        }
+    }
+
     private void OnDriveFilterKeyDown(object? sender, KeyEventArgs e)
     {
         if (Vm is not { } vm)
@@ -225,6 +243,116 @@ public partial class PaneView : UserControl
                 e.Handled = true;
                 break;
         }
+    }
+
+    /// <summary>
+    /// Opens ConnectWindow, optionally pre-filled for editing an existing connection.
+    /// On success navigates the pane to the connection root and rebuilds remote places.
+    /// </summary>
+    private void OpenConnectDialog(PaneViewModel paneVm, StoredConnection? forEdit)
+    {
+        HideDriveFlyout();
+        if (TopLevel.GetTopLevel(this) is not Window owner ||
+            owner.DataContext is not MainViewModel mainVm)
+            return;
+
+        var dialogVm = new ConnectDialogViewModel(
+            mainVm.ConnectionManager,
+            mainVm.ConnectionStore,
+            mainVm.HostKeyStore,
+            mainVm.Codec);
+
+        if (forEdit is not null)
+            dialogVm.ForEdit(forEdit);
+
+        dialogVm.Connected += info =>
+        {
+            var remotePath = $"sftp://{info.Id}{info.InitialRemotePath}";
+            paneVm.NavigateTo(remotePath);
+            mainVm.RebuildRemotePlaces();
+        };
+
+        new ConnectWindow(dialogVm).ShowDialog(owner);
+    }
+
+    /// <summary>
+    /// Removes a saved connection from the store and rebuilds remote places.
+    /// </summary>
+    private void RemoveConnection(string id)
+    {
+        HideDriveFlyout();
+        if (TopLevel.GetTopLevel(this) is not Window owner ||
+            owner.DataContext is not MainViewModel mainVm)
+            return;
+
+        var all = mainVm.ConnectionStore.Load().Where(c => c.Id != id).ToArray();
+        mainVm.ConnectionStore.Save(all);
+        mainVm.RebuildRemotePlaces();
+    }
+
+    /// <summary>
+    /// Handles a share row click: if already connected navigate; if secret saved connect
+    /// on background thread then navigate; otherwise open ConnectWindow prefilled.
+    /// </summary>
+    private void ActivateShare(PaneViewModel paneVm, ShareRowViewModel share)
+    {
+        HideDriveFlyout();
+        if (TopLevel.GetTopLevel(this) is not Window owner ||
+            owner.DataContext is not MainViewModel mainVm)
+            return;
+
+        if (share.IsConnected)
+        {
+            // Already live: navigate directly.
+            var path = $"sftp://{share.Id}{share.InitialRemotePath}";
+            paneVm.NavigateTo(path);
+            return;
+        }
+
+        // Try to resolve a saved secret.
+        var stored = mainVm.ConnectionStore.Load()
+            .FirstOrDefault(c => string.Equals(c.Id, share.Id, StringComparison.OrdinalIgnoreCase));
+        if (stored is null)
+        {
+            OpenConnectDialog(paneVm, share.Stored);
+            return;
+        }
+
+        var secret = ConnectionStore.ResolveSecret(stored, mainVm.Codec);
+        if (secret is not null)
+        {
+            // Secret saved: connect on background thread then navigate.
+            var info = ConnectionStore.ResolveInfo(stored);
+            var capturedPath = $"sftp://{info.Id}{info.InitialRemotePath}";
+            _ = Task.Run(() =>
+            {
+                try { mainVm.ConnectionManager.Connect(info, secret); }
+                catch (Exception) { /* fall back to dialog on next open */ return; }
+                Dispatcher.UIThread.Post(() => paneVm.NavigateTo(capturedPath));
+            });
+            return;
+        }
+
+        // No secret saved: open the dialog pre-filled so the user can enter it.
+        OpenConnectDialog(paneVm, stored);
+    }
+
+    /// <summary>
+    /// Disconnects the current remote pane and navigates it home.
+    /// Parallel to the Eject behavior.
+    /// </summary>
+    private void DisconnectCurrentPane(PaneViewModel paneVm)
+    {
+        HideDriveFlyout();
+        if (TopLevel.GetTopLevel(this) is not Window owner ||
+            owner.DataContext is not MainViewModel mainVm)
+            return;
+
+        if (PathUtil.ParseRemote(paneVm.CurrentPath) is not { } remote)
+            return;
+
+        mainVm.ConnectionManager.Disconnect(remote.Id);
+        paneVm.NavigateTo(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
     }
 
     /// <summary>x:Name fields inside Flyout content can be unreliable; go via the chip.</summary>

@@ -8,6 +8,10 @@ namespace Duetto.ViewModels;
 
 public sealed record Place(string Name, string Path, string Color);
 
+/// <summary>A remote place in the GNOME Places rail: carries the stored connection so the click handler
+/// can open ConnectWindow when the connection is not live.</summary>
+public sealed record RemotePlace(string Name, string Id, string InitialRemotePath, StoredConnection Stored);
+
 public partial class MainViewModel : ObservableObject, IDisposable
 {
     public PaneViewModel Left { get; }
@@ -18,6 +22,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public bool IsMacChrome => Chrome == ChromeKind.Mac;
     public bool IsGnomeChrome => Chrome == ChromeKind.Gnome;
     public IReadOnlyList<Place> Places { get; }
+
+    /// <summary>
+    /// Remote connections listed in the GNOME Places rail "REMOTE" section.
+    /// Rebuilt when connections are added/removed.
+    /// </summary>
+    public System.Collections.ObjectModel.ObservableCollection<RemotePlace> RemotePlaces { get; } = [];
+
+    [ObservableProperty]
+    private bool _remotePlacesVisible;
     public static string UserAtHost { get; } = $"{Environment.UserName}@{Environment.MachineName.Split('.')[0]}";
 
     /// <summary>The single strip slot: a transfer, a delete, a rename, or a slow listing.</summary>
@@ -96,9 +109,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Right = new PaneViewModel(rightPath, Registry);
         Left.Drives.PaneSide = "left";
         Right.Drives.PaneSide = "right";
+        WirePopoverSeams(Left.Drives);
+        WirePopoverSeams(Right.Drives);
         _activePane = Left;
         Left.IsActive = true;
         Places = BuildPlaces();
+        RebuildRemotePlaces();
         CommandBar = new CommandBarViewModel(() => ActivePane.CurrentPath);
         CommandBar.CommandFinished += () =>
         {
@@ -141,6 +157,29 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Right.LoadScheduler = PaneViewModel.BackgroundScheduler;
         Left.RenameScheduler = PaneViewModel.BackgroundRenameScheduler;
         Right.RenameScheduler = PaneViewModel.BackgroundRenameScheduler;
+    }
+
+    /// <summary>
+    /// Wires the popover's connection seams so it can list and check saved connections.
+    /// Also subscribes to popover events for disconnect handling.
+    /// Call after Left/Right panes are constructed.
+    /// </summary>
+    private void WirePopoverSeams(DrivePopoverViewModel drives)
+    {
+        drives.ListConnections = () => ConnectionStore.Load();
+        drives.IsConnected = id => ConnectionManager.IsConnected(id);
+    }
+
+    /// <summary>
+    /// Rebuilds the <see cref="RemotePlaces"/> list from the current <see cref="ConnectionStore"/> contents.
+    /// Call after a connection is added or removed.
+    /// </summary>
+    public void RebuildRemotePlaces()
+    {
+        RemotePlaces.Clear();
+        foreach (var stored in ConnectionStore.Load())
+            RemotePlaces.Add(new RemotePlace(stored.Name, stored.Id, stored.InitialRemotePath, stored));
+        RemotePlacesVisible = RemotePlaces.Count > 0;
     }
 
     private static HostKeyStore BuildProductionHostKeyStore()

@@ -113,6 +113,13 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     {
         get
         {
+            // Remote path: show the connection name (looked up by id from the shares seam).
+            if (PathUtil.ParseRemote(CurrentPath) is { } remote)
+            {
+                var name = Drives.ConnectionNameFor(remote.Id);
+                return name ?? remote.Id;
+            }
+
             if (Drives.VolumeFor(CurrentPath) is not { } volume)
                 return CurrentPath;
             return OperatingSystem.IsWindows() ? $"{volume.MountPath} {volume.Name}" : volume.Name;
@@ -123,6 +130,13 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     {
         get
         {
+            // Remote path: the tail is the provider-local path from PathUtil.
+            if (PathUtil.ParseRemote(CurrentPath) is { } remote)
+            {
+                var local = remote.LocalPath;
+                return local == "/" ? "" : local;
+            }
+
             if (Drives.VolumeFor(CurrentPath) is not { } volume)
                 return "";
             var mount = volume.MountPath.TrimEnd('/', '\\');

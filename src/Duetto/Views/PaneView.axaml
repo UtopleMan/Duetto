@@ -159,6 +159,64 @@
                         </DataTemplate>
                       </ListBox.ItemTemplate>
                     </ListBox>
+                    <!-- CONNECTED SHARES section: visible when there are saved connections -->
+                    <StackPanel IsVisible="{Binding SharesSectionVisible}" x:Name="SharesSection">
+                      <Border Height="1" Background="{StaticResource HairlineLight}" Margin="10,7" />
+                      <TextBlock Text="CONNECTED SHARES" FontSize="10.5" LetterSpacing="0.6"
+                                 Foreground="{StaticResource HeaderText}" Margin="10,0,10,6" />
+                      <ItemsControl ItemsSource="{Binding Shares}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:ShareRowViewModel">
+                            <Grid ColumnDefinitions="*,Auto" Margin="0,1">
+                              <!-- Main share button: click to connect/navigate -->
+                              <Button Grid.Column="0"
+                                      Background="Transparent" CornerRadius="7,0,0,7" Height="34"
+                                      Padding="10,0" HorizontalAlignment="Stretch"
+                                      HorizontalContentAlignment="Stretch" BorderThickness="0"
+                                      Click="OnShareRowClicked">
+                                <DockPanel VerticalAlignment="Center">
+                                  <!-- Status text (amber, right-aligned, offline only) -->
+                                  <TextBlock DockPanel.Dock="Right"
+                                             Text="{Binding StatusText}"
+                                             IsVisible="{Binding StatusTextVisible}"
+                                             FontFamily="{StaticResource MonoFont}" FontSize="10"
+                                             Foreground="{Binding StatusTextColor}"
+                                             VerticalAlignment="Center" />
+                                  <!-- Dot + name + host -->
+                                  <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <Border Width="8" Height="8" CornerRadius="4"
+                                            Background="{Binding DotColor}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="Medium"
+                                               Foreground="{StaticResource TextPrimary}"
+                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Host}"
+                                               FontFamily="{StaticResource MonoFont}" FontSize="10"
+                                               Foreground="{StaticResource TextGhost}" VerticalAlignment="Center" />
+                                  </StackPanel>
+                                </DockPanel>
+                              </Button>
+                              <!-- Edit/Remove affordance: pencil opens edit dialog, ✕ removes -->
+                              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="0">
+                                <Button Background="Transparent" CornerRadius="0" Height="34" Width="28"
+                                        Padding="0" BorderThickness="0"
+                                        ToolTip.Tip="Edit connection"
+                                        Click="OnShareEditClicked">
+                                  <TextBlock Text="✎" FontSize="11" Foreground="{StaticResource TextGhost}"
+                                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Button>
+                                <Button Background="Transparent" CornerRadius="0,7,7,0" Height="34" Width="28"
+                                        Padding="0" BorderThickness="0"
+                                        ToolTip.Tip="Remove connection"
+                                        Click="OnShareRemoveClicked">
+                                  <TextBlock Text="✕" FontSize="11" Foreground="{StaticResource TextGhost}"
+                                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Button>
+                              </StackPanel>
+                            </Grid>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
                     <Border Height="1" Background="{StaticResource HairlineLight}" Margin="10,7" />
                     <!-- Connect… row (stub; dialog wired in Task 6) -->
                     <Button x:Name="ConnectRow" Command="{Binding ConnectCommand}"
@@ -191,6 +249,15 @@
                             Padding="10,0" HorizontalAlignment="Stretch"
                             HorizontalContentAlignment="Left" BorderThickness="0">
                       <TextBlock Text="{Binding EjectLabel}" FontSize="12.5"
+                                 Foreground="{StaticResource TextDim}" VerticalAlignment="Center" />
+                    </Button>
+                    <!-- Disconnect row: visible when the pane is on a remote path -->
+                    <Button x:Name="DisconnectRow" Command="{Binding DisconnectCommand}"
+                            IsVisible="{Binding DisconnectRowVisible}"
+                            Background="Transparent" CornerRadius="7" Height="30"
+                            Padding="10,0" HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left" BorderThickness="0">
+                      <TextBlock Text="{Binding DisconnectLabel}" FontSize="12.5"
                                  Foreground="{StaticResource TextDim}" VerticalAlignment="Center" />
                     </Button>
                     <TextBlock Text="{Binding ErrorText}" FontSize="11"
