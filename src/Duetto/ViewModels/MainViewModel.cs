@@ -232,12 +232,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             var info = ConnectionStore.ResolveInfo(stored);
             var capturedPath = $"sftp://{info.Id}{info.InitialRemotePath}";
+            // Capture the seam NOW: a second share click may overwrite OpenConnectDialog
+            // (each call site wires its own owner window) before this background connect
+            // fails — the failure must open the dialog wired for THIS click, not a later one.
+            var openDialog = OpenConnectDialog;
             _ = ConnectScheduler(() =>
             {
                 try
                 {
                     ConnectionManager.Connect(info, secret);
                 }
+                // SshConnectionException ⊂ SshException; listed explicitly for documentation
                 catch (Exception ex) when (ex is SshAuthenticationException
                     or SshConnectionException
                     or SocketException
@@ -247,7 +252,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     or IOException
                     or InvalidOperationException)
                 {
-                    Avalonia.Threading.Dispatcher.UIThread.Post(() => OpenConnectDialog(stored, pane));
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() => openDialog(stored, pane));
                     return;
                 }
                 Avalonia.Threading.Dispatcher.UIThread.Post(() => pane.NavigateTo(capturedPath));

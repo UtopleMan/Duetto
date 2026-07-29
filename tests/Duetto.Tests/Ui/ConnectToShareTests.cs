@@ -242,6 +242,54 @@ public sealed class ConnectToShareTests
         Assert.Single(dialogsOpened);
         Assert.Equal("srv1", dialogsOpened[0]!.Id);
     }
+
+    // ── Seam capture: a later OpenConnectDialog overwrite must not leak into an
+    //    earlier in-flight connect's failure path ──────────────────────────────
+
+    [AvaloniaFact]
+    public void Connect_failure_invokes_the_dialog_seam_captured_at_call_time()
+    {
+        using var tmp = new TempDir();
+        var codec = new SecretCodec();
+        var obfuscated = codec.Encrypt("badpw");
+        var stored = MakeStored("srv1", initialPath: "/", savePassword: true, obfuscated: obfuscated);
+
+        var registry = new FileSystemRegistry();
+        var hks = new HostKeyStore();
+        var adapter = new FakeSftpClientAdapter
+        {
+            NextConnectThrow = new SshAuthenticationException("Bad password"),
+        };
+        var manager = new ConnectionManager(registry, hks, new FixedAdapterFactory(adapter));
+
+        var json = System.Text.Json.JsonSerializer.Serialize(new[] { stored });
+        var store = new ConnectionStore(":mem:", _ => json, (_, _) => { });
+
+        using var vm = new MainViewModel(tmp.Path, tmp.Path,
+            registry: registry, connectionManager: manager, connectionStore: store, codec: codec);
+
+        // Deferred scheduler: capture the connect work without running it, so we can
+        // overwrite the seam between the ConnectToShare call and the connect failure.
+        Action? capturedWork = null;
+        vm.ConnectScheduler = work => { capturedWork = work; return Task.CompletedTask; };
+
+        var originalInvoked = 0;
+        var laterInvoked = 0;
+        vm.OpenConnectDialog = (_, _) => originalInvoked++;
+
+        vm.ConnectToShare(stored, vm.Left);
+        Assert.NotNull(capturedWork);
+
+        // Simulate a second share click rewiring the seam (each call site wires its own owner).
+        vm.OpenConnectDialog = (_, _) => laterInvoked++;
+
+        // Now the first connect fails: it must open the dialog wired for the FIRST click.
+        capturedWork!();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(1, originalInvoked);
+        Assert.Equal(0, laterInvoked);
+    }
 }
 
 /// <summary>
@@ -254,6 +302,8 @@ public sealed class PaneLoadRobustnessTests
     {
         using var tmp = new TempDir();
         var registry = new FileSystemRegistry();
+        // The registered provider only satisfies NavigateTo's DirectoryExists check during
+        // pane construction; the Lister override below is what actually throws under test.
         registry.Register("sftp", "srv1", new ThrowingProvider(new SshException("SFTP error")));
 
         using var pane = new PaneViewModel("sftp://srv1/", registry);
@@ -273,6 +323,8 @@ public sealed class PaneLoadRobustnessTests
     {
         using var tmp = new TempDir();
         var registry = new FileSystemRegistry();
+        // As above: the registered provider only satisfies the existence check;
+        // the Lister override does the throwing.
         registry.Register("sftp", "srv2", new ThrowingProvider(new InvalidOperationException("Registry removed")));
 
         using var pane = new PaneViewModel("sftp://srv2/", registry);
