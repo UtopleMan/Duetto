@@ -332,10 +332,14 @@ resolved). Deferred to Phase 6/backlog: command-bar buttons not visually
 disabled on no-capability providers (method-level no-op is safe; affordance
 polish only); FileOps.Exists PathUtil.Combine on provider-local paths
 (pre-existing, backstopped by server-side collision throw); "Deleted 0 items"
-wording when all items are capability-skipped.
+wording when all items are capability-skipped. Whole-phase review then caught a
+third mid-op path the task-level catch extension missed — HostKeyChangedException
+(inherits Exception, not SshException) escaping the pane load catch and sticking
+IsLoading — fixed in ceaa3e7 along with initializing IsSearchSupported from the
+initial pane. Suite at phase close: 453.
 
 ## Phase 6: Cross-platform build, docs, backlog
-Status: Not started
+Status: In progress
 
 - [ ] Publish for win-x64 / linux-x64 / osx (existing `scripts`) — confirm SSH.NET
   ships in the output and the app launches on each target (or note the manual check,
