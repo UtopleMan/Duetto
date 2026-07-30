@@ -160,6 +160,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             if (e.PropertyName == nameof(ActivePane))
                 Search.RefreshSearchSupported();
         };
+        // Seed IsSearchSupported from the initial active pane's provider.
+        Search.RefreshSearchSupported();
     }
 
     public MainViewModel()

@@ -1,6 +1,7 @@
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Duetto.Core.FileSystem;
+using Duetto.Core.Remote;
 using Duetto.Tests.Core;
 using Duetto.ViewModels;
 using Xunit;
@@ -54,6 +55,31 @@ public class BackgroundListingTests
 
         Assert.False(vm.IsLoading);
         Assert.Equal(["..", "a.txt", "b.txt"], vm.Rows.Select(r => r.Name));
+    }
+
+    /// <summary>
+    /// A Lister that throws HostKeyChangedException must not leave IsLoading stuck.
+    /// The work-lambda catch must absorb the exception, return [], and let ApplyWhenReady
+    /// reach IsLoading = false normally.
+    /// </summary>
+    [AvaloniaFact]
+    public void HostKeyChanged_during_reload_does_not_stick_IsLoading()
+    {
+        using var tmp = new TempDir();
+        using var vm = new PaneViewModel(tmp.Path); // initial load is synchronous
+
+        // Replace the lister with one that throws HostKeyChangedException.
+        vm.Lister = _ => throw new HostKeyChangedException(
+            "srv", "old-fp", "new-fp", "ssh-ed25519", "ssh-ed25519:[srv]:22");
+
+        // The ManualScheduler is not needed here: BackgroundScheduler is not set,
+        // so LoadScheduler is the default inline one. The task completes synchronously
+        // with the work lambda's catch result ([]).
+        vm.Reload(preserveSelection: false);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(vm.IsLoading);
+        Assert.DoesNotContain(vm.Rows, r => !r.IsParentNav);
     }
 
     [AvaloniaFact]

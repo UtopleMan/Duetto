@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Duetto.Core.FileSystem;
 using Duetto.Core.Operations;
+using Duetto.Core.Remote;
 using Renci.SshNet.Common;
 
 namespace Duetto.ViewModels;
@@ -277,7 +278,8 @@ public partial class PaneViewModel : ObservableObject, IDisposable
                 or UnauthorizedAccessException
                 or DirectoryNotFoundException
                 or SshException
-                or InvalidOperationException)
+                or InvalidOperationException
+                or HostKeyChangedException)
             {
                 return [];
             }

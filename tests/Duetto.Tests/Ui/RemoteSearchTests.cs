@@ -151,6 +151,25 @@ public class RemoteSearchTests
         Assert.False(vm.Search.IsSearchSupported);
     }
 
+    /// <summary>
+    /// IsSearchSupported must be false immediately after construction when the initial
+    /// active pane's provider does not support search — no pane switch or query needed.
+    /// Before the fix, _isSearchSupported defaulted to true and RefreshSearchSupported
+    /// was never called in the constructor, so the first pane switch was required to
+    /// update the value.
+    /// </summary>
+    [AvaloniaFact]
+    public void IsSearchSupported_is_false_at_construction_when_initial_pane_has_no_search()
+    {
+        var fs = MakeRemoteFs(supportsSearch: false);
+        var reg = MakeRegistry("sftp", "nosearch", fs);
+
+        using var vm = new MainViewModel("sftp://nosearch/", "sftp://nosearch/", registry: reg);
+
+        // No pane switch, no search query — must be false right out of the constructor.
+        Assert.False(vm.Search.IsSearchSupported);
+    }
+
     [AvaloniaFact]
     public void IsSearchSupported_updates_when_active_pane_switches_to_unsupported_provider()
     {
