@@ -339,15 +339,15 @@ IsLoading — fixed in ceaa3e7 along with initializing IsSearchSupported from th
 initial pane. Suite at phase close: 453.
 
 ## Phase 6: Cross-platform build, docs, backlog
-Status: In progress
+Status: Complete
 
-- [ ] Publish for win-x64 / linux-x64 / osx (existing `scripts`) — confirm SSH.NET
+- [x] Publish for win-x64 / linux-x64 / osx (existing `scripts`) — confirm SSH.NET
   ships in the output and the app launches on each target (or note the manual check,
   consistent with the existing cross-compile caveat).
-- [ ] Update `plans/duetto-file-manager.md` architecture notes + mark the backlog
+- [x] Update `plans/duetto-file-manager.md` architecture notes + mark the backlog
   "Real Connect backend" item, noting SFTP done and S3/SMB as follow-ups on the
   provider seam.
-- [ ] Short `docs`/README note: how to add an SFTP connection, where config lives,
+- [x] Short `docs`/README note: how to add an SFTP connection, where config lives,
   and the explicit "secrets are obfuscated, not encrypted" caveat.
 
 ### Verification Plan
@@ -355,10 +355,66 @@ Status: In progress
 - `grep` backlog + design doc show the updated status lines.
 
 ### Phase Summary
-_(write when phase completes)_
+Done 2026-07-30, commit 6a5a428. All three RIDs published clean from macOS arm64:
+- **osx-arm64** (native): `dotnet publish` exit 0 → Mach-O arm64 single-file 115 MB;
+  SSH.NET (Renci namespace) present at 5 offsets in binary; `dist/osx-arm64/Duetto --smoke`
+  exits 0 (verified on this machine).
+- **win-x64** (cross-compile): exit 0 → PE32+ x86-64 101 MB; SSH.NET present (6 hits);
+  runtime launch = documented manual check on real Windows x64 (consistent with
+  Deployment Plan §5).
+- **linux-x64** (cross-compile): exit 0 → ELF 64-bit x86-64 97 MB; SSH.NET present (6 hits);
+  runtime launch = documented manual check on real Linux x64.
+
+`plans/backlog.md`: "Real Connect backend (SFTP/S3/SMB)" marked `[x]`; S3/SMB noted as
+open follow-ups on the same IFileSystemProvider seam. `plans/duetto-file-manager.md`:
+new "Remote backends (SFTP)" section added (provider seam, addressing, SFTP layer,
+config store, UI composition). `README.md` created at repo root: building/running/
+packaging + "Remote connections (SFTP)" section (field guide, config paths table,
+explicit obfuscation-not-encryption caveat). Test suite: 453 passed (no changes to
+src/ or tests/).
 
 ## Final Recap
-_(write when all phases complete)_
+
+All six phases complete. Duetto v1 now supports full SFTP remote connections behind
+the `IFileSystemProvider`/`FileSystemCapabilities` seam introduced in Phase 1.
+
+**What shipped:**
+- `IFileSystemProvider` + `FileSystemCapabilities` seam; `LocalFileSystemProvider`
+  wrapping all existing local behaviour; `FileSystemRegistry` routing `sftp://id/path`
+  addresses; `PathUtil` provider-aware parent/combine/leaf.
+- SSH.NET 2025.1.0 SFTP layer: `SftpConnection` (reconnect, injectable factory),
+  `SftpFileSystemProvider` (full op set, empirical AtomicRename probe, recursive
+  delete materialises children), `HostKeyStore` (TOFU, change detection), `ConnectionManager`.
+- Config persistence: `AppPaths` (per-OS dirs), `SecretCodec` (AES-256-CBC
+  obfuscation), `ConnectionStore` (save-password flag, atomic tmp writes), `JsonHostKeyPersistence`.
+- UI: `ConnectWindow` + `ConnectDialogViewModel` (validation, background connect,
+  HostKeyChangedException accept flow); drive popover CONNECTED SHARES section
+  (status dots, edit/remove, Disconnect); GNOME Places rail Remote section;
+  capability-gated ops at the method level throughout.
+- End-to-end ops: upload/download/remote-remote copy+move via TransferEngine
+  provider overload; provider-aware new/rename/delete; remote search via
+  EnumerateRecursive; sftp://id addresses preserved through reveal+delete-from-search.
+- Suite: 453 tests (131 pre-feature + 322 new). Build clean (only 5 pre-existing warnings).
+- Publish: all three RIDs ship SSH.NET; osx-arm64 smoke-tested natively; win-x64/linux-x64
+  runtime launch documented as manual checks on target OSes.
+- README.md at repo root with SFTP setup guide and security caveat.
+
+**Deferred / known gaps:**
+- Live directory watch on remote (manual refresh only — no `FileSystemWatcher`).
+- Enter-to-open a remote file (download-and-open deferred).
+- Command-bar buttons not visually greyed on no-capability providers (method-level no-op is safe; affordance polish only).
+- S3 and SMB: open follow-ups on the same provider seam.
+- Win-x64 / linux-x64 runtime launch not verified (cross-compile caveat, see backlog).
 
 ## Deployment Plan
-_(write when all phases complete)_
+
+1. Prereq: .NET 10 SDK (builds net10.0).
+2. Verify: `dotnet test Duetto.slnx` (expect 453/453) and `dist/osx-arm64/Duetto --smoke` exit 0.
+3. Build binaries: `./scripts/publish-all.sh` → self-contained single-file executables in `dist/{osx-arm64,win-x64,linux-x64}/` plus `dist/duetto-<rid>.zip` (~97–115 MB each, all include SSH.NET).
+4. macOS bundle: `./scripts/make-app-bundle.sh` → `dist/Duetto.app`.
+5. On first connect to an SFTP server: user is prompted to trust the host key (TOFU).
+   Fingerprint stored in `hostkeys.json` in the per-OS config dir (`~/Library/Application Support/Duetto/` / `~/.config/duetto/` / `%APPDATA%\Duetto\`).
+6. Saved passwords are obfuscated (not encrypted) — advise users with sensitive credentials
+   to leave "Save password" unchecked and enter at connect time.
+7. Win-x64 and linux-x64 binaries are cross-compiled; test chrome, shell runner, trash,
+   volume/eject, and SFTP on real target machines before wide distribution.
