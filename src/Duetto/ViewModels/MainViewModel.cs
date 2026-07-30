@@ -491,11 +491,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Rebuilds the full <c>scheme://id/…</c> address for a provider-local row path when the
     /// owning pane shows a remote directory; local pane paths pass through unchanged.
+    /// Delegates to <see cref="PathUtil.ToAddress"/> — one canonical implementation.
     /// </summary>
     private static string ToAddress(string panePath, string rowPath) =>
-        PathUtil.ParseRemote(panePath) is { } r
-            ? $"{r.Scheme}://{r.Id}{rowPath}"
-            : rowPath;
+        PathUtil.ToAddress(panePath, rowPath);
 
     /// <summary>
     /// Default <see cref="TrashFn"/>: routes the delete through the owning provider —

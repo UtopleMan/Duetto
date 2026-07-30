@@ -68,6 +68,15 @@ public static class PathUtil
         return Rebuild(r, childLocal);
     }
 
+    /// <summary>
+    /// Rebuilds the full <c>scheme://id/…</c> address for a provider-local row path when the
+    /// owning pane shows a remote directory; local pane paths pass through unchanged.
+    /// </summary>
+    public static string ToAddress(string panePath, string rowPath) =>
+        ParseRemote(panePath) is { } r
+            ? $"{r.Scheme}://{r.Id}{rowPath}"
+            : rowPath;
+
     private static string Rebuild(RemoteAddress r, string localPath) =>
         localPath == "/"
             ? $"{r.Scheme}://{r.Id}/"

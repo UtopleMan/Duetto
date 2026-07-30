@@ -178,9 +178,32 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     /// <summary>Navigate, then select <paramref name="selectName"/> once the load lands (else the first row).</summary>
     public void NavigateTo(string path, string? selectName)
     {
-        var (provider, localPath) = Registry.Resolve(path);
-        if (!provider.DirectoryExists(localPath))
+        try
+        {
+            // For remote addresses, skip the synchronous pre-check — it would stall the UI
+            // thread on a network call. The already-guarded background load handles a bad path.
+            if (!PathUtil.IsRemote(path))
+            {
+                var (provider, localPath) = Registry.Resolve(path);
+                if (!provider.DirectoryExists(localPath))
+                    return;
+            }
+            else
+            {
+                // Validate that the address resolves to a registered provider; if not, bail.
+                Registry.Resolve(path);
+            }
+        }
+        catch (Exception e) when (e is IOException
+            or UnauthorizedAccessException
+            or DirectoryNotFoundException
+            or SshException
+            or InvalidOperationException
+            or HostKeyChangedException)
+        {
             return;
+        }
+
         _back.Push(CurrentPath);
         _forward.Clear();
         SetPath(path, selectName);
@@ -219,9 +242,14 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         if (row.IsParentNav)
             Up();
         else if (row.IsDirectory)
-            NavigateTo(row.Entry.FullPath);
+            NavigateTo(PathUtil.ToAddress(CurrentPath, row.Entry.FullPath));
         else
+        {
+            // Remote file open / download-and-open is a deferred feature — no-op until it ships.
+            if (PathUtil.IsRemote(CurrentPath))
+                return;
             LaunchFile(row.Entry.FullPath);
+        }
     }
 
     public void OpenCursor()

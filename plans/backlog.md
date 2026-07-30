@@ -30,6 +30,13 @@ Unscheduled ideas. Promote an item by writing a design spec + implementation pla
   saved remote connections. **S3 and SMB remain open** as later sub-projects on
   the same provider seam (add a new `IFileSystemProvider` implementation and
   register it in `FileSystemRegistry`).
+- [ ] **[Follow-up: S3/SMB phase]** Consider making `FileEntry` carry full addresses (or
+  a typed address struct) so the "rows are provider-local" invariant stops depending on every
+  consumer remembering to rebase the `FullPath` before routing it. Three misses of this class
+  appeared in one branch (Tasks L, M, and the Open double-click path), each requiring an
+  explicit `ToAddress` / `PathUtil.IsRemote` guard. A typed address on the row would make
+  the wrong thing uncompilable. Evaluate at the start of the S3/SMB sub-project when the
+  third provider ships and the pattern is established.
 - [ ] Push repo to a remote (still no origin configured):
   `git remote add origin <url> && git push -u origin main`.
 - [x] Add the app icon from the graphic design. `scripts/make-icon.py` now
