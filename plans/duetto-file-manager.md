@@ -271,3 +271,77 @@ All shipped, tested, committed on main. Test count now 90.
 - **Cursor/mark model split** (orthodox): cursor = single `Selection` (SelectionMode Single) drawn as 1px accent outline overlay; marks = `FileRowViewModel.IsMarked` drawn as full-row #dfe8f7 fill. Insert toggles mark + advances; Shift+↑/↓ mark while moving; Shift-click range (`MarkRangeTo`); ⌘/Ctrl-click toggle (`ToggleMarkAt`, tunnel PointerPressed in PaneView); Esc clears marks (after search/drawer priority). `SelectedRows` = marked rows, else cursor row. Status bar counts marks. Marks survive reloads (preserved by name).
 - Search scope chip vertically centered; disabled toolbar buttons transparent.
 - Drive popover (2026-07-26/27, plans/2026-07-26-drive-popover-*.md, merged 83b6061): path bar split into volume chip (swatch + name + ▾) and mono path tail; chip opens flyout listing local volumes with capacity bars, type-to-filter, ↑/↓/Enter/Esc, Connect… stub dialog (SFTP/S3/SMB later), Eject row on mac/linux (diskutil / gio-then-umount, visible-but-disabled while ejecting). Core: `VolumeCatalog` (pure Build over `VolumeSource`, ejectable rules, longest-prefix `FindByPath`) + `VolumeEjector` (injectable ProcessRunner, both pipes drained). Gotcha: Unix .NET `DriveInfo.VolumeLabel` echoes the mount path — `IsMountEcho` ignores such labels so root shows "Macintosh HD". Test count now 131.
+
+## Remote backends (SFTP) — feat/remote-backends-sftp
+
+Added in 2026-07-28/29 (`plans/remote-backends-sftp.md`). Test count 131 → 453.
+
+### Provider seam
+
+`IFileSystemProvider` (Duetto.Core) is the single seam for all filesystem I/O:
+`List`, `Stat`, `CreateDirectory`, `CreateFile`, `Rename`, `Delete`, `OpenRead`,
+`OpenWrite`, `SetLastWriteTimeUtc`, `EnumerateRecursive`, `VolumeFor`. Each
+provider exposes `FileSystemCapabilities` (record: `CanRename`, `CanCreateEmptyDir`,
+`CanCreateFile`, `CanDelete`, `HasTrash`, `HasPermissions`, `PreservesMTime`,
+`AtomicRename`, `CanWatch`, `ReportsCapacity`, `SupportsSearch`, `CaseSensitive`,
+`Separator`). All ops gate on capabilities; optional ops throw `NotSupportedException`
+as a backstop.
+
+`LocalFileSystemProvider` wraps the existing local behaviour (all capabilities true,
+`HasTrash = true`, `Separator = Path.DirectorySeparatorChar`).
+
+### Addressing and registry
+
+Local paths are unchanged. Remote locations are `sftp://<connectionId>/<remote/path>`.
+`FileSystemRegistry.Resolve(path)` returns `(IFileSystemProvider, providerLocalPath)`.
+`PathUtil.Parent/Combine/Leaf` delegates to the resolved provider's `Separator` so
+navigation math works identically for local and remote paths. All consumers —
+`DirectoryLister`, `FileOps`, `TransferEngine`, `TrashService`, `SearchService`,
+`PaneViewModel` navigation — route through the registry.
+
+### SFTP layer (SSH.NET 2025.1.0)
+
+`SftpConnection` — wraps SSH.NET `SftpClient`; single reconnect on
+`SshConnectionException`; injectable `ISftpClientFactory` for unit tests.
+
+`SftpFileSystemProvider` — full `IFileSystemProvider` over an `SftpConnection`.
+Maps SFTP attrs → `FileEntry` (Unix perms, mtime). `AtomicRename` determined
+empirically per server (first failure of `posix-rename@openssh.com` extension sets
+capability false; fallback: delete+rename). `DeleteRecursive` materialises
+children before deleting. `Capabilities`: `HasTrash/CanWatch/ReportsCapacity =
+false`; all other ops `= true`.
+
+`HostKeyStore` — trust-on-first-use: pins fingerprint on first connect, raises
+`HostKeyChangedException` (carries old/new) on mismatch. Wired via SSH.NET
+`HostKeyReceived`. Persisted to `hostkeys.json` via `JsonHostKeyPersistence`.
+
+`ConnectionManager` — owns live connections keyed by id, builds
+`SftpFileSystemProvider`, registers `sftp://<id>` providers with
+`FileSystemRegistry`; connect/disconnect/dispose-all. SSH handshake runs outside
+the manager lock; failed-connect cleans up before returning.
+
+### Config store
+
+Files written to the per-OS app dir (`AppPaths`):
+- `connections.json` — connection profiles (`StoredConnection` DTO, injectable IO)
+- `hostkeys.json` — pinned fingerprints
+
+Secrets are obfuscated with a machine-derived key (AES-256-CBC, SHA-256 of a
+machine identifier). This is **reversible obfuscation, not secure storage** —
+documented in the UI and README. Per-connection `SavePassword` flag; when false the
+secret is empty in the store and prompted at connect.
+
+### UI / app composition
+
+`ConnectWindow` + `ConnectDialogViewModel` replace the old stub: validation,
+background connect, specific error surface (auth failure, timeout,
+`HostKeyChangedException` → accept-new-key confirmation), saves via
+`ConnectionStore`. ONE `FileSystemRegistry/ConnectionManager/ConnectionStore/
+HostKeyStore` owned by `MainViewModel`, shared by both panes and search.
+
+Drive popover **CONNECTED SHARES** section: status dots, click = navigate /
+background-connect / prompt via dialog, edit + remove affordances, Disconnect row
+(parallels Eject). GNOME Places rail **Remote** section lists saved connections.
+Remote volume chip shows connection name; capacity bar hidden when
+`!ReportsCapacity`; search box and all file-op key handlers gate on provider
+capabilities at the method level.

@@ -17,10 +17,19 @@ Unscheduled ideas. Promote an item by writing a design spec + implementation pla
   dropped (blur). `FileOps` split into `SuggestEntryName` + `CreateFolder` /
   `CreateFile`; `PaneViewModel` re-attaches the placeholder across watcher reloads.
   See `plans/2026-07-27-new-entry-inline-edit-design.md`.
-- [ ] Real Connect backend (SFTP/S3/SMB) behind the stub dialog — biggest open
-  feature. The drive popover's Connect… row currently opens
-  `ConnectStubWindow`; replace with real remote connections and remote shares
-  listed in the popover (design spec already reserves a shares section).
+- [x] Real Connect backend (SFTP) behind the stub dialog — done in
+  `feat/remote-backends-sftp`. `ConnectStubWindow` replaced by the real
+  `ConnectWindow` + `ConnectDialogViewModel`. Full browse/manage/copy/move/search
+  over SFTP via the `IFileSystemProvider` seam + `FileSystemCapabilities`,
+  `FileSystemRegistry`, `PathUtil` (sftp://id/path addressing), SSH.NET
+  `SftpConnection`/`SftpFileSystemProvider`, `ConnectionManager`, and a
+  `ConnectionStore`/`HostKeyStore` config layer (connections.json + hostkeys.json
+  in the per-OS app dir). Secrets are obfuscated (AES-256-CBC, machine-derived
+  key), not securely encrypted — labelled as such in the UI and README.
+  CONNECTED SHARES section added to the drive popover; GNOME Places rail lists
+  saved remote connections. **S3 and SMB remain open** as later sub-projects on
+  the same provider seam (add a new `IFileSystemProvider` implementation and
+  register it in `FileSystemRegistry`).
 - [ ] Push repo to a remote (still no origin configured):
   `git remote add origin <url> && git push -u origin main`.
 - [x] Add the app icon from the graphic design. `scripts/make-icon.py` now
