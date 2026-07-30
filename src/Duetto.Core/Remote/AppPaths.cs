@@ -39,6 +39,9 @@ public static class AppPaths
     /// <summary>Path to <c>hostkeys.json</c> inside <see cref="ConfigDir"/>.</summary>
     public static string HostKeysJsonPath => Path.Combine(ConfigDir, "hostkeys.json");
 
+    /// <summary>Path to <c>window.json</c> inside <see cref="ConfigDir"/>.</summary>
+    public static string WindowJsonPath => Path.Combine(ConfigDir, "window.json");
+
     // ── internal helpers ──────────────────────────────────────────────────────
 
     private static string GetConfigDir()

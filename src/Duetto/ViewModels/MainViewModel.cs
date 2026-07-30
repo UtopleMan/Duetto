@@ -164,9 +164,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Search.RefreshSearchSupported();
     }
 
+    /// <summary>
+    /// The directory the left (active) pane opens at startup: a folder passed on the command
+    /// line when present, otherwise the user's home directory.
+    /// </summary>
+    public static string StartFolder(string? folder) =>
+        folder ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
     public MainViewModel()
         : this(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            StartFolder(Program.Options.Folder),
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             registry: new FileSystemRegistry(),
             connectionStore: new ConnectionStore(AppPaths.ConnectionsJsonPath),
