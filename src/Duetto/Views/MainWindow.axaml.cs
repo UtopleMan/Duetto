@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform;
 using Duetto.Core.Remote;
+using Duetto.Core.State;
 using Duetto.ViewModels;
 
 namespace Duetto.Views;
@@ -13,9 +14,32 @@ public partial class MainWindow : Window
 {
     public MainViewModel Vm { get; }
 
+    // Window-placement persistence. Null when not wired (the plain vm ctor used by tests /
+    // the XAML previewer, and headless smoke/screenshot runs) — the overrides then no-op.
+    private WindowPlacementStore? _placement;
+    private Func<IReadOnlyList<ScreenBounds>>? _screensProvider;
+    private PixelPoint _normalPosition;
+    private Size _normalSize;
+
     public MainWindow()
         : this(new MainViewModel())
     {
+        // Production entry (App.axaml.cs). Persist placement to disk, except in headless
+        // smoke/screenshot/CI runs which must never touch the user's window.json.
+        if (!Program.Options.Headless)
+            WirePlacement(
+                new WindowPlacementStore(AppPaths.WindowJsonPath),
+                () => Screens.All
+                    .Select(s => new ScreenBounds(s.Bounds.X, s.Bounds.Y, s.Bounds.Width, s.Bounds.Height))
+                    .ToList());
+    }
+
+    /// <summary>Test seam: inject an in-memory placement store and a fake screen list.</summary>
+    internal MainWindow(MainViewModel vm, WindowPlacementStore placement,
+        Func<IReadOnlyList<ScreenBounds>> screens)
+        : this(vm)
+    {
+        WirePlacement(placement, screens);
     }
 
     public MainWindow(MainViewModel vm)
@@ -160,11 +184,70 @@ public partial class MainWindow : Window
     protected override void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
+        RestorePlacement();
         // Cursor starts on the first row; focus is deferred to Background priority
         // so it lands after Avalonia's own initial-focus pass instead of before it.
         if (Vm.ActivePane.Rows.Count > 0 && Vm.ActivePane.Selection.SelectedItem is null)
             Vm.ActivePane.Selection.Select(0);
         RefocusActiveList(Avalonia.Threading.DispatcherPriority.Background);
+    }
+
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        if (_placement is not null)
+        {
+            RecordNormalBounds();
+            _placement.Save(new WindowPlacement(
+                _normalPosition.X, _normalPosition.Y,
+                _normalSize.Width, _normalSize.Height,
+                Maximized: WindowState == WindowState.Maximized));
+        }
+
+        base.OnClosing(e);
+    }
+
+    private void WirePlacement(WindowPlacementStore placement, Func<IReadOnlyList<ScreenBounds>> screens)
+    {
+        _placement = placement;
+        _screensProvider = screens;
+        // Track the last *normal* (non-maximized) bounds so a window closed while maximized
+        // still restores to a sensible size when later un-maximized.
+        PositionChanged += (_, _) => RecordNormalBounds();
+        SizeChanged += (_, _) => RecordNormalBounds();
+    }
+
+    private void RecordNormalBounds()
+    {
+        if (WindowState == WindowState.Normal)
+        {
+            _normalPosition = Position;
+            _normalSize = new Size(Width, Height);
+        }
+    }
+
+    private void RestorePlacement()
+    {
+        if (_placement is null || _screensProvider is null)
+            return;
+
+        var saved = _placement.Load();
+        if (saved is not null && saved.IsVisibleOn(_screensProvider()))
+        {
+            // Seed the normal-bounds trackers from the saved values first, so restoring
+            // straight into a maximized window still remembers a sane un-maximized size.
+            _normalPosition = new PixelPoint(saved.X, saved.Y);
+            _normalSize = new Size(saved.Width, saved.Height);
+            Position = _normalPosition;
+            Width = saved.Width;
+            Height = saved.Height;
+            WindowState = saved.Maximized ? WindowState.Maximized : WindowState.Normal;
+        }
+        else
+        {
+            // No usable saved placement — keep the XAML default size, seed trackers from it.
+            _normalPosition = Position;
+            _normalSize = new Size(Width, Height);
+        }
     }
 
     private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
@@ -240,6 +323,13 @@ public partial class MainWindow : Window
             case Key.Insert:
                 pane.ToggleMarkAndAdvance();
                 ActivePaneView().List.ScrollIntoView(pane.Selection.SelectedIndex);
+                RefocusActiveList();
+                e.Handled = true;
+                return;
+            case Key.Space:
+                // Toggle the cursor row's mark in place (Insert advances; Space does not).
+                if (pane.CursorRow is { } spaceRow)
+                    pane.ToggleMarkAt(spaceRow);
                 RefocusActiveList();
                 e.Handled = true;
                 return;

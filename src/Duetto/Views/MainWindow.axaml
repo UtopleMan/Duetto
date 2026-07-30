@@ -7,6 +7,7 @@
         Title="Duetto"
         Icon="/Assets/AppIcon.png"
         Width="1180" Height="700"
+        WindowStartupLocation="CenterScreen"
         Background="{StaticResource WindowBg}">
   <DockPanel>
     <!-- 1a Windows: custom 34px title bar with caption buttons -->
@@ -75,8 +76,8 @@
           <Button Classes="toolbtn" Width="NaN" Padding="10,0" FontSize="12" Content="New ▾">
             <Button.Flyout>
               <MenuFlyout Placement="BottomEdgeAlignedLeft">
-                <MenuItem Header="New folder" Command="{Binding ActivePane.NewFolderCommand}" />
-                <MenuItem Header="New file" Command="{Binding ActivePane.NewFileCommand}" />
+                <MenuItem Header="New folder" Command="{Binding ActivePane.NewFolderCommand}" InputGesture="F7" />
+                <MenuItem Header="New file" Command="{Binding ActivePane.NewFileCommand}" InputGesture="Shift+F7" />
               </MenuFlyout>
             </Button.Flyout>
           </Button>
