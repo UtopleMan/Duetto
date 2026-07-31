@@ -203,6 +203,10 @@ public partial class MainWindow : Window
                 Maximized: WindowState == WindowState.Maximized));
         }
 
+        // Persist the pane directories so the next launch can restore them (no-op when the
+        // view-model has no session store — tests / headless).
+        Vm.SaveSession();
+
         base.OnClosing(e);
     }
 
