@@ -1,102 +1,96 @@
+<div align="center">
+
+<img src="src/Duetto/Assets/AppIcon.png" width="112" alt="Duetto icon" />
+
 # Duetto
 
-An orthodox two-pane file manager for Windows, macOS, and Linux built with
-Avalonia and .NET 10. Supports local filesystem browsing and SFTP remote
-connections.
+**A fast, keyboard-driven dual-pane file manager for Windows, macOS, and Linux.**
 
-## Building
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI](https://github.com/UtopleMan/duetto/actions/workflows/ci.yml/badge.svg)](https://github.com/UtopleMan/duetto/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/UtopleMan/duetto?sort=semver)](https://github.com/UtopleMan/duetto/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/UtopleMan/duetto/total)](https://github.com/UtopleMan/duetto/releases)
 
-Requires .NET 10 SDK.
+</div>
 
+Two panes, everything on the keyboard, and a window that feels native on every
+desktop. Copy and move between panes, browse remote servers over SFTP, search in
+an instant, and delete straight to the system trash.
+
+<div align="center">
+
+### macOS
+<img src="docs/screenshots/macos.png" width="820" alt="Duetto on macOS" />
+
+### Windows
+<img src="docs/screenshots/windows.png" width="820" alt="Duetto on Windows" />
+
+### Linux
+<img src="docs/screenshots/linux.png" width="820" alt="Duetto on Linux" />
+
+</div>
+
+## Features
+
+- **Dual-pane, keyboard-first** — copy (`F5`), move (`F6`), delete (`F8`), rename
+  (`F2`), new file/folder (`F7`); `Tab` switches panes, `Enter` opens, `Backspace`
+  goes up.
+- **Native on every OS** — the window chrome adapts to Windows, macOS, and GNOME.
+- **Remote over SFTP** — save connections and browse or transfer files over SSH,
+  with trust-on-first-use host-key verification.
+  ([setup & security →](docs/remote-sftp.md))
+- **Instant search** — recursive, scoped to the current folder or a remote share.
+- **Safe deletes** — everything goes to the system trash: the Recycle Bin on
+  Windows, the FreeDesktop trash on Linux, and the native macOS trash (with
+  *Put Back* and correct handling of other volumes).
+- **Remembers your workspace** — window position, size, and maximized state, plus
+  each pane's last folder, restored on the next launch.
+- **Command line** — `duetto [folder]` opens a folder in the left pane; a `duetto`
+  launcher installs itself on your `PATH` the first time you run the app.
+
+## Install
+
+Download the latest build for your platform from the
+[**Releases**](https://github.com/UtopleMan/duetto/releases/latest) page:
+
+| Platform | Download |
+| --- | --- |
+| Windows (x64) | `duetto-<version>-win-x64.zip` |
+| macOS (Apple Silicon) | `Duetto-<version>-arm64.dmg` · `duetto-<version>-osx-arm64.zip` |
+| macOS (Intel) | `Duetto-<version>-x64.dmg` · `duetto-<version>-osx-x64.zip` |
+| Linux (x64) | `duetto-<version>-linux-x64.zip` |
+
+Builds are self-contained — no runtime to install.
+
+**macOS** builds are unsigned. On first launch, right-click the app and choose
+**Open**, or clear the quarantine flag:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Duetto.app
 ```
-dotnet build Duetto.slnx
-dotnet test Duetto.slnx
+
+**Command line:** after launching once, `duetto` is on your `PATH`:
+
+```sh
+duetto .            # open the current directory
+duetto ~/Projects   # open a specific folder
 ```
 
-## Running
+## Build from source
 
-```
-dotnet run --project src/Duetto
-```
+Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
-Override the OS chrome for preview:
+```sh
+dotnet run --project src/Duetto                       # run the app
+dotnet test tests/Duetto.Tests/Duetto.Tests.csproj    # run the tests
 
-```
-dotnet run --project src/Duetto -- --chrome win|mac|gnome
-```
-
-## Packaging
-
-Self-contained single-file binaries for all three platforms:
-
-```
-./scripts/publish-all.sh
+scripts/publish-all.sh          # self-contained zips for all platforms
+scripts/make-dmg.sh osx-arm64   # macOS .dmg (osx-arm64 | osx-x64)
 ```
 
-Output goes to `dist/osx-arm64/Duetto`, `dist/win-x64/Duetto.exe`,
-`dist/linux-x64/Duetto`, plus `dist/duetto-<rid>.zip` (~100 MB each).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for more, and
+[docs/remote-sftp.md](docs/remote-sftp.md) for SFTP details.
 
-macOS app bundle:
+## License
 
-```
-./scripts/make-app-bundle.sh
-```
-
-Output: `dist/Duetto.app`.
-
-## Remote connections (SFTP)
-
-### Adding a connection
-
-Open the drive popover by clicking the volume chip in the path bar, then choose
-**Connect…**. Fill in:
-
-| Field | Notes |
-|---|---|
-| Name | Display name for the share (shown in the popover and GNOME Places rail) |
-| Protocol | SFTP (only option in v1) |
-| Host | Hostname or IP address |
-| Port | Default 22 |
-| Username | SSH login user |
-| Auth | **Password** — enter a password; or **Key file** — path to a private key file (PEM/OpenSSH), optional passphrase |
-| Initial path | Remote directory to open on connect (leave blank for home) |
-| Save password | When checked, the secret is stored obfuscated in `connections.json` (see caveat below). When unchecked, you are prompted each time. |
-
-Click **Test / Connect**. On first connect you will be asked to trust the server's
-host key (trust-on-first-use). Once accepted, the fingerprint is pinned and any
-future change triggers a warning.
-
-Saved connections appear in the **CONNECTED SHARES** section of the drive popover
-and in the GNOME Places rail under **Remote**. Click a share to connect and
-navigate to it. A **Disconnect** row appears when a remote pane is active.
-
-### Where configuration lives
-
-| Platform | Directory |
-|---|---|
-| macOS | `~/Library/Application Support/Duetto/` |
-| Linux | `$XDG_CONFIG_HOME/duetto/` or `~/.config/duetto/` |
-| Windows | `%APPDATA%\Duetto\` |
-
-Two files are written there:
-
-- `connections.json` — saved connection profiles (host, port, username, auth
-  mode, key path, initial path, save-password flag).
-- `hostkeys.json` — pinned server fingerprints (trust-on-first-use store).
-
-### Security caveat
-
-Saved passwords and key passphrases are **obfuscated** using a machine-derived
-key (AES-256-CBC, SHA-256 of a machine identifier). This is reversible
-obfuscation, **not** secure encrypted storage. Anyone with read access to
-`connections.json` and the same machine identity can recover the plaintext.
-For servers where the password is sensitive, leave **Save password** unchecked
-and enter the secret at connect time.
-
-### Remote operations
-
-All standard file operations work over SFTP: browse, copy/move (local↔remote and
-remote↔remote via the two-tone progress strip), new folder/file, rename (F2),
-delete (F8/Del — permanent, no Trash on remote), and scoped recursive search
-(Ctrl/Cmd+F). Live directory watching is not supported on remote panes; use F5 or
-navigate away and back to refresh.
+[MIT](LICENSE) © 2026 UtopleMan

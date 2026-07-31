@@ -73,23 +73,19 @@ LICENSE-OK, VERSION-OK, Release build succeeded, bundle Info.plist reads
 ---
 
 ## Phase 2: README + interim screenshots
-Status: Not started
+Status: Complete
 
-- [ ] Add `scripts/screenshots/capture-chrome.sh`: runs the app headless with
-      `--chrome win|mac|gnome --screenshot` against a curated sample folder,
-      writing `docs/screenshots/{windows,macos,linux}.png`. (Reproducible; stored
-      for reuse. Real-OS versions replace these in Phase 6.)
-- [ ] Run it; commit the three PNGs under `docs/screenshots/`.
-- [ ] Write `README.md`: hero (name + one-line tagline + app icon), badges
-      (MIT license, CI status, latest release, downloads), a concise **Features**
-      list (dual-pane, keyboard-driven, SFTP remote browsing/transfer, live
-      search, cross-platform Trash, `duetto` CLI + folder arg, remembers window +
-      pane folders, native-feeling per-OS chrome), the three screenshots, an
-      **Install** section (per-platform download links to the latest release +
-      macOS Gatekeeper note + `duetto` CLI note), **Build from source**, and
-      **License**.
-- [ ] Add `CONTRIBUTING.md` (build/test instructions) and a short repo
-      description/topics list to set on GitHub in Phase 4.
+- [x] Add `scripts/screenshots/capture-chrome.sh`: builds the app, generates a
+      curated sample `$HOME` tree at `/tmp/duetto-demo`, and captures
+      `docs/screenshots/{windows,macos,linux}.png` via `--chrome win|mac|gnome
+      --screenshot` (left pane = `Projects`, right pane = home). Reproducible.
+- [x] Run it; commit the three PNGs under `docs/screenshots/`.
+- [x] Write `README.md`: centered hero (icon + tagline + MIT/CI/release/downloads
+      badges), one-line intro, the three labelled screenshots, a concise
+      **Features** list, **Install** (per-platform download table + macOS
+      Gatekeeper note + `duetto` CLI note), **Build from source**, **License**.
+- [x] Add `CONTRIBUTING.md`; preserve the old detailed SFTP/config/security docs
+      into `docs/remote-sftp.md` (linked from README).
 
 ### Verification Plan
 - `bash scripts/screenshots/capture-chrome.sh && ls docs/screenshots/windows.png docs/screenshots/macos.png docs/screenshots/linux.png` → all three exist, non-zero size
@@ -97,7 +93,22 @@ Status: Not started
 - `python3 -c "import re,sys; sys.exit(0 if all(x in open('README.md').read() for x in ['docs/screenshots/windows.png','docs/screenshots/macos.png','docs/screenshots/linux.png']) else 1)" && echo IMGS-LINKED`
 
 ### Phase Summary
-_(write when phase completes)_
+Done. `scripts/screenshots/capture-chrome.sh` reproducibly renders all three
+platform shots headlessly: it builds the app, lays down a tidy sample home tree
+at `/tmp/duetto-demo` (Documents/Downloads/Pictures/Projects + realistic files
+with fixed mtimes), points the app at it via `$HOME` so both panes and the GNOME
+Places rail show clean content, and captures one offscreen frame per `--chrome`
+mode. Output committed to `docs/screenshots/{windows,macos,linux}.png`. New
+`README.md` is the simple/beautiful version the user asked for: centered hero
+(app icon + tagline + 4 badges), the three screenshots, a tight Features list,
+an Install table (win-x64, macOS arm64+Intel dmg/zip, linux-x64) with the macOS
+Gatekeeper `xattr` note and `duetto` CLI usage, Build-from-source, and License.
+The previous README's valuable SFTP setup / config-location / security-caveat
+content was preserved into `docs/remote-sftp.md` and linked, rather than lost.
+Added `CONTRIBUTING.md`. Note: the GNOME shot's bottom bar shows the dev
+machine's `user@host` (macOS reads it from the OS, not env — not overridable
+here); harmless and replaced by the real Linux VM capture in Phase 6. All
+verification checks pass. Next: Phase 3 (CI + release workflows).
 
 ---
 
