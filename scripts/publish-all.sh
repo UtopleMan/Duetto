@@ -1,19 +1,22 @@
 #!/usr/bin/env bash
-# Publishes self-contained single-file Duetto binaries for all three target RIDs
-# into dist/<rid>/, then zips each.
+# Publishes self-contained single-file Duetto binaries for all target RIDs into
+# dist/<rid>/, then zips each as duetto-<version>-<rid>.zip.
+# Usage: [VERSION=x.y.z] publish-all.sh   (default version 1.0.0)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-RIDS=(osx-arm64 win-x64 linux-x64)
+VERSION="${VERSION:-1.0.0}"
+RIDS=(osx-arm64 osx-x64 win-x64 linux-x64)
 for rid in "${RIDS[@]}"; do
-  echo "== publish $rid =="
+  echo "== publish $rid (v$VERSION) =="
   dotnet publish src/Duetto -c Release -r "$rid" --self-contained \
     -p:PublishSingleFile=true \
     -p:IncludeNativeLibrariesForSelfExtract=true \
     -p:DebugType=none \
+    -p:Version="$VERSION" \
     -o "dist/$rid"
-  (cd dist && zip -qr "duetto-$rid.zip" "$rid")
-  echo "   -> dist/duetto-$rid.zip"
+  (cd dist && zip -qr "duetto-$VERSION-$rid.zip" "$rid")
+  echo "   -> dist/duetto-$VERSION-$rid.zip"
 done
 
-echo "Done. Binaries in dist/{osx-arm64,win-x64,linux-x64}, zips in dist/."
+echo "Done. Zips: dist/duetto-$VERSION-*.zip"

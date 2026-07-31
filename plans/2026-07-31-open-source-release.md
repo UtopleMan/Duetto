@@ -37,21 +37,18 @@ zips). `.gitignore` already excludes `bin/ obj/ dist/`. 502 tests pass.
 ---
 
 ## Phase 1: Repo scaffolding & versioning
-Status: Not started
+Status: Complete
 
-- [ ] Add `LICENSE` (MIT, `Copyright (c) 2026 Peter`).
-- [ ] Add root `global.json` pinning the .NET SDK (`{"sdk":{"version":"10.0.100","rollForward":"latestFeature"}}`) so CI resolves .NET 10.
-- [ ] Add root `Directory.Build.props` with shared `<Version>1.0.0</Version>`,
-      `<Product>Duetto</Product>`, `<Company>` and `<Authors>` so assemblies carry
-      a version; verify both csproj inherit it.
-- [ ] Parameterize `scripts/make-app-bundle.sh`: accept a target RID (default
-      `osx-arm64`) and read a `VERSION` env var (default `1.0.0`) for
-      `CFBundleShortVersionString` / `CFBundleVersion`; publish that RID.
-- [ ] Parameterize `scripts/make-dmg.sh` similarly (RID + VERSION, output
-      `dist/Duetto-<version>-<arch>.dmg`).
-- [ ] Extend `scripts/publish-all.sh` to include `osx-x64` and stamp `-p:Version=$VERSION`;
-      name zips `duetto-<version>-<rid>.zip`.
-- [ ] Add `CHANGELOG.md` with a `1.0.0` entry summarizing current features.
+- [x] Add `LICENSE` (MIT, `Copyright (c) 2026 UtopleMan`).
+- [x] Add root `global.json` pinning the .NET SDK (`10.0.100`, `rollForward: latestFeature`) so CI resolves .NET 10.
+- [x] Add root `Directory.Build.props` with shared `<Version>1.0.0</Version>`,
+      `<Product>`, `<Company>`, `<Authors>`, `<Copyright>`; both csproj inherit it.
+- [x] Parameterize `scripts/make-app-bundle.sh`: RID arg (default `osx-arm64`) +
+      `VERSION` env (default `1.0.0`) stamped into `CFBundle*Version`.
+- [x] Parameterize `scripts/make-dmg.sh` (RID + VERSION → `dist/Duetto-<version>-<arch>.dmg`).
+- [x] Extend `scripts/publish-all.sh` to include `osx-x64`, stamp `-p:Version`, name
+      zips `duetto-<version>-<rid>.zip`.
+- [x] Add `CHANGELOG.md` with a `1.0.0` entry.
 
 ### Verification Plan
 - `test -f LICENSE && grep -q "MIT" LICENSE && echo LICENSE-OK`
@@ -60,7 +57,18 @@ Status: Not started
 - `VERSION=1.0.0 bash scripts/make-app-bundle.sh osx-arm64 >/dev/null 2>&1 && /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" dist/Duetto.app/Contents/Info.plist` → prints `1.0.0`
 
 ### Phase Summary
-_(write when phase completes)_
+Done. Added `LICENSE` (MIT, © 2026 UtopleMan), `global.json` (SDK 10.0.100
+latestFeature — resolves to local 10.0.301 and lets CI's setup-dotnet pick .NET
+10), `Directory.Build.props` (Version 1.0.0 + Product/Company/Authors/Copyright,
+inherited by all three projects), and `CHANGELOG.md` (1.0.0 feature list). Build
+scripts are now parameterized by **RID + `VERSION` env**: `make-app-bundle.sh`
+and `make-dmg.sh` take an RID (default `osx-arm64`) and stamp the version;
+`make-dmg.sh` emits `dist/Duetto-<version>-<arch>.dmg`; `publish-all.sh` now
+covers **osx-arm64, osx-x64, win-x64, linux-x64** and names zips
+`duetto-<version>-<rid>.zip`. All backward-compatible (no-arg calls still build
+osx-arm64 @ 1.0.0). Verified: `dotnet --version` 10.0.301 under the pin,
+LICENSE-OK, VERSION-OK, Release build succeeded, bundle Info.plist reads
+`1.0.0`, full suite still **502 passed**. Next: Phase 2 (README + screenshots).
 
 ---
 

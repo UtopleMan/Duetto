@@ -1,0 +1,11 @@
+<Project>
+  <!-- Shared metadata for all Duetto projects. Version is overridden in CI from the git tag
+       (dotnet publish -p:Version=x.y.z); 1.0.0 is the local/dev default. -->
+  <PropertyGroup>
+    <Version>1.0.0</Version>
+    <Product>Duetto</Product>
+    <Company>UtopleMan</Company>
+    <Authors>UtopleMan</Authors>
+    <Copyright>Copyright (c) 2026 UtopleMan</Copyright>
+  </PropertyGroup>
+</Project>

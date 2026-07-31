@@ -1,20 +1,19 @@
 #!/usr/bin/env bash
-# Builds dist/Duetto.app from a fresh osx-arm64 self-contained publish.
-# Requires macOS (sips + iconutil for the icon). Always republishes current
-# source before bundling.
+# Builds dist/Duetto.app from a fresh self-contained publish for the given macOS RID.
+# Usage: [VERSION=x.y.z] make-app-bundle.sh [osx-arm64|osx-x64]   (defaults: osx-arm64, 1.0.0)
+# Requires macOS (sips + iconutil for the icon). Always republishes current source.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+RID="${1:-osx-arm64}"
+VERSION="${VERSION:-1.0.0}"
 APP=dist/Duetto.app
-PUBLISH=dist/osx-arm64
+PUBLISH="dist/$RID"
 
-# Always publish so the bundle ships current source. dotnet publish is
-# incremental, so this is cheap when nothing changed; guarding on the binary's
-# existence silently shipped stale code.
-echo "== publishing osx-arm64 =="
-dotnet publish src/Duetto -c Release -r osx-arm64 --self-contained \
+echo "== publishing $RID (v$VERSION) =="
+dotnet publish src/Duetto -c Release -r "$RID" --self-contained \
   -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
-  -p:DebugType=none -o "$PUBLISH"
+  -p:DebugType=none -p:Version="$VERSION" -o "$PUBLISH"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
@@ -36,7 +35,7 @@ chmod +x "$APP/Contents/MacOS/Duetto"
 # Avalonia native lib ships beside the binary even with single-file publish.
 find "$PUBLISH" -maxdepth 1 -name "*.dylib" -exec cp {} "$APP/Contents/MacOS/" \;
 
-cat > "$APP/Contents/Info.plist" <<'PLIST'
+cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -44,8 +43,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleName</key><string>Duetto</string>
   <key>CFBundleDisplayName</key><string>Duetto</string>
   <key>CFBundleIdentifier</key><string>dk.truecon.duetto</string>
-  <key>CFBundleVersion</key><string>1.0.0</string>
-  <key>CFBundleShortVersionString</key><string>1.0.0</string>
+  <key>CFBundleVersion</key><string>${VERSION}</string>
+  <key>CFBundleShortVersionString</key><string>${VERSION}</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleExecutable</key><string>Duetto</string>
   <key>CFBundleIconFile</key><string>Duetto.icns</string>
@@ -56,4 +55,4 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 PLIST
 
 codesign --force --deep --sign - "$APP" 2>/dev/null || true
-echo "Built $APP"
+echo "Built $APP ($RID v$VERSION)"
