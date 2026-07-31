@@ -218,6 +218,34 @@ public class PaneTests
     }
 
     [AvaloniaFact]
+    public void Spacebar_marks_cursor_row_without_advancing()
+    {
+        using var tmp = new TempDir();
+        tmp.File("aaa.txt", "x");
+        tmp.File("bbb.txt", "x");
+        using var vm = new MainViewModel(tmp.Path, tmp.Path);
+        var window = new MainWindow(vm);
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        vm.Left.SelectByName("aaa.txt");
+        var before = vm.Left.Selection.SelectedIndex;
+
+        window.KeyPressQwerty(PhysicalKey.Space, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(vm.Left.Rows.Single(r => r.Name == "aaa.txt").IsMarked);
+        Assert.Equal(before, vm.Left.Selection.SelectedIndex); // no advance
+
+        // Pressing Space again toggles the mark back off.
+        window.KeyPressQwerty(PhysicalKey.Space, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(vm.Left.Rows.Single(r => r.Name == "aaa.txt").IsMarked);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public void Insert_steps_over_parent_row_without_marking()
     {
         using var tmp = new TempDir();
