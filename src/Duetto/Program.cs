@@ -11,6 +11,10 @@ internal static class Program
     public static int Main(string[] args)
     {
         Options = AppOptions.Parse(args);
+        // Best-effort: install the `duetto` shell launcher on PATH so the app can be started
+        // from a terminal. Skipped for headless smoke/screenshot/CI runs; never blocks startup.
+        if (!Options.Headless)
+            _ = Task.Run(CliInstall.EnsureBestEffort);
         return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
 

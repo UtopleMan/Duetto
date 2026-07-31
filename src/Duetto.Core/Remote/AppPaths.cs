@@ -42,6 +42,9 @@ public static class AppPaths
     /// <summary>Path to <c>window.json</c> inside <see cref="ConfigDir"/>.</summary>
     public static string WindowJsonPath => Path.Combine(ConfigDir, "window.json");
 
+    /// <summary>Path to <c>session.json</c> inside <see cref="ConfigDir"/>.</summary>
+    public static string SessionJsonPath => Path.Combine(ConfigDir, "session.json");
+
     // ── internal helpers ──────────────────────────────────────────────────────
 
     private static string GetConfigDir()

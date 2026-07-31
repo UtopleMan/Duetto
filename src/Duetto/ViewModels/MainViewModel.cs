@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Duetto.Core.FileSystem;
 using Duetto.Core.Operations;
 using Duetto.Core.Remote;
+using Duetto.Core.State;
 using Renci.SshNet.Common;
 
 namespace Duetto.ViewModels;
@@ -97,8 +98,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ConnectionManager? connectionManager = null,
         ConnectionStore? connectionStore = null,
         HostKeyStore? hostKeyStore = null,
-        SecretCodec? codec = null)
+        SecretCodec? codec = null,
+        SessionStore? sessionStore = null)
     {
+        _sessionStore = sessionStore;
         Registry = registry ?? new FileSystemRegistry();
         HostKeyStore = hostKeyStore ?? new HostKeyStore();
         ConnectionManager = connectionManager ?? new ConnectionManager(Registry, HostKeyStore);
@@ -164,6 +167,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Search.RefreshSearchSupported();
     }
 
+    /// <summary>Persists the two pane directories across restarts; null in tests/headless.</summary>
+    private readonly SessionStore? _sessionStore;
+
     /// <summary>
     /// The directory the left (active) pane opens at startup: a folder passed on the command
     /// line when present, otherwise the user's home directory.
@@ -171,13 +177,47 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public static string StartFolder(string? folder) =>
         folder ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
+    /// <summary>
+    /// Resolves the two pane start directories. A command-line folder wins for the left pane;
+    /// otherwise each pane restores its saved directory when that directory still exists
+    /// locally. Missing or remote (<c>sftp://…</c>) saved paths fall back to <paramref name="home"/>.
+    /// </summary>
+    public static (string Left, string Right) ResolveStartupPaths(
+        string? folderArg, SessionState? saved, string home)
+    {
+        static bool Usable(string? p) => p is not null && Directory.Exists(p);
+        var left = folderArg ?? (Usable(saved?.LeftPath) ? saved!.LeftPath : home);
+        var right = Usable(saved?.RightPath) ? saved!.RightPath : home;
+        return (left, right);
+    }
+
+    /// <summary>Saves the current pane directories so the next launch can restore them. No-op in tests/headless.</summary>
+    public void SaveSession() =>
+        _sessionStore?.Save(new SessionState(Left.CurrentPath, Right.CurrentPath));
+
     public MainViewModel()
+        : this(LoadProductionStartup())
+    {
+    }
+
+    // Loads the saved session once, resolves both pane start paths, and keeps the store for
+    // saving — all in a single file read. Null store when headless (no session.json IO).
+    private static (SessionStore? Store, string Left, string Right) LoadProductionStartup()
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var store = Program.Options.Headless ? null : new SessionStore(AppPaths.SessionJsonPath);
+        var (left, right) = ResolveStartupPaths(Program.Options.Folder, store?.Load(), home);
+        return (store, left, right);
+    }
+
+    private MainViewModel((SessionStore? Store, string Left, string Right) startup)
         : this(
-            StartFolder(Program.Options.Folder),
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            startup.Left,
+            startup.Right,
             registry: new FileSystemRegistry(),
             connectionStore: new ConnectionStore(AppPaths.ConnectionsJsonPath),
-            hostKeyStore: BuildProductionHostKeyStore())
+            hostKeyStore: BuildProductionHostKeyStore(),
+            sessionStore: startup.Store)
     {
         // Production only: run listing and rename off the UI thread. Tests use the
         // explicit ctor above and keep the default inline schedulers for deterministic asserts.
