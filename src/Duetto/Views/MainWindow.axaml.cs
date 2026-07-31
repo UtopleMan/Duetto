@@ -261,6 +261,22 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Rename/new-entry control keys. Handled here (tunnel, before the text-input guard)
+        // so Enter commits and Escape cancels regardless of whether the inline edit TextBox
+        // holds keyboard focus — routing to that box is otherwise fragile (focus timing, or
+        // the ListBoxItem/TextBox consuming the key first).
+        if (e.Key is Key.Enter or Key.Escape && e.KeyModifiers == KeyModifiers.None
+            && Vm.ActivePane.Rows.FirstOrDefault(r => r.IsEditing) is { } editing)
+        {
+            if (e.Key == Key.Enter)
+                Vm.ActivePane.CommitRename(editing);
+            else
+                Vm.ActivePane.CancelRename(editing);
+            RefocusActiveList();
+            e.Handled = true;
+            return;
+        }
+
         if (IsTextInputFocused())
             return;
 
