@@ -5,23 +5,14 @@ using DuettoConnectionInfo = Duetto.Core.Remote.ConnectionInfo;
 
 namespace Duetto.Tests.Core.Remote;
 
-/// <summary>
-/// Unit tests for <see cref="ConnectionManager"/> using a fake client factory.
-/// No sockets are opened; all operations are in-memory.
-/// </summary>
 public sealed class ConnectionManagerTests
 {
-    // ── helpers ──────────────────────────────────────────────────────────────
-
     private static DuettoConnectionInfo MakeInfo(string id = "conn1") =>
         new(id, "Test", "fake.local");
 
     private static ConnectSecret MakeSecret() => ConnectSecret.FromPassword("pw");
 
-    /// <summary>
-    /// Factory that returns the SAME <see cref="FakeSftpClientAdapter"/> on every call,
-    /// so tests can inspect the adapter state (ConnectCount, etc.) after the manager acts.
-    /// </summary>
+    // Returns the SAME adapter on every call, so tests can inspect its state (ConnectCount, etc.).
     private sealed class SingleAdapterFactory(FakeSftpClientAdapter Adapter) : ISftpClientFactory
     {
         public ISftpClientAdapter Create(DuettoConnectionInfo info, ConnectSecret secret) => Adapter;
@@ -37,8 +28,6 @@ public sealed class ConnectionManagerTests
         return (manager, registry, adapter);
     }
 
-    // ── Connect — registers the provider ─────────────────────────────────────
-
     [Fact]
     public void Connect_registers_provider_in_registry()
     {
@@ -47,7 +36,6 @@ public sealed class ConnectionManagerTests
         {
             manager.Connect(MakeInfo(), MakeSecret());
 
-            // The provider must be resolvable via sftp://conn1/some/path
             var (provider, localPath) = registry.Resolve("sftp://conn1/some/path");
             Assert.NotNull(provider);
             Assert.Equal("/some/path", localPath);
@@ -81,8 +69,6 @@ public sealed class ConnectionManagerTests
         }
     }
 
-    // ── Disconnect — unregisters the provider ────────────────────────────────
-
     [Fact]
     public void Disconnect_unregisters_provider_from_registry()
     {
@@ -115,7 +101,6 @@ public sealed class ConnectionManagerTests
         var (manager, _, _) = Make();
         using (manager)
         {
-            // Must not throw for an id that was never connected.
             manager.Disconnect("nonexistent");
         }
     }
@@ -132,8 +117,6 @@ public sealed class ConnectionManagerTests
             Assert.Empty(manager.ConnectedIds);
         }
     }
-
-    // ── Replace-on-reconnect ─────────────────────────────────────────────────
 
     [Fact]
     public void Connect_second_time_same_id_disposes_old_and_replaces()
@@ -152,21 +135,17 @@ public sealed class ConnectionManagerTests
 
         manager.Connect(MakeInfo(), MakeSecret());
 
-        // First adapter should be connected and registered.
         Assert.Equal(1, adapter1.ConnectCount);
-        Assert.True(adapter1.IsConnected); // sanity: it's connected
+        Assert.True(adapter1.IsConnected);
 
-        // Reconnect: should dispose adapter1 and register adapter2.
         manager.Connect(MakeInfo(), MakeSecret());
 
-        // adapter1 disposed — IsConnected returns false because Dispose calls Disconnect.
+        // IsConnected returns false because Dispose calls Disconnect.
         Assert.False(adapter1.IsConnected);
 
-        // adapter2 is the live one.
         Assert.Equal(1, adapter2.ConnectCount);
         Assert.True(adapter2.IsConnected);
 
-        // The registry should resolve to the NEW provider (backed by adapter2).
         var (provider, _) = registry.Resolve("sftp://conn1/");
         Assert.NotNull(provider);
     }
@@ -175,8 +154,6 @@ public sealed class ConnectionManagerTests
     {
         public ISftpClientAdapter Create(DuettoConnectionInfo info, ConnectSecret secret) => create(info);
     }
-
-    // ── Failed Connect leaves nothing registered ─────────────────────────────
 
     [Fact]
     public void Connect_failure_leaves_no_registration_and_no_tracking()
@@ -193,10 +170,7 @@ public sealed class ConnectionManagerTests
         Assert.Throws<SshAuthenticationException>(
             () => manager.Connect(MakeInfo(), MakeSecret()));
 
-        // Nothing registered.
         Assert.Throws<InvalidOperationException>(() => registry.Resolve("sftp://conn1/"));
-
-        // Not tracked.
         Assert.False(manager.IsConnected("conn1"));
         Assert.Empty(manager.ConnectedIds);
     }
@@ -204,8 +178,6 @@ public sealed class ConnectionManagerTests
     [Fact]
     public void Connect_failure_after_existing_connection_unregisters_old_and_leaves_nothing()
     {
-        // Scenario: connected, then reconnect attempt fails.
-        // The old connection must be gone; the failed attempt must not register.
         var registry = new FileSystemRegistry();
         var store = new HostKeyStore();
 
@@ -218,11 +190,9 @@ public sealed class ConnectionManagerTests
         var factory = new DelegateFactory(_ => callCount++ == 0 ? adapter1 : adapter2);
         using var manager = new ConnectionManager(registry, store, factory);
 
-        // First connect succeeds.
         manager.Connect(MakeInfo(), MakeSecret());
         Assert.True(manager.IsConnected("conn1"));
 
-        // Second connect attempt fails.
         Assert.Throws<SshAuthenticationException>(
             () => manager.Connect(MakeInfo(), MakeSecret()));
 
@@ -231,8 +201,6 @@ public sealed class ConnectionManagerTests
         Assert.False(manager.IsConnected("conn1"));
         Assert.Empty(manager.ConnectedIds);
     }
-
-    // ── DisposeAll / Dispose ─────────────────────────────────────────────────
 
     [Fact]
     public void DisposeAll_disconnects_and_unregisters_all()
@@ -276,10 +244,8 @@ public sealed class ConnectionManagerTests
         manager.Connect(MakeInfo(), MakeSecret());
 
         manager.Dispose();
-        manager.Dispose(); // second Dispose must not throw
+        manager.Dispose();
     }
-
-    // ── IsConnected / ConnectedIds edge cases ────────────────────────────────
 
     [Fact]
     public void IsConnected_returns_false_for_unknown_id()
@@ -319,7 +285,6 @@ public sealed class ConnectionManagerTests
         {
             manager.Connect(MakeInfo("Server1"), MakeSecret());
 
-            // Manager lookups are case-insensitive.
             Assert.True(manager.IsConnected("server1"));
 
             // Disconnect with different casing must still unregister the provider that was
@@ -331,8 +296,6 @@ public sealed class ConnectionManagerTests
                 () => registry.Resolve("sftp://Server1/path"));
         }
     }
-
-    // ── lock scope during the handshake ──────────────────────────────────────
 
     private static readonly TimeSpan GateTimeout = TimeSpan.FromSeconds(10);
 
@@ -364,7 +327,6 @@ public sealed class ConnectionManagerTests
             gate.Set(); // always release so connectTask cannot leak a blocked thread
         }
 
-        // Release the handshake: the connect must now complete and register.
         await connectTask;
         Assert.True(manager.IsConnected("conn1"));
         var (provider, _) = registry.Resolve("sftp://conn1/");
@@ -402,8 +364,6 @@ public sealed class ConnectionManagerTests
         Assert.Throws<InvalidOperationException>(() => registry.Resolve("sftp://conn1/"));
     }
 
-    // ── Finding 5: dispose/disconnect outside lock so a stalled peer can't freeze readers ──
-
     [Fact]
     public async Task IsConnected_responds_while_Disconnect_is_blocked_on_graceful_close()
     {
@@ -427,7 +387,6 @@ public sealed class ConnectionManagerTests
         manager.Connect(MakeInfo(), MakeSecret());
         Assert.True(manager.IsConnected("conn1"));
 
-        // Kick off Disconnect on a background thread — it will block inside the adapter.
         var disconnectTask = Task.Run(() => manager.Disconnect("conn1"));
 
         try

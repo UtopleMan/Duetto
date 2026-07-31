@@ -2,11 +2,6 @@ namespace Duetto.Core.FileSystem;
 
 public static class DirectoryLister
 {
-    /// <summary>
-    /// Lists a directory including hidden entries. Per-entry metadata failures are
-    /// swallowed (entry still returned with best-effort data); an unreadable
-    /// directory throws.
-    /// </summary>
     public static IReadOnlyList<FileEntry> List(string path)
     {
         var dir = new DirectoryInfo(path);

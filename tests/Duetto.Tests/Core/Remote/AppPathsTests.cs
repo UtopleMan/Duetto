@@ -2,11 +2,6 @@ using Duetto.Core.Remote;
 
 namespace Duetto.Tests.Core.Remote;
 
-/// <summary>
-/// Verifies that AppPaths returns non-empty, OS-appropriate paths and that
-/// accessing ConfigDir creates the directory (idempotent).
-/// These tests compute paths but do NOT write outside a TempDir.
-/// </summary>
 public class AppPathsTests
 {
     [Fact]
@@ -29,7 +24,6 @@ public class AppPathsTests
     [Fact]
     public void ConfigDir_creates_directory_idempotently()
     {
-        // Calling twice must not throw.
         var dir1 = AppPaths.ConfigDir;
         var dir2 = AppPaths.ConfigDir;
         Assert.Equal(dir1, dir2);

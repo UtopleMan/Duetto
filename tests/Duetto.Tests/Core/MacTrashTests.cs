@@ -5,12 +5,8 @@ using Xunit;
 
 namespace Duetto.Tests.Core;
 
-/// <summary>
-/// macOS-only: trashing an item that lives on a *different* volume must succeed. The old
-/// naive move into ~/.Trash fails across volumes; the native trash API routes it to the
-/// volume's own trash. Skips cleanly when not macOS or when a scratch disk image can't be
-/// mounted (e.g. CI).
-/// </summary>
+// macOS-only: trashing an item on a *different* volume must succeed. A naive move into
+// ~/.Trash fails across volumes; the native trash API routes it to the volume's own trash.
 public class MacTrashTests
 {
     [Fact]

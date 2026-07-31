@@ -28,7 +28,7 @@ public sealed record TransferFileState(
     TransferFileStatus Status,
     double Percent);
 
-/// <summary>Immutable snapshot of a running transfer, safe to hand to the UI thread.</summary>
+// Immutable snapshot of a running transfer, safe to hand to the UI thread.
 public sealed record TransferSnapshot(
     TransferMode Mode,
     string DestinationDir,
@@ -74,7 +74,7 @@ public sealed class TransferSession : IDisposable
     public bool IsCancelled => _cts.IsCancellationRequested;
     public string? FaultMessage => _faultMessage;
 
-    /// <summary>Raised from the worker thread whenever progress advances.</summary>
+    // Raised from the worker thread whenever progress advances.
     public event Action? Changed;
 
     internal TransferSession(TransferMode mode, string destinationDir)
@@ -102,11 +102,6 @@ public sealed class TransferSession : IDisposable
         Changed?.Invoke();
     }
 
-    /// <summary>
-    /// Marks the transfer as faulted with a human-readable message, cancels it, and
-    /// triggers the Changed event. The <see cref="Finished"/> call in the worker's
-    /// finally block will still run normally.
-    /// </summary>
     internal void Fault(string message)
     {
         _faultMessage = message;
@@ -225,22 +220,10 @@ public static class TransferEngine
 
     private static readonly LocalFileSystemProvider _local = new();
 
-    /// <summary>
-    /// Starts copying/moving <paramref name="sourcePaths"/> (files or directories)
-    /// into <paramref name="destinationDir"/> on a background task using the local
-    /// file system. Behavior is identical to before this overload was provider-aware.
-    /// </summary>
     public static TransferSession Start(
         IReadOnlyList<string> sourcePaths, string destinationDir, TransferMode mode)
         => Start(sourcePaths, _local, destinationDir, _local, mode);
 
-    /// <summary>
-    /// Provider-aware overload: copies/moves files from <paramref name="srcProvider"/>
-    /// into <paramref name="destProvider"/>. Stream-copy via <c>OpenRead</c>/<c>OpenWrite</c>;
-    /// <c>.part</c>+rename only when <c>dest.Capabilities.AtomicRename</c>; mtime copy only
-    /// when <c>dest.Capabilities.PreservesMTime</c>; move = native <c>Rename</c> when same
-    /// provider instance and <c>CanRename</c>, else copy+delete.
-    /// </summary>
     public static TransferSession Start(
         IReadOnlyList<string> sourcePaths,
         IFileSystemProvider srcProvider,
@@ -413,8 +396,6 @@ public static class TransferEngine
         }
     }
 
-    // ── Provider path helpers ────────────────────────────────────────────────
-
     private static string ProviderLeaf(string path, char sep)
     {
         var trimmed = path.TrimEnd(sep);
@@ -439,10 +420,6 @@ public static class TransferEngine
         return p.Length == 0 ? sep + name : p + sep + name;
     }
 
-    /// <summary>
-    /// Returns the relative portion of <paramref name="fullPath"/> below <paramref name="basePath"/>
-    /// using the source separator. E.g. base="/a" full="/a/b/c" sep='/' → "b/c".
-    /// </summary>
     private static string ProviderRelativePath(string basePath, string fullPath, char sep)
     {
         var b = basePath.TrimEnd(sep);
@@ -451,11 +428,6 @@ public static class TransferEngine
         return fullPath;
     }
 
-    /// <summary>
-    /// Appends a source-relative path segment onto a dest base, translating separators.
-    /// E.g. destBase="/dst", relPath="sub/file.txt", srcSep='/', destSep='/' → "/dst/sub/file.txt".
-    /// When source and dest use different separators the rel path segments are split and rejoined.
-    /// </summary>
     private static string ProviderCombineRel(string destBase, string relPath, char srcSep, char destSep)
     {
         var segments = relPath.Split(srcSep, StringSplitOptions.RemoveEmptyEntries);

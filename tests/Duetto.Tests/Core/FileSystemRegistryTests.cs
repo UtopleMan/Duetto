@@ -39,15 +39,12 @@ public class FileSystemRegistryTests
         Assert.Throws<InvalidOperationException>(() => reg.Resolve("sftp://c1/a"));
     }
 
-    // ── Finding 4: thread-safety under concurrent Register/Unregister/Resolve ─
-
     [Fact]
     public async Task Concurrent_Resolve_during_Register_Unregister_does_not_throw()
     {
-        // Stress test: 4 writer threads alternately Register and Unregister; 4 reader threads
-        // call Resolve in a tight loop.  The readers expect either a valid result or the
-        // "no provider registered" InvalidOperationException — anything else is a bug.
-        // Fixed iteration count (200 each) keeps the test deterministic and fast.
+        // Under concurrent Register/Unregister, a reader must see either a valid result or
+        // the "no provider registered" InvalidOperationException — anything else is a
+        // thread-safety bug.
         const int Iterations = 200;
 
         var reg = new FileSystemRegistry();

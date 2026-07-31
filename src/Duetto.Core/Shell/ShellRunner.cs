@@ -18,11 +18,6 @@ public sealed class ShellRunner
 
     public IReadOnlyList<string> History => _history;
 
-    /// <summary>
-    /// Runs a command line through the user's shell ($SHELL -c, cmd.exe /c on
-    /// Windows) in <paramref name="workingDir"/>, streaming each output line to
-    /// <paramref name="onLine"/> as it arrives.
-    /// </summary>
     public async Task<ShellResult> RunAsync(
         string command, string workingDir, Action<ShellLine> onLine, CancellationToken ct = default)
     {

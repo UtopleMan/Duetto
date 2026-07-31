@@ -23,7 +23,7 @@ public class DeleteOperationTests
         using var vm = new MainViewModel(tmp.Path, tmp.Path);
 
         var trashed = new List<string>();
-        vm.DeleteScheduler = (work, ct) => { work(ct); return Task.CompletedTask; }; // inline
+        vm.DeleteScheduler = (work, ct) => { work(ct); return Task.CompletedTask; };
         vm.TrashFn = p => { trashed.Add(p); return null; };
 
         MarkAll(vm.Left);
@@ -41,8 +41,8 @@ public class DeleteOperationTests
         tmp.File("b.txt", "b");
         tmp.File("c.txt", "c");
         using var vm = new MainViewModel(tmp.Path, tmp.Path);
-        vm.DeleteScheduler = (work, ct) => { work(ct); return Task.CompletedTask; }; // inline
-        vm.TrashFn = p => { File.Delete(p); return null; };                          // really remove
+        vm.DeleteScheduler = (work, ct) => { work(ct); return Task.CompletedTask; };
+        vm.TrashFn = p => { File.Delete(p); return null; };
 
         vm.Left.SelectByName("b.txt");
         vm.DeleteSelectedCommand.Execute(null);
@@ -70,7 +70,7 @@ public class DeleteOperationTests
         vm.TrashFn = p =>
         {
             trashed.Add(p);
-            if (trashed.Count == 1) // cancel right after the first item
+            if (trashed.Count == 1)
                 ((SimpleOperationViewModel)vm.ActiveOperation!).CancelOrDismissCommand.Execute(null);
             return null;
         };
@@ -78,8 +78,8 @@ public class DeleteOperationTests
         MarkAll(vm.Left);
         vm.DeleteSelectedCommand.Execute(null);
 
-        Assert.Single(trashed);            // stopped before the 2nd item
-        Assert.Null(vm.ActiveOperation);   // cancel dismissed the strip
+        Assert.Single(trashed);
+        Assert.Null(vm.ActiveOperation);
     }
 
     [AvaloniaFact]
@@ -104,7 +104,7 @@ public class DeleteOperationTests
         MarkAll(vm.Left);
         vm.DeleteSelectedCommand.Execute(null);
 
-        Assert.Equal(2, trashed.Count); // a + c trashed; b failed but did not abort the batch
+        Assert.Equal(2, trashed.Count);
     }
 
     [AvaloniaFact]
@@ -123,7 +123,6 @@ public class DeleteOperationTests
         var firstOp = vm.ActiveOperation;
         Assert.NotNull(firstOp);
 
-        // A second attempt must be ignored while the slot holds an unfinished op.
         MarkAll(vm.Left);
         vm.DeleteSelectedCommand.Execute(null);
 

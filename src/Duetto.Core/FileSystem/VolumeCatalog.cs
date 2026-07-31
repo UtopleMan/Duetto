@@ -31,7 +31,6 @@ public static class VolumeCatalog
             .ToList();
     }
 
-    /// <summary>Reads the real mounted volumes. Failures skip the volume, mirroring BuildPlaces.</summary>
     public static IReadOnlyList<VolumeInfo> List()
     {
         var platform = OperatingSystem.IsMacOS() ? VolumePlatform.Mac
@@ -62,7 +61,8 @@ public static class VolumeCatalog
         return Build(sources, platform);
     }
 
-    /// <summary>The volume whose mount is the longest prefix of <paramref name="path"/> on a segment boundary.</summary>
+    // Longest mount that is a prefix of path on a segment boundary — the boundary check
+    // stops "/foo" from matching "/foobar".
     public static VolumeInfo? FindByPath(IReadOnlyList<VolumeInfo> volumes, string path)
     {
         VolumeInfo? best = null;

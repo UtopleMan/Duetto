@@ -4,11 +4,6 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Duetto.ViewModels;
 
-/// <summary>
-/// An indeterminate long-running operation (delete, rename, slow listing): a
-/// title, a spinner, and a Cancel button. Cancelling trips the shared
-/// <see cref="CancellationTokenSource"/> the worker observes.
-/// </summary>
 public partial class SimpleOperationViewModel : ObservableObject, IStripOperation
 {
     private readonly CancellationTokenSource _cts;
@@ -22,7 +17,6 @@ public partial class SimpleOperationViewModel : ObservableObject, IStripOperatio
     [ObservableProperty]
     private string _cancelLabel = "Cancel";
 
-    /// <summary>Marks the strip template selection; always true for this VM.</summary>
     public bool IsIndeterminate => true;
 
     public event Action? Dismissed;
@@ -41,7 +35,6 @@ public partial class SimpleOperationViewModel : ObservableObject, IStripOperatio
         Dismiss();
     }
 
-    /// <summary>Worker calls this on completion: flips to a done state that auto-hides.</summary>
     public void Finish(string? finalTitle = null)
     {
         if (finalTitle is not null)

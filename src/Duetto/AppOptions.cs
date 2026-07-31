@@ -7,20 +7,14 @@ public enum ChromeKind
     Gnome,
 }
 
-/// <summary>Process-wide options parsed from the command line before Avalonia starts.</summary>
 public sealed class AppOptions
 {
     public ChromeKind Chrome { get; init; } = DefaultChrome();
     public bool Smoke { get; init; }
 
-    /// <summary>Render one frame headlessly, save it as PNG here, exit.</summary>
     public string? Screenshot { get; init; }
 
-    /// <summary>
-    /// Absolute path of the folder the active (left) pane should open, from the first
-    /// positional command-line argument. Null when absent or the path is missing / not a
-    /// directory — the caller falls back to home.
-    /// </summary>
+    // Null when absent or the path is missing / not a directory — the caller falls back to home.
     public string? Folder { get; init; }
 
     public bool Headless => Smoke || Screenshot is not null;
@@ -50,8 +44,7 @@ public sealed class AppOptions
                 case "--screenshot" when i + 1 < args.Length:
                     screenshot = args[++i];
                     break;
-                // First positional (non-flag) argument: the folder to open. Flag values are
-                // consumed above via ++i, so this only ever sees genuine positionals.
+                // Flag values are consumed above via ++i, so this only ever sees genuine positionals.
                 default:
                     if (folder is null && !args[i].StartsWith("--", StringComparison.Ordinal))
                         folder = ResolveFolder(args[i]);
@@ -62,11 +55,6 @@ public sealed class AppOptions
         return new AppOptions { Chrome = chrome, Smoke = smoke, Screenshot = screenshot, Folder = folder };
     }
 
-    /// <summary>
-    /// Resolves a command-line path to an absolute directory. Relative paths resolve against
-    /// the process working directory. Returns null when the path is not an existing directory
-    /// or is syntactically invalid.
-    /// </summary>
     private static string? ResolveFolder(string path)
     {
         try

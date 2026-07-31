@@ -5,10 +5,6 @@ using Duetto.ViewModels;
 
 namespace Duetto.Tests.Ui;
 
-/// <summary>
-/// The new-folder / new-file inline placeholder: an editable row is inserted with no
-/// disk write; committing a name creates the entry, Escape / empty / collision does not.
-/// </summary>
 public class NewEntryTests
 {
     private static FileRowViewModel Placeholder(PaneViewModel vm) =>
@@ -92,7 +88,6 @@ public class NewEntryTests
 
         Assert.True(row.IsEditing);
         Assert.Contains(vm.Rows, r => r.IsNewPlaceholder);
-        // The pre-existing directory is untouched; no second entry was created.
         Assert.Single(Directory.GetDirectories(tmp.Path));
     }
 

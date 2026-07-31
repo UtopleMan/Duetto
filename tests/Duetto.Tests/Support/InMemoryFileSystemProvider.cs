@@ -2,12 +2,6 @@ using Duetto.Core.FileSystem;
 
 namespace Duetto.Tests.Support;
 
-/// <summary>
-/// A '/'-rooted in-memory <see cref="IFileSystemProvider"/> test double. Mimics a remote
-/// backend (no trash, no watch, no capacity) so capability-gating and cross-provider
-/// transfers can be exercised without a network. Reused by the registry, UI and transfer
-/// tests, and validated against <c>FileSystemProviderContract</c>.
-/// </summary>
 public sealed class InMemoryFileSystemProvider : IFileSystemProvider
 {
     private sealed class Node

@@ -96,16 +96,13 @@ public class SearchServiceTests : IDisposable
     }
 }
 
-/// <summary>
-/// Verifies RelativeFolder correctness when the search scope is the provider root "/",
-/// i.e. localPath has a trailing separator. Exercises the scopeBase trimming fix.
-/// </summary>
+// Guards RelativeFolder when the search scope is the provider root "/" (localPath has a
+// trailing separator) — the scopeBase-trimming edge case.
 public class SearchServiceRootScopeTests
 {
     [Fact]
     public async Task RelativeFolder_correct_when_scope_is_root()
     {
-        // Build a registry that routes "mem://host" to an in-memory provider rooted at "/".
         var mem = new InMemoryFileSystemProvider
         {
             Capabilities = new Duetto.Core.FileSystem.FileSystemCapabilities
@@ -126,7 +123,6 @@ public class SearchServiceRootScopeTests
             }
         };
 
-        // Seed files: root-level, docs/, and docs/sub/
         var rootFile = mem.CreateFile("/", "root.txt");
         {
             using var w = mem.OpenWrite(rootFile);
@@ -163,20 +159,8 @@ public class SearchServiceRootScopeTests
     }
 }
 
-/// <summary>
-/// Exercises the provider-aware <see cref="SearchService.Search"/> overload via an
-/// <see cref="InMemoryFileSystemProvider"/> injected through a <see cref="FileSystemRegistry"/>.
-/// These tests never touch the real disk.
-/// </summary>
 public class SearchServiceProviderTests
 {
-    // ── helpers ──────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Builds a registry that routes "mem://host" to an in-memory provider, seeds
-    /// files under <paramref name="rootPath"/>, and returns the registry plus the
-    /// fully-qualified scope address used as scopeDir.
-    /// </summary>
     private static (FileSystemRegistry Registry, string Scope, InMemoryFileSystemProvider Mem)
         BuildMemRegistry(string rootPath, bool supportsSearch = true)
     {
@@ -201,13 +185,11 @@ public class SearchServiceProviderTests
         };
         var reg = new FileSystemRegistry();
         reg.Register("mem", "host", mem);
-        // Ensure the root directory exists in the in-memory store.
         SeedDir(mem, rootPath);
         var scope = "mem://host" + rootPath;
         return (reg, scope, mem);
     }
 
-    /// <summary>Ensures all ancestor directories of <paramref name="path"/> exist.</summary>
     private static void SeedDir(InMemoryFileSystemProvider mem, string path)
     {
         if (path == "/" || mem.DirectoryExists(path))
@@ -220,7 +202,6 @@ public class SearchServiceProviderTests
             mem.CreateDirectory(parent, name);
     }
 
-    /// <summary>Seeds a text file, creating any missing parent directories.</summary>
     private static void SeedFile(InMemoryFileSystemProvider mem, string path, string content)
     {
         var slash  = path.LastIndexOf('/');
@@ -232,8 +213,6 @@ public class SearchServiceProviderTests
         using var w = mem.OpenWrite(full);
         w.Write(bytes);
     }
-
-    // ── tests ─────────────────────────────────────────────────────────────
 
     [Fact]
     public async Task Provider_name_match_finds_nested_files_via_registry()

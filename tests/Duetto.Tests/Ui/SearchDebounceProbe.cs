@@ -18,7 +18,6 @@ public class SearchDebounceProbe
         window.Show();
         Dispatcher.UIThread.RunJobs();
 
-        // Simulate typing via the bound property, letting the 300 ms debounce fire.
         vm.Search.Query = "needle";
         for (var i = 0; i < 60 && vm.Search.Results.Count == 0; i++)
         {

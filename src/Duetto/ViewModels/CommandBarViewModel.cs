@@ -37,7 +37,6 @@ public partial class CommandBarViewModel : ObservableObject
 
     public ObservableCollection<OutputLine> Output { get; } = [];
 
-    /// <summary>Raised after a command exits so panes can refresh.</summary>
     public event Action? CommandFinished;
 
     public CommandBarViewModel(Func<string> cwdProvider) => _cwd = cwdProvider;
@@ -81,7 +80,6 @@ public partial class CommandBarViewModel : ObservableObject
     [RelayCommand]
     public void CloseDrawer() => IsDrawerOpen = false;
 
-    /// <summary>Esc: first close the drawer, then clear the input.</summary>
     public void Escape()
     {
         if (IsDrawerOpen)

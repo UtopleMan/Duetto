@@ -120,13 +120,11 @@ public class TransferEngineTests : IDisposable
         Assert.Equal(big.Length, session.Snapshot().BytesDone);
     }
 
-    /// <summary>
-    /// Deterministic: the source provider's read stream signals on its SECOND Read call
-    /// and then blocks. The engine's chunk loop is Read → pause-check → cancel-check →
-    /// Write → progress, so at the signal the first chunk has already been written to
-    /// the .part file. We then cancel and release the blocked read; the next
-    /// cancellation check throws mid-copy and the .part file must be cleaned up.
-    /// </summary>
+    // Deterministic: the source read stream signals on its SECOND Read call and then
+    // blocks. The engine's chunk loop is Read → pause-check → cancel-check → Write →
+    // progress, so at the signal the first chunk has already been written to the .part
+    // file. We then cancel and release the blocked read; the next cancellation check
+    // throws mid-copy and the .part file must be cleaned up.
     [Fact]
     public async Task Cancel_mid_copy_cleans_up_part_file()
     {
@@ -160,15 +158,11 @@ public class TransferEngineTests : IDisposable
         await session.Completion;
 
         Assert.True(session.Snapshot().IsCancelled);
-        // No orphaned .part files may remain.
         Assert.Empty(Directory.EnumerateFiles(_dst.Path, "*.part", SearchOption.AllDirectories));
     }
 
-    /// <summary>
-    /// Forwards everything to the inner provider but wraps <see cref="OpenRead"/> streams
-    /// in a <see cref="GatedReadStream"/> so a test can deterministically catch the
-    /// transfer engine mid-copy.
-    /// </summary>
+    // Wraps OpenRead streams in a GatedReadStream so a test can deterministically catch
+    // the transfer engine mid-copy.
     private sealed class GatedReadProvider(
         IFileSystemProvider inner, TaskCompletionSource midCopy, ManualResetEventSlim release)
         : IFileSystemProvider
@@ -193,11 +187,8 @@ public class TransferEngineTests : IDisposable
             new GatedReadStream(inner.OpenRead(path), midCopy, release);
     }
 
-    /// <summary>
-    /// Read-only stream wrapper: the second <see cref="Read"/> call completes
-    /// <paramref name="midCopy"/> and blocks on <paramref name="release"/> before
-    /// delegating, freezing the copy loop at a precisely known point.
-    /// </summary>
+    // The second Read call completes midCopy and blocks on release before delegating,
+    // freezing the copy loop at a precisely known point.
     private sealed class GatedReadStream(
         Stream inner, TaskCompletionSource midCopy, ManualResetEventSlim release) : Stream
     {

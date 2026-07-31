@@ -2,12 +2,10 @@ using System.Runtime.InteropServices;
 
 namespace Duetto.Core.Operations;
 
-/// <summary>
-/// macOS-only: moves an item to the trash via Cocoa's
-/// <c>[[NSFileManager defaultManager] trashItemAtURL:resultingItemURL:error:]</c> — the same
-/// API Finder uses. Unlike a raw move into <c>~/.Trash</c>, this records "Put Back" metadata
-/// and routes items on other volumes to that volume's own <c>.Trashes</c>.
-/// </summary>
+// macOS-only: trashes via Cocoa's [[NSFileManager defaultManager]
+// trashItemAtURL:resultingItemURL:error:] — the same API Finder uses. Unlike a raw
+// move into ~/.Trash, this records "Put Back" metadata and routes items on other
+// volumes to that volume's own .Trashes.
 internal static class MacTrash
 {
     private const string Libobjc = "/usr/lib/libobjc.dylib";
@@ -30,10 +28,6 @@ internal static class MacTrash
     [DllImport(Libobjc, EntryPoint = "objc_msgSend")]
     private static extern byte SendTrash(IntPtr receiver, IntPtr selector, IntPtr url, ref IntPtr resultUrl, ref IntPtr error);
 
-    /// <summary>
-    /// Trashes <paramref name="fullPath"/> and returns the resulting item's path inside the
-    /// trash. Throws <see cref="IOException"/> if the native call fails.
-    /// </summary>
     public static string Trash(string fullPath)
     {
         var nsString = objc_getClass("NSString");
@@ -65,7 +59,6 @@ internal static class MacTrash
         return description == IntPtr.Zero ? "unknown error" : Utf8(description);
     }
 
-    /// <summary>Reads an NSString's UTF-8 bytes into a managed string.</summary>
     private static string Utf8(IntPtr nsString)
     {
         if (nsString == IntPtr.Zero)

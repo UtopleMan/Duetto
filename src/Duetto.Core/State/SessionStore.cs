@@ -2,13 +2,6 @@ using System.Text.Json;
 
 namespace Duetto.Core.State;
 
-/// <summary>
-/// Persists the <see cref="SessionState"/> (the two pane directories) as JSON. Mirrors
-/// <c>WindowPlacementStore</c>: the production constructor uses the real filesystem with an
-/// atomic temp-then-move write; the injected constructor takes reader/writer delegates for
-/// unit tests. <see cref="Load"/> never throws — a missing, empty, or corrupt file yields
-/// <see langword="null"/> so the caller falls back to default folders.
-/// </summary>
 public sealed class SessionStore
 {
     private readonly string _path;
@@ -21,19 +14,18 @@ public sealed class SessionStore
         PropertyNameCaseInsensitive = true,
     };
 
-    /// <summary>Creates a store backed by the real filesystem at <paramref name="path"/>.</summary>
     public SessionStore(string path)
         : this(path,
                p => File.Exists(p) ? File.ReadAllText(p) : null,
                (p, content) =>
                {
+                   // Atomic temp-then-move so a crash mid-write cannot leave a torn file.
                    var tmp = p + ".tmp";
                    File.WriteAllText(tmp, content);
                    File.Move(tmp, p, overwrite: true);
                })
     { }
 
-    /// <summary>Creates a store with injected IO — intended for unit tests.</summary>
     public SessionStore(string path, Func<string, string?> reader, Action<string, string> writer)
     {
         _path = path;
@@ -41,10 +33,8 @@ public sealed class SessionStore
         _writer = writer;
     }
 
-    /// <summary>
-    /// Loads the saved session, or <see langword="null"/> when the file is missing, empty,
-    /// or corrupt. Never throws.
-    /// </summary>
+    // Null when the file is missing, empty, or corrupt — never throws, so the caller falls
+    // back to default folders instead of crashing on a mangled file.
     public SessionState? Load()
     {
         try
@@ -65,7 +55,6 @@ public sealed class SessionStore
         }
     }
 
-    /// <summary>Saves <paramref name="state"/>, overwriting any existing file.</summary>
     public void Save(SessionState state)
     {
         ArgumentNullException.ThrowIfNull(state);

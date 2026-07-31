@@ -10,7 +10,7 @@ namespace Duetto.Tests.Ui;
 
 public class BackgroundListingTests
 {
-    /// <summary>Hand-controlled load scheduler: nothing runs until the test releases it.</summary>
+    // Hand-controlled load scheduler: nothing runs until the test releases it.
     private sealed class ManualScheduler
     {
         private readonly List<(Func<IReadOnlyList<FileEntry>> Work, CancellationToken Ct,
@@ -57,24 +57,19 @@ public class BackgroundListingTests
         Assert.Equal(["..", "a.txt", "b.txt"], vm.Rows.Select(r => r.Name));
     }
 
-    /// <summary>
-    /// A Lister that throws HostKeyChangedException must not leave IsLoading stuck.
-    /// The work-lambda catch must absorb the exception, return [], and let ApplyWhenReady
-    /// reach IsLoading = false normally.
-    /// </summary>
+    // A Lister that throws HostKeyChangedException must not leave IsLoading stuck: the work-lambda
+    // catch must absorb it, return [], and let ApplyWhenReady reach IsLoading = false normally.
     [AvaloniaFact]
     public void HostKeyChanged_during_reload_does_not_stick_IsLoading()
     {
         using var tmp = new TempDir();
         using var vm = new PaneViewModel(tmp.Path); // initial load is synchronous
 
-        // Replace the lister with one that throws HostKeyChangedException.
         vm.Lister = _ => throw new HostKeyChangedException(
             "srv", "old-fp", "new-fp", "ssh-ed25519", "ssh-ed25519:[srv]:22");
 
-        // The ManualScheduler is not needed here: BackgroundScheduler is not set,
-        // so LoadScheduler is the default inline one. The task completes synchronously
-        // with the work lambda's catch result ([]).
+        // BackgroundScheduler is not set, so LoadScheduler is the default inline one: the task
+        // completes synchronously with the work lambda's catch result ([]).
         vm.Reload(preserveSelection: false);
         Dispatcher.UIThread.RunJobs();
 
@@ -95,12 +90,12 @@ public class BackgroundListingTests
         var ms = new ManualScheduler();
         vm.LoadScheduler = ms.Schedule;
 
-        vm.NavigateTo(Path.Combine(tmp.Path, "first"));   // load A (pending)
+        vm.NavigateTo(Path.Combine(tmp.Path, "first"));
         vm.NavigateTo(Path.Combine(tmp.Path, "second"));  // load B supersedes A
 
         Assert.Equal(2, ms.Count);
         ms.Release(0); // A resolves late — its token was cancelled, must not apply
-        ms.Release(1); // B applies
+        ms.Release(1);
 
         Assert.Equal(Path.Combine(tmp.Path, "second"), vm.CurrentPath);
         Assert.Equal(["..", "two.txt"], vm.Rows.Select(r => r.Name));

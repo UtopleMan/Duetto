@@ -34,7 +34,7 @@ public partial class MainWindow : Window
                     .ToList());
     }
 
-    /// <summary>Test seam: inject an in-memory placement store and a fake screen list.</summary>
+    // Test seam: inject an in-memory placement store and a fake screen list.
     internal MainWindow(MainViewModel vm, WindowPlacementStore placement,
         Func<IReadOnlyList<ScreenBounds>> screens)
         : this(vm)
@@ -151,10 +151,6 @@ public partial class MainWindow : Window
         Vm.ConnectToShare(stored, pane);
     }
 
-    /// <summary>
-    /// Opens ConnectWindow (optionally pre-filled via ForEdit) for a remote place click;
-    /// on success navigates <paramref name="pane"/> to the connection root.
-    /// </summary>
     private void OpenRemoteConnectDialog(StoredConnection? stored, PaneViewModel pane, Window owner)
     {
         var dialogVm = new ConnectDialogViewModel(
@@ -256,7 +252,6 @@ public partial class MainWindow : Window
 
     private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
     {
-        // Cmd/Ctrl+F focuses the search field from anywhere.
         if (e.Key == Key.F && e.KeyModifiers is KeyModifiers.Meta or KeyModifiers.Control)
         {
             SearchBox.Focus();
@@ -397,16 +392,13 @@ public partial class MainWindow : Window
 
     public PaneView ActivePaneView() => Vm.ActivePane == Vm.Left ? LeftPane : RightPane;
 
-    /// <summary>
-    /// Navigation reloads replace the row containers; the focused item detaches
-    /// asynchronously and would drop focus, so refocus after that cleanup runs.
-    /// </summary>
+    // Navigation reloads replace the row containers; the focused item detaches
+    // asynchronously and would drop focus, so refocus after that cleanup runs.
     private void RefocusActiveList(Avalonia.Threading.DispatcherPriority? priority = null) =>
         Avalonia.Threading.Dispatcher.UIThread.Post(
             () => ActivePaneView().FocusList(),
             priority ?? Avalonia.Threading.DispatcherPriority.Default);
 
-    /// <summary>Moves the cursor (single selection) by a row delta, clamped to the list.</summary>
     private void MoveCursorBy(int delta)
     {
         var pane = Vm.ActivePane;
@@ -421,10 +413,9 @@ public partial class MainWindow : Window
         RefocusActiveList();
     }
 
-    /// <summary>Rows visible in the active list at the 27px row height, minus one for context.</summary>
+    // Rows visible in the active list at the 27px row height, minus one for context.
     private int VisiblePageSize() =>
         Math.Max(1, (int)(ActivePaneView().List.Bounds.Height / 27) - 1);
-
 
     private bool IsTextInputFocused() =>
         FocusManager?.GetFocusedElement() is TextBox;

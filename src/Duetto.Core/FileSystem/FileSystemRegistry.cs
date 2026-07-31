@@ -1,18 +1,7 @@
 namespace Duetto.Core.FileSystem;
 
-/// <summary>
-/// Maps a path to the provider that owns it. Local paths resolve to the shared
-/// <see cref="LocalFileSystemProvider"/>; a <c>scheme://id/…</c> address resolves to the
-/// provider registered for that scheme+id (an SFTP connection, later S3/SMB), together
-/// with the provider-local path to hand it.
-///
-/// <para>
-/// <b>Thread safety:</b> <see cref="Register"/>, <see cref="Unregister"/>, and
-/// <see cref="Resolve"/> are all guarded by an internal lock so that UI panes and search
-/// threads may call <see cref="Resolve"/> concurrently with connection management writing
-/// the registry.
-/// </para>
-/// </summary>
+// Register/Unregister/Resolve are all guarded by an internal lock so UI panes and search
+// threads may call Resolve concurrently with connection management writing the registry.
 public sealed class FileSystemRegistry
 {
     private readonly IFileSystemProvider _local = new LocalFileSystemProvider();
@@ -47,6 +36,5 @@ public sealed class FileSystemRegistry
         throw new InvalidOperationException($"No file-system provider registered for {address.Scheme}://{address.Id}");
     }
 
-    /// <summary>The provider owning <paramref name="path"/> (ignores the resolved local path).</summary>
     public IFileSystemProvider ProviderFor(string path) => Resolve(path).Provider;
 }

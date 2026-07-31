@@ -76,43 +76,28 @@ public partial class SearchViewModel : ObservableObject
     [ObservableProperty]
     private bool _isSearching;
 
-    /// <summary>
-    /// True when the active pane's provider supports search. Defaults to true (local panes always support it).
-    /// Updated by <see cref="RefreshSearchSupported"/> which <see cref="MainViewModel"/> calls when
-    /// the active pane changes.
-    /// </summary>
+    // Defaults to true because local panes always support search.
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SearchWatermark))]
     private bool _isSearchSupported = true;
 
-    /// <summary>
-    /// The placeholder text shown in the search box. Switches to a "search unavailable" message
-    /// when the active pane's provider does not support search (<see cref="IsSearchSupported"/> is false),
-    /// so the disabled text box still communicates why it is disabled.
-    /// </summary>
+    // The unavailable message lets the disabled text box still communicate why it is disabled.
     public string SearchWatermark =>
         IsSearchSupported
             ? "Search everything below this folder…"
             : "Search unavailable for this provider";
 
-    /// <summary>"Open as pane": results stay visible after the query clears, until Esc or a new search.</summary>
+    // "Open as pane": results stay visible after the query clears, until Esc or a new search.
     [ObservableProperty]
     private bool _isPinned;
 
     public ObservableCollection<SearchResultRowViewModel> Results { get; } = [];
     public SelectionModel<SearchResultRowViewModel> Selection { get; } = new() { SingleSelect = false };
 
-    /// <summary>Raised when a result should be revealed in the left pane.</summary>
     public event Action<FileEntry>? RevealRequested;
 
-    /// <summary>
-    /// The display name for the search scope directory.
-    /// For local paths uses <see cref="PathUtil.Leaf"/>; falls back to the full path at a local root.
-    /// For remote paths uses <see cref="PathUtil.Leaf"/>; at a remote root (leaf is empty) falls
-    /// back to the connection name (from <see cref="ConnectionNameResolver"/>) or the id.
-    /// Choice rationale: the volume chip uses the same connection-name lookup, so the search
-    /// header stays consistent with the chip label already visible in the pane header.
-    /// </summary>
+    // Rationale: the volume chip uses the same connection-name lookup, so the search header stays
+    // consistent with the chip label already visible in the pane header.
     public string ScopeDirName
     {
         get
@@ -121,14 +106,11 @@ public partial class SearchViewModel : ObservableObject
             if (leaf.Length > 0)
                 return leaf;
 
-            // Empty leaf: either a local root ("/" or "C:\") or a remote root ("sftp://id/").
             if (PathUtil.ParseRemote(ScopeDir) is { } remote)
             {
-                // Remote root: show the connection name, falling back to the id.
                 return ConnectionNameResolver(remote.Id) ?? remote.Id;
             }
 
-            // Local root: show the full path (e.g. "/" or "C:\").
             return ScopeDir;
         }
     }
@@ -150,12 +132,7 @@ public partial class SearchViewModel : ObservableObject
         _ => "Any date",
     };
 
-    /// <summary>
-    /// Resolves the human-readable connection name for a given connection id.
-    /// Seam for tests; wired in <see cref="MainViewModel"/> to look up the name via the
-    /// <see cref="Duetto.Core.Remote.ConnectionStore"/>. Returns <see langword="null"/>
-    /// when the id is not found (caller falls back to showing the id itself).
-    /// </summary>
+    // Test seam. Returns null when the id is not found (caller falls back to showing the id itself).
     public Func<string, string?> ConnectionNameResolver { get; set; } = _ => null;
 
     public SearchViewModel(Func<string> scopeProvider, FileSystemRegistry? registry = null)
@@ -165,10 +142,6 @@ public partial class SearchViewModel : ObservableObject
         Selection.Source = Results;
     }
 
-    /// <summary>
-    /// Recomputes <see cref="IsSearchSupported"/> from the current active pane's provider.
-    /// Call from <see cref="MainViewModel"/> whenever the active pane changes.
-    /// </summary>
     public void RefreshSearchSupported()
     {
         var scope = _scopeProvider();
@@ -217,15 +190,12 @@ public partial class SearchViewModel : ObservableObject
         Query = "";
     }
 
-    /// <summary>
-    /// Path-like input ("/…", "~…", "C:\…", or anything with a separator) is an
-    /// address, not a query — Enter navigates instead, and no search runs.
-    /// </summary>
+    // Path-like input ("/…", "~…", "C:\…", or anything with a separator) is an address, not a
+    // query — Enter navigates instead, and no search runs.
     public static bool IsPathLike(string text) =>
         text.StartsWith('~') || Path.IsPathRooted(text) ||
         text.Contains(Path.DirectorySeparatorChar) || text.Contains(Path.AltDirectorySeparatorChar);
 
-    /// <summary>Runs the search immediately (debounce bypassed; used by the timer and tests).</summary>
     public async Task StartSearchAsync()
     {
         var query = Query.Trim();

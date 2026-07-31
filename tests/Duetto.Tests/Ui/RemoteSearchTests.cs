@@ -9,15 +9,8 @@ using Duetto.ViewModels;
 
 namespace Duetto.Tests.Ui;
 
-/// <summary>
-/// End-to-end tests for Task M: remote search correctness (reveal, delete-from-search,
-/// capability gating, HostKeyChanged mid-op, transfer-strip display address).
-/// All tests use <see cref="InMemoryFileSystemProvider"/> — no real SFTP connection.
-/// </summary>
 public class RemoteSearchTests
 {
-    // ── helpers ──────────────────────────────────────────────────────────────
-
     private static InMemoryFileSystemProvider MakeRemoteFs(
         bool canRename = true,
         bool canCreateEmptyDir = true,
@@ -59,14 +52,6 @@ public class RemoteSearchTests
         w.Write(bytes);
     }
 
-    // ── 1. Reveal navigates to the remote parent ─────────────────────────────
-
-    /// <summary>
-    /// RevealRequested on a remote search hit must navigate the left pane to the remote
-    /// parent directory (sftp://id/docs), not a bare local path (/docs). Before the fix
-    /// the handler used Path.GetDirectoryName which returned a local-looking "/docs" and
-    /// NavigateTo resolved against the local provider.
-    /// </summary>
     [AvaloniaFact]
     public async Task Reveal_remote_hit_navigates_left_pane_to_remote_parent()
     {
@@ -85,22 +70,11 @@ public class RemoteSearchTests
         vm.Search.Selection.Select(0);
         vm.Search.RevealSelected();
 
-        // The left pane must navigate to the remote parent, not a bare "/docs" path.
         Assert.Equal("sftp://srv/docs", vm.Left.CurrentPath);
         Assert.Equal("target.txt", (vm.Left.Selection.SelectedItem as FileRowViewModel)?.Name);
         Assert.True(vm.Left.IsActive);
     }
 
-    // ── 2. Delete-from-search hits the remote provider (data-loss guard) ────
-
-    /// <summary>
-    /// Deleting a remote search hit must delete from the REMOTE provider — not from a
-    /// same-named local path. Before the fix, if /docs/secret.txt existed locally AND on
-    /// the remote, the delete could silently wipe the local copy.
-    ///
-    /// Setup: remote file at /docs/secret.txt only (no local copy with that name).
-    /// After delete: remote file gone; the search-result row removed.
-    /// </summary>
     [AvaloniaFact]
     public async Task Delete_from_search_removes_file_from_remote_provider()
     {
@@ -125,12 +99,6 @@ public class RemoteSearchTests
         Assert.Empty(vm.Search.Results);
     }
 
-    // ── 3. SupportsSearch=false → IsSearchSupported=false ────────────────────
-
-    /// <summary>
-    /// When the active pane's provider returns SupportsSearch=false, IsSearchSupported
-    /// must be false after RefreshSearchSupported is called (triggered by pane switch).
-    /// </summary>
     [AvaloniaFact]
     public async Task IsSearchSupported_is_false_when_provider_does_not_support_search()
     {
@@ -140,24 +108,14 @@ public class RemoteSearchTests
         using var vm = new MainViewModel("sftp://nosearch/", "sftp://nosearch/", registry: reg);
         await vm.Left.LoadCompletion;
 
-        // RefreshSearchSupported is called in StartSearchAsync and on ActivePane change.
         await vm.Search.StartSearchAsync();
 
-        // After starting a search on a no-search provider, it should be false.
-        // (Query is empty so no actual search runs, but we can call it directly.)
         vm.Search.Query = "anything";
         vm.Search.RefreshSearchSupported();
 
         Assert.False(vm.Search.IsSearchSupported);
     }
 
-    /// <summary>
-    /// IsSearchSupported must be false immediately after construction when the initial
-    /// active pane's provider does not support search — no pane switch or query needed.
-    /// Before the fix, _isSearchSupported defaulted to true and RefreshSearchSupported
-    /// was never called in the constructor, so the first pane switch was required to
-    /// update the value.
-    /// </summary>
     [AvaloniaFact]
     public void IsSearchSupported_is_false_at_construction_when_initial_pane_has_no_search()
     {
@@ -166,7 +124,6 @@ public class RemoteSearchTests
 
         using var vm = new MainViewModel("sftp://nosearch/", "sftp://nosearch/", registry: reg);
 
-        // No pane switch, no search query — must be false right out of the constructor.
         Assert.False(vm.Search.IsSearchSupported);
     }
 
@@ -176,20 +133,16 @@ public class RemoteSearchTests
         var noSearchFs = MakeRemoteFs(supportsSearch: false);
         var reg = new FileSystemRegistry();
         reg.Register("sftp", "nosearch", noSearchFs);
-        // Right pane is local (default registry handles it), which supports search.
         using var tmp = new TempDir();
         using var vm = new MainViewModel(tmp.Path, "sftp://nosearch/", registry: reg);
         Dispatcher.UIThread.RunJobs();
 
-        // Initially on local Left pane → search supported.
         Assert.True(vm.Search.IsSearchSupported);
 
-        // Switch to the remote no-search pane.
         vm.Activate(vm.Right);
 
         Assert.False(vm.Search.IsSearchSupported);
 
-        // Switch back to local pane → supported again.
         vm.Activate(vm.Left);
         Assert.True(vm.Search.IsSearchSupported);
     }
@@ -210,8 +163,6 @@ public class RemoteSearchTests
         Assert.Empty(vm.Search.Results);
     }
 
-    // ── 4. Capability gating — F2/New/Delete no-op ──────────────────────────
-
     [AvaloniaFact]
     public void StartRename_noops_when_CanRename_is_false()
     {
@@ -226,7 +177,6 @@ public class RemoteSearchTests
         var result = vm.StartRename();
 
         Assert.Null(result);
-        // The row must not be in edit mode.
         var row = vm.Rows.FirstOrDefault(r => r.Name == "file.txt");
         Assert.NotNull(row);
         Assert.False(row!.IsEditing);
@@ -244,7 +194,6 @@ public class RemoteSearchTests
         var rowCountBefore = vm.Rows.Count;
         vm.NewFolder();
 
-        // No placeholder should have been inserted.
         Assert.Equal(rowCountBefore, vm.Rows.Count);
         Assert.DoesNotContain(vm.Rows, r => r.IsNewPlaceholder);
     }
@@ -278,26 +227,16 @@ public class RemoteSearchTests
         vm.DeleteScheduler = (work, ct) => { work(ct); return Task.CompletedTask; };
         vm.Left.SelectByName("keep.txt");
         vm.DeleteSelected();
-        // No delete operation should have started.
         Assert.Null(vm.ActiveOperation);
-        // File must still exist.
         Assert.True(fs.FileExists("/keep.txt"));
     }
 
-    // ── 5. Mid-op HostKeyChangedException → transfer faults with clear status ─
-
-    /// <summary>
-    /// A provider that throws HostKeyChangedException from OpenRead mid-transfer must
-    /// cause the transfer session to fault. The TransferViewModel title should contain
-    /// the fault message (not just "Copying cancelled").
-    /// </summary>
     [AvaloniaFact]
     public async Task Transfer_faults_with_message_on_HostKeyChanged()
     {
         var srcFs = new ThrowingProvider(new HostKeyChangedException(
             "srv", "old-fp", "new-fp", "ssh-ed25519", "ssh-ed25519:[srv]:22"));
         var dstFs = MakeRemoteFs();
-        // Register both under the same registry; srcFs handles "sftp://src/".
         var reg = new FileSystemRegistry();
         reg.Register("sftp", "src", srcFs);
         reg.Register("sftp", "dst", dstFs);
@@ -305,7 +244,6 @@ public class RemoteSearchTests
         using var vm = new MainViewModel("sftp://src/", "sftp://dst/", registry: reg);
         await vm.Left.LoadCompletion;
 
-        // Manually trigger a transfer via the engine (source path is provider-local).
         var session = TransferEngine.Start(
             ["/file.txt"],
             srcFs,
@@ -351,14 +289,6 @@ public class RemoteSearchTests
         Assert.Contains("reconnect", transferVm.Title);
     }
 
-    // ── 6. Transfer strip shows full address for remote destination ──────────
-
-    /// <summary>
-    /// When a transfer targets a remote directory (sftp://srv/incoming), the transfer strip
-    /// title must show the full sftp:// address, not just the provider-local path (/incoming).
-    /// Before the fix, StartTransfer passed destLocalDir (provider-local) to TransferEngine.Start,
-    /// so the strip showed "/incoming" instead of "sftp://srv/incoming".
-    /// </summary>
     [AvaloniaFact]
     public async Task Transfer_strip_shows_full_sftp_address_as_destination()
     {
@@ -376,23 +306,15 @@ public class RemoteSearchTests
         Assert.NotNull(vm.ActiveTransfer);
         var transfer = vm.ActiveTransfer!;
 
-        // Title is set in the constructor from DestinationDir.
         Assert.Contains("sftp://srv/incoming", transfer.Title);
         Assert.DoesNotContain("Copying to /incoming", transfer.Title);
 
         await transfer.Session.Completion;
         transfer.UpdateNow();
 
-        // After completion the title becomes "Copied to <dest>".
         Assert.Contains("sftp://srv/incoming", transfer.Title);
     }
 
-    // ── Helper: provider that throws on OpenRead ─────────────────────────────
-
-    /// <summary>
-    /// Wraps an in-memory provider but throws a given exception from <see cref="OpenRead"/>.
-    /// Used to simulate a mid-transfer HostKeyChangedException.
-    /// </summary>
     private sealed class ThrowingProvider(Exception ex) : IFileSystemProvider
     {
         private readonly InMemoryFileSystemProvider _inner = new();
@@ -419,7 +341,6 @@ public class RemoteSearchTests
             if (Stat("/file.txt") is { } e) yield return e;
         }
 
-        // Throws the injected exception to simulate a mid-transfer failure.
         public Stream OpenRead(string path) => throw ex;
 
         public Stream OpenWrite(string path) => _inner.OpenWrite(path);

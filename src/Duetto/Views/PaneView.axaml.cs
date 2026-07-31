@@ -63,12 +63,9 @@ public partial class PaneView : UserControl
         }
     }
 
-    /// <summary>
-    /// Reload replaces every row container; if the focused one died with it,
-    /// keyboard focus becomes null. Restore it to this pane when it is active.
-    /// The reload keeps a valid selected row (see <c>ApplyRows</c>), so the list
-    /// always has a container to focus.
-    /// </summary>
+    // Reload replaces every row container; if the focused one died with it, keyboard focus
+    // becomes null. Restore it to this pane when it is active. The reload keeps a valid selected
+    // row (see ApplyRows), so the list always has a container to focus.
     private void OnVmReloaded() => Dispatcher.UIThread.Post(() =>
     {
         if (Vm is { IsActive: true } &&
@@ -76,7 +73,6 @@ public partial class PaneView : UserControl
             FocusList();
     });
 
-    /// <summary>Focuses the selected row container, falling back to the list.</summary>
     public void FocusList()
     {
         var container = RowList.SelectedIndex >= 0 ? RowList.ContainerFromIndex(RowList.SelectedIndex) : null;
@@ -86,7 +82,6 @@ public partial class PaneView : UserControl
 
     private PaneViewModel? Vm => DataContext as PaneViewModel;
 
-    /// <summary>Raised when the user interacts with this pane; MainWindow marks it active.</summary>
     public event Action<PaneView>? Interacted;
 
     public ListBox List => RowList;
@@ -113,7 +108,6 @@ public partial class PaneView : UserControl
     private void OnSortType(object? sender, RoutedEventArgs e) => Vm?.SortBy(SortColumn.Type);
     private void OnSortModified(object? sender, RoutedEventArgs e) => Vm?.SortBy(SortColumn.Modified);
 
-    /// <summary>Type-ahead: printable characters jump the cursor to the first name match.</summary>
     public void TypeAhead(string symbol)
     {
         if (Vm is not { } vm)
@@ -245,10 +239,6 @@ public partial class PaneView : UserControl
         }
     }
 
-    /// <summary>
-    /// Opens ConnectWindow, optionally pre-filled for editing an existing connection.
-    /// On success navigates the pane to the connection root and rebuilds remote places.
-    /// </summary>
     private void OpenConnectDialog(PaneViewModel paneVm, StoredConnection? forEdit)
     {
         HideDriveFlyout();
@@ -259,10 +249,6 @@ public partial class PaneView : UserControl
         OpenConnectDialogCore(mainVm, paneVm, forEdit, owner);
     }
 
-    /// <summary>
-    /// Core helper: builds and shows the ConnectWindow against <paramref name="owner"/>.
-    /// Called both from the direct-edit path and from the <see cref="MainViewModel.OpenConnectDialog"/> seam.
-    /// </summary>
     private static void OpenConnectDialogCore(MainViewModel mainVm, PaneViewModel paneVm, StoredConnection? forEdit, Window owner)
     {
         var dialogVm = new ConnectDialogViewModel(
@@ -284,9 +270,6 @@ public partial class PaneView : UserControl
         new ConnectWindow(dialogVm).ShowDialog(owner);
     }
 
-    /// <summary>
-    /// Removes a saved connection from the store and rebuilds remote places.
-    /// </summary>
     private void RemoveConnection(string id)
     {
         HideDriveFlyout();
@@ -304,17 +287,13 @@ public partial class PaneView : UserControl
                 pane.NavigateTo(home);
         }
 
-        // Drop the live session and registry entry (no-op for unknown ids),
-        // then remove the saved record.
+        // Disconnect is a no-op for unknown ids.
         mainVm.ConnectionManager.Disconnect(id);
         var all = mainVm.ConnectionStore.Load().Where(c => !string.Equals(c.Id, id, StringComparison.OrdinalIgnoreCase)).ToArray();
         mainVm.ConnectionStore.Save(all);
         mainVm.RebuildRemotePlaces();
     }
 
-    /// <summary>
-    /// Handles a share row click: delegates to <see cref="MainViewModel.ConnectToShare"/>.
-    /// </summary>
     private void ActivateShare(PaneViewModel paneVm, ShareRowViewModel share)
     {
         HideDriveFlyout();
@@ -335,10 +314,6 @@ public partial class PaneView : UserControl
         mainVm.ConnectToShare(stored, paneVm);
     }
 
-    /// <summary>
-    /// Disconnects the current remote pane and navigates it home.
-    /// Parallel to the Eject behavior.
-    /// </summary>
     private void DisconnectCurrentPane(PaneViewModel paneVm)
     {
         HideDriveFlyout();
@@ -353,7 +328,7 @@ public partial class PaneView : UserControl
         paneVm.NavigateTo(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
     }
 
-    /// <summary>x:Name fields inside Flyout content can be unreliable; go via the chip.</summary>
+    // x:Name fields inside Flyout content can be unreliable; go via the chip.
     private void HideDriveFlyout()
     {
         VolumeChip.Flyout?.Hide();

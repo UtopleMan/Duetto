@@ -2,11 +2,7 @@ using Duetto.Core.Cli;
 
 namespace Duetto;
 
-/// <summary>
-/// Production wiring for <see cref="CliInstaller"/>: adapts the real PATH environment and
-/// filesystem, then installs the <c>duetto</c> launcher best-effort. Every failure is
-/// swallowed so CLI installation can never affect app startup.
-/// </summary>
+// Every failure is swallowed so CLI installation can never affect app startup.
 internal static class CliInstall
 {
     public static void EnsureBestEffort()

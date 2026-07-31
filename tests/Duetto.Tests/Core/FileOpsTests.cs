@@ -120,11 +120,6 @@ public class TrashServiceTests : IDisposable
         Assert.Throws<FileNotFoundException>(() => TrashService.Trash(Path.Combine(_tmp.Path, "ghost")));
 }
 
-/// <summary>
-/// Pins the provider-aware <see cref="FileOps"/> overloads: they route entirely through the
-/// <see cref="IFileSystemProvider"/> seam (proven against the '/'-rooted in-memory fake, which
-/// never touches local disk) while keeping the shared name validation and clobber guards.
-/// </summary>
 public class FileOpsProviderTests
 {
     private readonly InMemoryFileSystemProvider _fs = new();

@@ -22,7 +22,6 @@ public class RenameOperationTests
         row.EditName = "new.txt";
         vm.CommitRename(row);
 
-        // Scheduler is gated: the move has not happened yet.
         Assert.True(File.Exists(Path.Combine(tmp.Path, "old.txt")));
 
         gate.SetResult();

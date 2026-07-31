@@ -10,14 +10,8 @@ using DuettoConnectionInfo = Duetto.Core.Remote.ConnectionInfo;
 
 namespace Duetto.Tests.Ui;
 
-/// <summary>
-/// Tests for <see cref="MainViewModel.ConnectToShare"/> — the extracted share-connect flow
-/// (Phase 5 part 1, Requirement 1).
-/// </summary>
 public sealed class ConnectToShareTests
 {
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
     private static StoredConnection MakeStored(
         string id = "conn1",
         string name = "My Server",
@@ -42,8 +36,6 @@ public sealed class ConnectToShareTests
     {
         public ISftpClientAdapter Create(DuettoConnectionInfo info, ConnectSecret secret) => adapter;
     }
-
-    // ── Already connected: navigate directly ──────────────────────────────────
 
     [AvaloniaFact]
     public void Already_connected_navigates_immediately_no_dialog()
@@ -73,8 +65,6 @@ public sealed class ConnectToShareTests
         Assert.Equal("sftp://srv1/home/user", vm.Left.CurrentPath);
         Assert.Empty(dialogsOpened);
     }
-
-    // ── Secret saved, connect succeeds: navigate, no dialog ──────────────────
 
     [AvaloniaFact]
     public void Connect_succeeds_navigates_and_no_dialog()
@@ -108,8 +98,6 @@ public sealed class ConnectToShareTests
         Assert.Empty(dialogsOpened);
     }
 
-    // ── Background connect failure: dialog opens, no navigation ──────────────
-
     [AvaloniaFact]
     public void Connect_throws_SshAuthenticationException_opens_dialog_no_navigate()
     {
@@ -140,9 +128,7 @@ public sealed class ConnectToShareTests
         vm.ConnectToShare(stored, vm.Left);
         Dispatcher.UIThread.RunJobs();
 
-        // Dialog should have been opened (prefilled with the stored connection).
         Assert.Single(dialogsOpened);
-        // The pane must not have navigated.
         Assert.Equal(pathBefore, vm.Left.CurrentPath);
     }
 
@@ -214,13 +200,11 @@ public sealed class ConnectToShareTests
         Assert.Equal(pathBefore, vm.Left.CurrentPath);
     }
 
-    // ── No secret saved: dialog opens pre-filled ─────────────────────────────
-
     [AvaloniaFact]
     public void No_secret_opens_dialog_prefilled()
     {
         using var tmp = new TempDir();
-        var stored = MakeStored("srv1", savePassword: false); // no secret
+        var stored = MakeStored("srv1", savePassword: false);
 
         var registry = new FileSystemRegistry();
         var hks = new HostKeyStore();
@@ -242,9 +226,6 @@ public sealed class ConnectToShareTests
         Assert.Single(dialogsOpened);
         Assert.Equal("srv1", dialogsOpened[0]!.Id);
     }
-
-    // ── Seam capture: a later OpenConnectDialog overwrite must not leak into an
-    //    earlier in-flight connect's failure path ──────────────────────────────
 
     [AvaloniaFact]
     public void Connect_failure_invokes_the_dialog_seam_captured_at_call_time()
@@ -292,9 +273,6 @@ public sealed class ConnectToShareTests
     }
 }
 
-/// <summary>
-/// Tests for <see cref="PaneViewModel"/> load-catch robustness (Requirement 2).
-/// </summary>
 public sealed class PaneLoadRobustnessTests
 {
     [AvaloniaFact]
@@ -307,13 +285,11 @@ public sealed class PaneLoadRobustnessTests
         registry.Register("sftp", "srv1", new ThrowingProvider(new SshException("SFTP error")));
 
         using var pane = new PaneViewModel("sftp://srv1/", registry);
-        // Override Lister to throw SshException.
         pane.Lister = _ => throw new SshException("SFTP error");
 
         pane.Reload(preserveSelection: false);
 
         // At remote root there is no parent nav row.
-        // The list should be empty and IsLoading must be false.
         Assert.False(pane.IsLoading);
         Assert.Empty(pane.Rows);
     }
@@ -336,7 +312,7 @@ public sealed class PaneLoadRobustnessTests
         Assert.Empty(pane.Rows);
     }
 
-    /// <summary>Minimal provider that DirectoryExists=true but List throws.</summary>
+    // Minimal provider that DirectoryExists=true but List throws.
     private sealed class ThrowingProvider(Exception ex) : IFileSystemProvider
     {
         public FileSystemCapabilities Capabilities { get; } = new()
@@ -366,9 +342,6 @@ public sealed class PaneLoadRobustnessTests
     }
 }
 
-/// <summary>
-/// Tests for <see cref="SearchViewModel.ScopeDirName"/> via PathUtil (Requirement 3).
-/// </summary>
 public sealed class SearchScopeDirNameTests
 {
     [AvaloniaFact]

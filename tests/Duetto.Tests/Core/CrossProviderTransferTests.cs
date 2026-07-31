@@ -4,17 +4,8 @@ using Duetto.Tests.Support;
 
 namespace Duetto.Tests.Core;
 
-/// <summary>
-/// Cross-provider transfer tests: exercises the provider-aware TransferEngine.Start overload
-/// through InMemoryFileSystemProvider so no real disk or network is needed.
-/// Covers: file copy content round-trip, move via native rename (same provider),
-/// move via copy+delete (cross-provider), capability gating (no SetLastWriteTimeUtc
-/// when PreservesMTime is false), and directory recursion.
-/// </summary>
 public class CrossProviderTransferTests
 {
-    // ── helpers ──────────────────────────────────────────────────────────────
-
     private static InMemoryFileSystemProvider MakeMemFs(bool preservesMTime = true, bool atomicRename = true)
         => new() { Capabilities = new FileSystemCapabilities
         {
@@ -33,7 +24,6 @@ public class CrossProviderTransferTests
             Separator           = '/',
         }};
 
-    /// <summary>Seeds a file into an in-memory provider (creates parent dirs as needed).</summary>
     private static void Seed(InMemoryFileSystemProvider fs, string path, string content,
         DateTime? mtime = null)
     {
@@ -41,7 +31,6 @@ public class CrossProviderTransferTests
         var parent    = lastSlash <= 0 ? "/" : path[..lastSlash];
         var name      = path[(lastSlash + 1)..];
 
-        // Ensure parent directories exist.
         if (!fs.DirectoryExists(parent))
         {
             var segments = parent.Split('/', StringSplitOptions.RemoveEmptyEntries);
@@ -70,8 +59,6 @@ public class CrossProviderTransferTests
         s.CopyTo(ms);
         return System.Text.Encoding.UTF8.GetString(ms.ToArray());
     }
-
-    // ── tests ─────────────────────────────────────────────────────────────
 
     [Fact]
     public async Task File_copy_content_round_trip_inmemory_to_inmemory()
@@ -153,7 +140,6 @@ public class CrossProviderTransferTests
         src.CreateDirectory("/", "s");
         Seed(src, "/s/f.txt", "content", DateTime.UtcNow.AddHours(-1));
 
-        // Wrap an in-memory provider with a spy that tracks SetLastWriteTimeUtc calls.
         var innerDst   = MakeMemFs(preservesMTime: false);
         innerDst.CreateDirectory("/", "d");
         var spy = new MTimeCallSpy(innerDst);
@@ -235,7 +221,6 @@ public class CrossProviderTransferTests
     [Fact]
     public async Task Same_provider_move_cross_directory_uses_native_Move()
     {
-        // A single in-memory provider wrapped in a spy so we can confirm Move() was called.
         var inner = MakeMemFs();
         inner.CreateDirectory("/", "src");
         inner.CreateDirectory("/", "dst");
@@ -252,14 +237,8 @@ public class CrossProviderTransferTests
         Assert.Equal("native move content", ReadText(inner, "/dst/file.txt"));
     }
 
-    // ── spy wrappers ──────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Thin forwarding wrapper around an <see cref="IFileSystemProvider"/> that
-    /// records whether <see cref="SetLastWriteTimeUtc"/> was ever called.
-    /// Used to verify capability gating without subclassing the sealed
-    /// <see cref="InMemoryFileSystemProvider"/>.
-    /// </summary>
+    // A forwarding wrapper (rather than a subclass) is needed because
+    // InMemoryFileSystemProvider is sealed.
     private sealed class MTimeCallSpy(IFileSystemProvider inner) : IFileSystemProvider
     {
         public bool MTimeWasSet { get; private set; }
@@ -287,10 +266,6 @@ public class CrossProviderTransferTests
         }
     }
 
-    /// <summary>
-    /// Thin forwarding wrapper that records whether <see cref="Move"/> was invoked.
-    /// Used to verify the TransferEngine takes the native-move path for same-provider moves.
-    /// </summary>
     private sealed class MoveCallSpy(IFileSystemProvider inner) : IFileSystemProvider
     {
         public bool MoveWasCalled { get; private set; }

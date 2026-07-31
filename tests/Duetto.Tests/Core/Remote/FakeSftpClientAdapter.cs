@@ -4,25 +4,12 @@ using Renci.SshNet.Common;
 
 namespace Duetto.Tests.Core.Remote;
 
-/// <summary>
-/// In-memory fake for <see cref="ISftpClientAdapter"/> used to test
-/// <see cref="Duetto.Core.Remote.SftpFileSystemProvider"/> without any network.
-///
-/// <para>
-/// The tree is keyed by normalized SFTP paths (always '/', no trailing slash except root).
-/// File contents are stored as <c>byte[]</c> and returned via <see cref="MemoryStream"/>.
-/// Streams returned by <see cref="OpenWrite"/> write back to the node when disposed.
-/// </para>
-///
-/// <para>
-/// <see cref="ListDirectory"/> emits "." and ".." entries to mirror a real SFTP server;
-/// the provider is responsible for filtering them.
-/// </para>
-/// </summary>
+// The tree is keyed by normalized SFTP paths (always '/', no trailing slash except root).
+// Streams returned by OpenWrite write back to the node when disposed.
+// ListDirectory emits "." and ".." entries to mirror a real SFTP server; the provider is
+// responsible for filtering them.
 internal sealed class FakeSftpClientAdapter : ISftpClientAdapter
 {
-    // ── internal tree ─────────────────────────────────────────────────────────
-
     internal sealed class Node
     {
         public bool IsDirectory;
@@ -42,8 +29,6 @@ internal sealed class FakeSftpClientAdapter : ISftpClientAdapter
     {
         ["/"] = new Node { IsDirectory = true, OwnerExecute = true },
     };
-
-    // ── path normalisation ────────────────────────────────────────────────────
 
     private static string Norm(string path) => path.Length > 1 ? path.TrimEnd('/') : "/";
 
@@ -79,54 +64,32 @@ internal sealed class FakeSftpClientAdapter : ISftpClientAdapter
         OthersCanWrite: node.OtherWrite,
         OthersCanExecute: node.OtherExecute);
 
-    // ── ISftpClientAdapter transport ─────────────────────────────────────────
-
     private bool _connected;
     public bool IsConnected => _connected;
 
-    /// <summary>
-    /// When non-null the next <see cref="Connect"/> call will throw this exception
-    /// and then clear the field (one-shot).  Used by reconnect tests.
-    /// </summary>
+    // One-shot: the next Connect throws this then clears the field. Used by reconnect tests.
     public Exception? NextConnectThrow { get; set; }
 
-    /// <summary>Total number of successful <see cref="Connect"/> calls (initial + reconnects).</summary>
     public int ConnectCount { get; private set; }
 
-    /// <summary>
-    /// When non-null the next <see cref="ListDirectory"/> enumeration will throw this
-    /// exception and then clear the field (one-shot).  Used by reconnect-retry tests.
-    /// </summary>
+    // One-shot: the next ListDirectory enumeration throws this then clears the field.
     public Exception? NextListThrow { get; set; }
 
-    /// <summary>
-    /// Per-path persistent throws for <see cref="ListDirectory"/> — every enumeration of a
-    /// listed path throws the mapped exception.  Used by per-directory failure tests.
-    /// </summary>
+    // Persistent (unlike NextListThrow): every enumeration of a listed path throws the
+    // mapped exception. Used by per-directory failure tests.
     public Dictionary<string, Exception> ListThrowsByPath { get; } = new();
 
-    /// <summary>
-    /// When non-null, <see cref="Connect"/> signals this event on entry.
-    /// Used by lock-scope tests to detect that a (blocked) handshake has started.
-    /// </summary>
+    // Lock-scope tests: signalled on Connect entry to detect that a (blocked) handshake started.
     public ManualResetEventSlim? ConnectEntered { get; set; }
 
-    /// <summary>
-    /// When non-null, <see cref="Connect"/> blocks on this gate before completing.
-    /// Used by lock-scope tests to simulate a slow SSH handshake.
-    /// </summary>
+    // Lock-scope tests: Connect blocks on this gate to simulate a slow SSH handshake.
     public ManualResetEventSlim? ConnectGate { get; set; }
 
-    /// <summary>
-    /// When non-null, <see cref="Disconnect"/> signals this event on entry.
-    /// Used by lock-scope tests to detect that a (blocked) disconnect has started.
-    /// </summary>
+    // Lock-scope tests: signalled on Disconnect entry to detect that a (blocked) disconnect started.
     public ManualResetEventSlim? DisconnectEntered { get; set; }
 
-    /// <summary>
-    /// When non-null, <see cref="Disconnect"/> (and <see cref="Dispose"/>) blocks on this gate.
-    /// Used by lock-scope tests to simulate a slow or stalled graceful disconnect.
-    /// </summary>
+    // Lock-scope tests: Disconnect (and Dispose) block on this gate to simulate a slow or
+    // stalled graceful disconnect.
     public ManualResetEventSlim? DisconnectGate { get; set; }
 
     public void Connect()
@@ -151,9 +114,7 @@ internal sealed class FakeSftpClientAdapter : ISftpClientAdapter
         _connected = false;
     }
 
-    public void SetHostKeyReceived(EventHandler<HostKeyEventArgs> handler) { /* no-op in fake */ }
-
-    // ── narrow SFTP ops ───────────────────────────────────────────────────────
+    public void SetHostKeyReceived(EventHandler<HostKeyEventArgs> handler) { }
 
     public IEnumerable<SftpEntry> ListDirectory(string path)
     {
@@ -235,7 +196,6 @@ internal sealed class FakeSftpClientAdapter : ISftpClientAdapter
         if (!isPosix && _nodes.ContainsKey(to))
             throw new SftpPermissionDeniedException($"Destination exists: {to}");
 
-        // Move the subtree: rename all keys that start with from.
         var toMove = _nodes.Keys
             .Where(k => k == from || k.StartsWith(from + "/", StringComparison.Ordinal))
             .ToList();
@@ -292,8 +252,6 @@ internal sealed class FakeSftpClientAdapter : ISftpClientAdapter
         DisconnectGate?.Wait();
         _connected = false;
     }
-
-    // ── helper: write-back stream ─────────────────────────────────────────────
 
     private sealed class WriteBackStream(Action<byte[]> commit) : MemoryStream
     {

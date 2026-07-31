@@ -3,13 +3,8 @@ using System.Security.Cryptography;
 
 namespace Duetto.Tests.Core.Remote;
 
-/// <summary>
-/// Tests for SecretCodec obfuscation.  All tests inject a deterministic 32-byte key so
-/// results are reproducible across machines.
-/// </summary>
 public class SecretCodecTests
 {
-    // Fixed 32-byte test key (non-zero, non-trivial).
     private static readonly byte[] TestKey = SHA256.HashData("duetto-test-key-v1"u8.ToArray());
 
     private static SecretCodec MakeCodec() => new(TestKey);
@@ -62,7 +57,7 @@ public class SecretCodecTests
     public void Encrypt_unicode_string_round_trips()
     {
         var codec = MakeCodec();
-        const string plaintext = "päässönä"; // Finnish "päässönä"
+        const string plaintext = "päässönä";
         var cipher = codec.Encrypt(plaintext);
         Assert.Equal(plaintext, codec.TryDecrypt(cipher));
     }

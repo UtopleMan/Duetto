@@ -8,22 +8,10 @@ using Renci.SshNet.Common;
 
 namespace Duetto.Tests.Ui;
 
-/// <summary>
-/// VM-level and headless UI tests for <see cref="ConnectDialogViewModel"/>
-/// and app composition (<see cref="MainViewModel"/> registry seam).
-/// </summary>
 public sealed class ConnectDialogTests
 {
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
     private static SecretCodec MakeCodec() => new();
 
-    /// <summary>
-    /// Builds a test VM with injected seams. The public seam properties
-    /// (<see cref="ConnectDialogViewModel.ConnectAction"/>, SaveAction, ForgetKeyAction)
-    /// are overwritten after construction so that tests can control behaviour without
-    /// touching the real filesystem or any network.
-    /// </summary>
     private static (ConnectDialogViewModel Vm,
                     List<(ConnectionInfo Info, ConnectSecret Secret)> Connects,
                     List<StoredConnection> Saved,
@@ -41,7 +29,6 @@ public sealed class ConnectDialogTests
         var manager = new ConnectionManager(registry, hks);
 
         var vm = new ConnectDialogViewModel(manager, store, hks, codec);
-        // Override seam actions for test isolation.
         vm.ConnectAction = connectOverride ?? ((i, s) => connects.Add((i, s)));
         vm.SaveAction = s => saved.Add(s);
         vm.ForgetKeyAction = k => forgot.Add(k);
@@ -58,14 +45,11 @@ public sealed class ConnectDialogTests
         vm.Password = "hunter2";
     }
 
-    // ── Validation ────────────────────────────────────────────────────────────
-
     [AvaloniaFact]
     public async Task Validation_fails_when_host_is_empty()
     {
         var (vm, _, saved, _) = MakeVm();
         vm.Username = "alice";
-        // Host is empty (default "")
 
         await vm.ConnectAsync();
 
@@ -78,7 +62,6 @@ public sealed class ConnectDialogTests
     {
         var (vm, _, saved, _) = MakeVm();
         vm.Host = "example.com";
-        // Username is empty (default "")
 
         await vm.ConnectAsync();
 
@@ -115,8 +98,6 @@ public sealed class ConnectDialogTests
         Assert.Empty(saved);
     }
 
-    // ── Success path ──────────────────────────────────────────────────────────
-
     [AvaloniaFact]
     public async Task Connect_success_raises_Connected_event_and_saves()
     {
@@ -143,7 +124,6 @@ public sealed class ConnectDialogTests
     {
         var (vm, _, saved, _) = MakeVm();
         FillValid(vm);
-        // Name is blank
 
         await vm.ConnectAsync();
 
@@ -171,7 +151,6 @@ public sealed class ConnectDialogTests
     {
         var codec = MakeCodec();
         var (vm, _, saved, _) = MakeVm();
-        // Rebuild with same codec to verify round-trip
         vm.SavePassword = true;
         FillValid(vm);
         vm.Password = "secret123";
@@ -181,12 +160,9 @@ public sealed class ConnectDialogTests
         Assert.Single(saved);
         Assert.True(saved[0].SavePassword);
         Assert.NotEmpty(saved[0].ObfuscatedSecret);
-        // The stored value must decode to the original password.
         var secret = ConnectionStore.ResolveSecret(saved[0], codec);
         Assert.Equal("secret123", secret!.Password);
     }
-
-    // ── Auth failure ──────────────────────────────────────────────────────────
 
     [AvaloniaFact]
     public async Task Auth_failure_surfaces_error_and_does_not_save()
@@ -215,8 +191,6 @@ public sealed class ConnectDialogTests
         Assert.Contains("Connection failed", vm.ErrorText);
         Assert.Empty(saved);
     }
-
-    // ── HostKeyChangedException path ──────────────────────────────────────────
 
     [AvaloniaFact]
     public async Task HostKeyChanged_enters_warning_state_with_fingerprints()
@@ -258,18 +232,15 @@ public sealed class ConnectDialogTests
                 throw new HostKeyChangedException(
                     "example.com", "OLD", "NEW", "ssh-ed25519",
                     "ssh-ed25519:[example.com]:22");
-            // Second call succeeds (callCount == 2)
         });
         vm.ForgetKeyAction = k => forgets.Add(k);
         vm.SaveAction = s => saves.Add(s);
 
         FillValid(vm);
 
-        // First call: triggers host-key warning
         await vm.ConnectAsync();
         Assert.True(vm.IsHostKeyChanged);
 
-        // Accept new key: forget + retry
         ConnectionInfo? connectedInfo = null;
         vm.Connected += info => connectedInfo = info;
         await vm.AcceptNewKeyAsync();
@@ -289,15 +260,12 @@ public sealed class ConnectDialogTests
         var (vm, connects, saved, forgot) = MakeVm();
         FillValid(vm);
 
-        // Do NOT trigger a host-key change — call AcceptNewKey directly.
         await vm.AcceptNewKeyAsync();
 
         Assert.Empty(connects);
         Assert.Empty(saved);
         Assert.Empty(forgot);
     }
-
-    // ── ForEdit ───────────────────────────────────────────────────────────────
 
     [AvaloniaFact]
     public async Task ForEdit_prefills_fields_from_stored_connection()
@@ -342,15 +310,12 @@ public sealed class ConnectDialogTests
         Assert.Equal("fixed-id", saved[0].Id);
     }
 
-    // ── Composition: ONE shared registry ─────────────────────────────────────
-
     [AvaloniaFact]
     public void MainViewModel_panes_share_the_same_registry_instance()
     {
         using var tmp = new TempDir();
         using var vm = new MainViewModel(tmp.Path, tmp.Path);
 
-        // Both panes must reference the same FileSystemRegistry as MainViewModel.Registry.
         Assert.Same(vm.Registry, vm.Left.Registry);
         Assert.Same(vm.Registry, vm.Right.Registry);
     }
@@ -358,15 +323,11 @@ public sealed class ConnectDialogTests
     [AvaloniaFact]
     public void MainViewModel_search_uses_the_same_registry_instance()
     {
-        // SearchViewModel stores the registry internally; we verify it via the registry
-        // injection path by checking that a provider registered in MainViewModel.Registry
-        // is visible to search results. (A thorough registry-equality test via reflection
-        // would be brittle; the composition test below is the meaningful check.)
+        // SearchViewModel stores the registry privately; a reflection-based equality check
+        // would be brittle, so we assert on the pane registries that share the same instance.
         using var tmp = new TempDir();
         using var vm = new MainViewModel(tmp.Path, tmp.Path);
 
-        // The registry is the same instance injected into both panes; SearchViewModel
-        // also receives it. We check that both pane registries are the shared one.
         Assert.Same(vm.Left.Registry, vm.Right.Registry);
         Assert.Same(vm.Registry, vm.Left.Registry);
     }
@@ -376,11 +337,8 @@ public sealed class ConnectDialogTests
     {
         using var tmp = new TempDir();
         var vm = new MainViewModel(tmp.Path, tmp.Path);
-        // Should not throw even if ConnectionManager.Dispose() is called with no active connections.
         vm.Dispose();
     }
-
-    // ── SshException subclass (e.g. timeout) ─────────────────────────────────
 
     [AvaloniaFact]
     public async Task SshOperationTimeout_resets_IsConnecting_and_surfaces_error()
@@ -397,13 +355,10 @@ public sealed class ConnectDialogTests
         Assert.Empty(saved);
     }
 
-    // ── Headless UI: popover Connect row still raises request ─────────────────
-
     [AvaloniaFact]
     public void Connect_command_raises_request_unchanged_after_stub_removal()
     {
-        // This is the same contract the old ConnectStubWindow test relied on.
-        // The VM event contract must not have changed.
+        // Regression guard for the same VM event contract the old ConnectStubWindow test relied on.
         using var tmp = new TempDir();
         using var pane = new PaneViewModel(tmp.Path);
         pane.Drives.ListVolumes = () => [];

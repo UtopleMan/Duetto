@@ -19,51 +19,34 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     private DispatcherTimer? _reloadDebounce;
     private CancellationTokenSource? _loadCts;
 
-    /// <summary>The active "new folder/file" placeholder row, or null when none is being named.</summary>
     private FileRowViewModel? _editingPlaceholder;
 
-    /// <summary>
-    /// Maps a path to its provider. Default is a shared local-only instance; tests inject a
-    /// registry pre-populated with an in-memory provider to exercise remote navigation without
-    /// touching the disk. Matches the pattern used by <see cref="MainViewModel.Registry"/>.
-    /// </summary>
+    // Default is a shared local-only instance; tests inject a registry pre-populated with
+    // an in-memory provider to exercise remote navigation without touching the disk.
     public FileSystemRegistry Registry { get; set; } = SharedLocalRegistry;
 
-    /// <summary>A local-only registry shared by all panes that have not been given a custom one.</summary>
     private static readonly FileSystemRegistry SharedLocalRegistry = new();
 
-    /// <summary>
-    /// Reads a directory. Routes through <see cref="Registry"/> so remote addresses
-    /// resolve to the correct provider. Seam for tests: inject a custom registry or
-    /// replace this delegate directly for lower-level overrides.
-    /// </summary>
     public Func<string, IReadOnlyList<FileEntry>> Lister { get; set; }
 
-    /// <summary>
-    /// Schedules the listing work. Default runs it inline (synchronous); production
-    /// swaps in <see cref="BackgroundScheduler"/> so slow directories never block the UI.
-    /// </summary>
+    // Default runs inline; production swaps in BackgroundScheduler so slow directories
+    // never block the UI.
     public Func<Func<IReadOnlyList<FileEntry>>, CancellationToken, Task<IReadOnlyList<FileEntry>>> LoadScheduler { get; set; }
         = static (work, _) => Task.FromResult(work());
 
-    /// <summary>Runs the listing on a thread-pool thread. Wired in by production composition.</summary>
     public static readonly Func<Func<IReadOnlyList<FileEntry>>, CancellationToken, Task<IReadOnlyList<FileEntry>>>
         BackgroundScheduler = static (work, ct) => Task.Run(work, ct);
 
-    /// <summary>Completes when the in-flight load finishes; tests await this to settle.</summary>
     public Task LoadCompletion { get; private set; } = Task.CompletedTask;
 
-    /// <summary>Schedules the rename move. Default inline; production offloads to a worker thread.</summary>
     public Func<Action, Task> RenameScheduler { get; set; }
         = static work => { work(); return Task.CompletedTask; };
 
-    /// <summary>Runs the rename move on a thread-pool thread. Wired in by production composition.</summary>
     public static readonly Func<Action, Task> BackgroundRenameScheduler = static work => Task.Run(work);
 
-    /// <summary>Completes when the in-flight rename finishes; tests await this to settle.</summary>
     public Task RenameCompletion { get; private set; } = Task.CompletedTask;
 
-    /// <summary>True when a FileSystemWatcher is live for the current path. Remote panes never have one.</summary>
+    // Remote panes never have a watcher.
     public bool HasActiveWatcher => _watcher is not null;
 
     [ObservableProperty]
@@ -93,19 +76,17 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string _statusText = "";
 
-    /// <summary>True while a background listing is in flight (drives the "Loading…" overlay).</summary>
     [ObservableProperty]
     private bool _isLoading;
 
     public ObservableCollection<FileRowViewModel> Rows { get; } = [];
 
-    /// <summary>The cursor: exactly one row. Marks live on <see cref="FileRowViewModel.IsMarked"/>.</summary>
+    // The cursor is exactly one row; multi-selection marks live on FileRowViewModel.IsMarked.
     public SelectionModel<FileRowViewModel> Selection { get; } = new() { SingleSelect = true };
 
-    /// <summary>Raised after Reload rebuilds Rows — the view restores keyboard focus.</summary>
+    // Raised after Reload rebuilds Rows so the view can restore keyboard focus.
     public event Action? Reloaded;
 
-    /// <summary>Replaceable for tests; production launches with the OS default app.</summary>
     public Action<string> LaunchFile { get; set; } = static path =>
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
 
@@ -115,7 +96,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     {
         get
         {
-            // Remote path: show the connection name (looked up by id from the shares seam).
             if (PathUtil.ParseRemote(CurrentPath) is { } remote)
             {
                 var name = Drives.ConnectionNameFor(remote.Id);
@@ -132,7 +112,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     {
         get
         {
-            // Remote path: the tail is the provider-local path from PathUtil.
             if (PathUtil.ParseRemote(CurrentPath) is { } remote)
             {
                 var local = remote.LocalPath;
@@ -158,8 +137,8 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         _currentPath = initialPath;
         if (registry is not null)
             Registry = registry;
-        // Default lister routes through the registry so remote addresses hit the right provider.
-        // Tests can replace the Lister delegate directly for lower-level overrides.
+        // Routes through the registry so remote addresses hit the right provider; tests can
+        // replace the Lister delegate directly for lower-level overrides.
         Lister = path =>
         {
             var (provider, localPath) = Registry.Resolve(path);
@@ -175,7 +154,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     [RelayCommand]
     public void NavigateTo(string path) => NavigateTo(path, null);
 
-    /// <summary>Navigate, then select <paramref name="selectName"/> once the load lands (else the first row).</summary>
     public void NavigateTo(string path, string? selectName)
     {
         try
@@ -276,11 +254,8 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     public Task Reload(bool preserveSelection) =>
         StartLoad(preserveSelection, selectAfter: null, selectFirst: false);
 
-    /// <summary>
-    /// Kicks off a listing via <see cref="LoadScheduler"/>. A newer load cancels
-    /// and supersedes any in-flight one; the stale result is discarded so rapid
-    /// navigation always lands on the final directory.
-    /// </summary>
+    // A newer load cancels and supersedes any in-flight one; the stale result is discarded
+    // so rapid navigation always lands on the final directory.
     private Task StartLoad(bool preserveSelection, string? selectAfter, bool selectFirst)
     {
         var markedNames = preserveSelection
@@ -400,7 +375,7 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     public FileRowViewModel? CursorRow => Selection.SelectedItem;
     public bool HasMarks => Rows.Any(r => r.IsMarked);
 
-    /// <summary>Operation targets: the marked rows, or the cursor row when nothing is marked.</summary>
+    // Operation targets: the marked rows, or the cursor row when nothing is marked.
     public IReadOnlyList<FileRowViewModel> SelectedRows
     {
         get
@@ -423,7 +398,7 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         UpdateStatus();
     }
 
-    /// <summary>Shift-click: marks every row between the cursor and the target, cursor moves to target.</summary>
+    // Shift-click: marks every row between the cursor and the target, cursor moves to target.
     public void MarkRangeTo(FileRowViewModel row)
     {
         var to = Rows.IndexOf(row);
@@ -440,7 +415,7 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         UpdateStatus();
     }
 
-    /// <summary>Shift+arrow: toggles the cursor row's mark, then moves the cursor.</summary>
+    // Shift+arrow: toggles the cursor row's mark, then moves the cursor.
     public void MarkCursorAndMove(int delta)
     {
         if (Rows.Count == 0)
@@ -472,7 +447,7 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         return row;
     }
 
-    /// <summary>Enter / programmatic commit. A colliding placeholder name stays in edit mode.</summary>
+    // A colliding placeholder name stays in edit mode.
     public void CommitRename(FileRowViewModel row)
     {
         if (row.IsNewPlaceholder)
@@ -489,11 +464,8 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         RenameCompletion = RunRenameAsync(row.Entry.FullPath, newName);
     }
 
-    /// <summary>
-    /// LostFocus commit. Identical to <see cref="CommitRename"/> for real rows, but a
-    /// placeholder with a bad/colliding name is discarded rather than kept open — clicking
-    /// away must never trap focus in the edit box.
-    /// </summary>
+    // LostFocus commit: a placeholder with a bad/colliding name is discarded rather than
+    // kept open — clicking away must never trap focus in the edit box.
     public void CommitRenameFromBlur(FileRowViewModel row)
     {
         if (row.IsNewPlaceholder)
@@ -502,11 +474,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
             CommitRename(row);
     }
 
-    /// <summary>
-    /// Resolves a new-entry placeholder: empty name discards it; a valid free name creates
-    /// the folder/file and reloads; a bad/colliding name stays editing (Enter) or is
-    /// discarded (<paramref name="fromBlur"/>).
-    /// </summary>
     private void CommitNewEntry(FileRowViewModel row, bool fromBlur)
     {
         var name = row.EditName.Trim();
@@ -549,7 +516,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         StartLoad(preserveSelection: false, selectAfter: name, selectFirst: false);
     }
 
-    /// <summary>Null when <paramref name="name"/> is a legal, free entry name; else the reason.</summary>
     private string? NewEntryNameError(string name)
     {
         if (name.Contains('/') || name.Contains('\\'))
@@ -563,7 +529,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         return null;
     }
 
-    /// <summary>Removes the synthetic placeholder row without touching the filesystem.</summary>
     private void DiscardPlaceholder(FileRowViewModel row)
     {
         Rows.Remove(row);
@@ -574,11 +539,9 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         UpdateStatus();
     }
 
-    /// <summary>
-    /// Runs the rename off the UI thread so a slow (cross-volume) move never blocks.
-    /// A single OS move is not interruptible mid-flight, so there is no true mid-move
-    /// cancel — same-volume renames are effectively instant anyway.
-    /// </summary>
+    // Runs off the UI thread so a slow (cross-volume) move never blocks. A single OS move
+    // is not interruptible mid-flight, so there is no true mid-move cancel — same-volume
+    // renames are effectively instant anyway.
     private async Task RunRenameAsync(string fullPath, string newName)
     {
         var ok = true;
@@ -628,10 +591,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         BeginNewEntry(isDirectory: false, baseName: "New file");
     }
 
-    /// <summary>
-    /// Inserts an editable placeholder row (no disk write) so the user names the entry in
-    /// place; <see cref="CommitNewEntry"/> creates it on commit.
-    /// </summary>
     private void BeginNewEntry(bool isDirectory, string baseName)
     {
         var (provider, localParent) = Registry.Resolve(CurrentPath);
@@ -643,10 +602,8 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         Selection.Select(insertAt);
     }
 
-    /// <summary>
-    /// Orthodox Insert-mark: toggles the cursor row's mark and moves the cursor
-    /// down one. The ".." row is never marked, only stepped over.
-    /// </summary>
+    // Orthodox Insert-mark: toggles the cursor row's mark and moves the cursor down one.
+    // The ".." row is never marked, only stepped over.
     public void ToggleMarkAndAdvance()
     {
         if (Rows.Count == 0)

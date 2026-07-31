@@ -96,7 +96,7 @@ public class DrivePopoverTests
         await popover.EjectCurrentAsync();
 
         Assert.True(closed);
-        Assert.NotEqual(tmp.Path, pane.CurrentPath); // pane left the ejected mount
+        Assert.NotEqual(tmp.Path, pane.CurrentPath);
         Assert.Equal(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), pane.CurrentPath);
     }
 
@@ -217,14 +217,12 @@ public class DrivePopoverTests
         var ejectTask = popover.EjectCurrentAsync();
         await ejectStarted.Task;
 
-        // While ejecting: visible but not enabled
         Assert.True(popover.EjectRowVisible, "row must stay visible during eject");
         Assert.False(popover.CanEject, "row must be disabled during eject");
 
         ejectRelease.SetResult();
         await ejectTask;
 
-        // After eject completes: back to visible and enabled (failure case keeps current)
         Assert.True(popover.EjectRowVisible, "row should remain visible after failed eject");
         Assert.True(popover.CanEject, "row should be re-enabled after eject finishes");
     }

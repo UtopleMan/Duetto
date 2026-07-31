@@ -2,11 +2,6 @@ using Duetto.Core.Operations;
 
 namespace Duetto.Core.FileSystem;
 
-/// <summary>
-/// The local disk as an <see cref="IFileSystemProvider"/> — a thin adapter over the
-/// existing <see cref="DirectoryLister"/>, <see cref="FileOps"/>, <see cref="TrashService"/>
-/// and <see cref="VolumeCatalog"/>, so the local path keeps behaving exactly as before.
-/// </summary>
 public sealed class LocalFileSystemProvider : IFileSystemProvider
 {
     public FileSystemCapabilities Capabilities => FileSystemCapabilities.LocalDisk;

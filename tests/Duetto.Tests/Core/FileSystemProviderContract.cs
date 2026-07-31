@@ -4,11 +4,9 @@ using Duetto.Tests.Support;
 
 namespace Duetto.Tests.Core;
 
-/// <summary>
-/// Behavior every <see cref="IFileSystemProvider"/> must satisfy. Concrete subclasses
-/// supply a provider and an existing empty <see cref="Root"/>; the local provider runs
-/// it here, the SFTP provider reuses it against a fake backend in Phase 2.
-/// </summary>
+// Shared contract every IFileSystemProvider must satisfy: subclasses supply a provider and
+// an empty Root so the same behaviour can be exercised against local, in-memory, and SFTP
+// backends.
 public abstract class FileSystemProviderContract
 {
     protected abstract IFileSystemProvider Provider { get; }
@@ -137,9 +135,8 @@ public abstract class FileSystemProviderContract
         var dst = Provider.CreateDirectory(Root, "dst-exists");
         var sep = Provider.Capabilities.Separator;
         var destFile = dst.TrimEnd(sep) + sep + "f.txt";
-        Provider.CreateFile(dst, "f.txt"); // pre-create the target
+        Provider.CreateFile(dst, "f.txt");
         Assert.Throws<IOException>(() => Provider.Move(file, destFile));
-        // Source must still be intact after the failed move.
         Assert.True(Provider.FileExists(file));
     }
 }

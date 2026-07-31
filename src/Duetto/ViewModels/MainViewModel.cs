@@ -11,8 +11,7 @@ namespace Duetto.ViewModels;
 
 public sealed record Place(string Name, string Path, string Color);
 
-/// <summary>A remote place in the GNOME Places rail: carries the stored connection so the click handler
-/// can open ConnectWindow when the connection is not live.</summary>
+// Carries the stored connection so the click handler can open ConnectWindow when the connection is not live.
 public sealed record RemotePlace(string Name, string Id, string InitialRemotePath, StoredConnection Stored);
 
 public partial class MainViewModel : ObservableObject, IDisposable
@@ -26,50 +25,34 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public bool IsGnomeChrome => Chrome == ChromeKind.Gnome;
     public IReadOnlyList<Place> Places { get; }
 
-    /// <summary>
-    /// Remote connections listed in the GNOME Places rail "REMOTE" section.
-    /// Rebuilt when connections are added/removed.
-    /// </summary>
     public System.Collections.ObjectModel.ObservableCollection<RemotePlace> RemotePlaces { get; } = [];
 
     [ObservableProperty]
     private bool _remotePlacesVisible;
     public static string UserAtHost { get; } = $"{Environment.UserName}@{Environment.MachineName.Split('.')[0]}";
 
-    /// <summary>The single strip slot: a transfer, a delete, a rename, or a slow listing.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActiveTransfer))]
     private IStripOperation? _activeOperation;
 
-    /// <summary>Convenience view of the slot when it holds a transfer (used by tests + transfer wiring).</summary>
     public TransferViewModel? ActiveTransfer => ActiveOperation as TransferViewModel;
 
-    /// <summary>Maps a path to the provider that owns it (local disk, SFTP, …).</summary>
     public FileSystemRegistry Registry { get; }
 
-    /// <summary>Manages live SFTP connections; disposed with this view-model.</summary>
     public ConnectionManager ConnectionManager { get; }
 
-    /// <summary>Persists saved connections to disk.</summary>
     public ConnectionStore ConnectionStore { get; }
 
-    /// <summary>TOFU host-key store, backed by hostkeys.json in production.</summary>
     public HostKeyStore HostKeyStore { get; }
 
-    /// <summary>Obfuscates/de-obfuscates stored secrets.</summary>
     public SecretCodec Codec { get; }
 
-    /// <summary>
-    /// Moves a path to the OS trash. Seam for tests; production routes through the owning
-    /// provider's <see cref="IFileSystemProvider.Delete"/> so remote paths get a hook later.
-    /// </summary>
+    // Seam for tests; production routes through the owning provider's Delete so remote paths get a hook later.
     public Func<string, string?> TrashFn { get; set; }
 
-    /// <summary>Schedules the delete loop. Default runs it on a worker thread; tests inject inline.</summary>
     public Func<Action<CancellationToken>, CancellationToken, Task> DeleteScheduler { get; set; }
         = static (work, ct) => Task.Run(() => work(ct), ct);
 
-    /// <summary>Completes when the current delete finishes; tests await this to settle.</summary>
     public Task DeleteCompletion { get; private set; } = Task.CompletedTask;
 
     public CommandBarViewModel CommandBar { get; }
@@ -84,12 +67,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public static string SearchHint => OperatingSystem.IsMacOS() ? "⌘F" : "Ctrl F";
     public string PromptGlyph => IsMacChrome ? " ❯" : " $";
 
-    /// <summary>
-    /// Test constructor: callers supply paths and an optional pre-built registry.
-    /// If <paramref name="registry"/> is null a new local-only registry is created.
-    /// ConnectionManager, ConnectionStore, HostKeyStore, and Codec are not wired in this
-    /// path — pass them explicitly when a test needs them.
-    /// </summary>
+    // Test constructor. ConnectionManager, ConnectionStore, HostKeyStore, and Codec are not
+    // wired unless passed explicitly; a null registry yields a new local-only one.
     public MainViewModel(
         string leftPath,
         string rightPath,
@@ -127,7 +106,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Right.Reload(preserveSelection: true);
         };
         Search = new SearchViewModel(() => ActivePane.CurrentPath, Registry);
-        // Wire connection-name lookup so ScopeDirName shows the connection name at remote roots.
         Search.ConnectionNameResolver = id =>
         {
             foreach (var stored in ConnectionStore.Load())
@@ -163,25 +141,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
             if (e.PropertyName == nameof(ActivePane))
                 Search.RefreshSearchSupported();
         };
-        // Seed IsSearchSupported from the initial active pane's provider.
         Search.RefreshSearchSupported();
     }
 
-    /// <summary>Persists the two pane directories across restarts; null in tests/headless.</summary>
     private readonly SessionStore? _sessionStore;
 
-    /// <summary>
-    /// The directory the left (active) pane opens at startup: a folder passed on the command
-    /// line when present, otherwise the user's home directory.
-    /// </summary>
     public static string StartFolder(string? folder) =>
         folder ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
-    /// <summary>
-    /// Resolves the two pane start directories. A command-line folder wins for the left pane;
-    /// otherwise each pane restores its saved directory when that directory still exists
-    /// locally. Missing or remote (<c>sftp://…</c>) saved paths fall back to <paramref name="home"/>.
-    /// </summary>
+    // A command-line folder wins for the left pane; otherwise each pane restores its saved
+    // directory when it still exists locally. Missing or remote (sftp://…) saved paths fall back to home.
     public static (string Left, string Right) ResolveStartupPaths(
         string? folderArg, SessionState? saved, string home)
     {
@@ -191,7 +160,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return (left, right);
     }
 
-    /// <summary>Saves the current pane directories so the next launch can restore them. No-op in tests/headless.</summary>
     public void SaveSession() =>
         _sessionStore?.Save(new SessionState(Left.CurrentPath, Right.CurrentPath));
 
@@ -200,8 +168,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
     }
 
-    // Loads the saved session once, resolves both pane start paths, and keeps the store for
-    // saving — all in a single file read. Null store when headless (no session.json IO).
+    // Single file read: null store when headless (no session.json IO).
     private static (SessionStore? Store, string Left, string Right) LoadProductionStartup()
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -227,53 +194,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Right.RenameScheduler = PaneViewModel.BackgroundRenameScheduler;
     }
 
-    /// <summary>
-    /// Opens the connect dialog for the given stored connection and pane.
-    /// <para>
-    /// Seam: replace in tests to capture dialog-open calls without instantiating a real window.
-    /// Signature: <c>(StoredConnection? forEdit, PaneViewModel targetPane)</c>.
-    /// </para>
-    /// </summary>
+    // Seam: replace in tests to capture dialog-open calls without instantiating a real window.
     public Action<StoredConnection?, PaneViewModel> OpenConnectDialog { get; set; } = (_, _) => { };
 
-    /// <summary>
-    /// Runs a background connect task.
-    /// <para>
-    /// Seam: replace in tests to execute the action synchronously without <c>Task.Run</c>.
-    /// Signature: <c>connectBody => Task</c> where <c>connectBody</c> is the work to perform.
-    /// </para>
-    /// </summary>
+    // Seam: replace in tests to execute the action synchronously without Task.Run.
     public Func<Action, Task> ConnectScheduler { get; set; } =
         static work => Task.Run(work);
 
-    /// <summary>
-    /// Connects to a share and navigates the target pane to it, or opens the connect dialog on failure.
-    /// <para>
-    /// This is the single implementation of the share-connect flow used by both
-    /// <c>PaneView.ActivateShare</c> (drive popover click) and
-    /// <c>MainWindow.OnRemotePlaceClicked</c> (GNOME rail click). Both callers resolve the
-    /// <see cref="StoredConnection"/> and target pane, then delegate here.
-    /// </para>
-    /// <para>
-    /// <b>Flow:</b>
-    /// <list type="number">
-    ///   <item>Already connected → navigate directly, return.</item>
-    ///   <item>Secret saved → connect on <see cref="ConnectScheduler"/> then navigate.
-    ///     On any of the documented connection exceptions open the dialog prefilled; never navigate.</item>
-    ///   <item>No secret → open dialog prefilled.</item>
-    /// </list>
-    /// </para>
-    /// <para>
-    /// <b>Caught exceptions (background connect):</b>
-    /// <see cref="SshAuthenticationException"/>, <see cref="SshConnectionException"/>,
-    /// <see cref="SocketException"/>, <see cref="HostKeyChangedException"/>,
-    /// <see cref="ObjectDisposedException"/>, <see cref="SshException"/>,
-    /// <see cref="IOException"/>, <see cref="InvalidOperationException"/>.
-    /// All other exceptions propagate as unobserved task faults (genuine bugs).
-    /// </para>
-    /// </summary>
-    /// <param name="stored">The saved connection to activate. Must not be null.</param>
-    /// <param name="pane">The pane to navigate on success.</param>
+    // Background connect swallows the documented connection exceptions (opening the dialog
+    // prefilled instead); all other exceptions propagate as unobserved task faults — genuine bugs.
     public void ConnectToShare(StoredConnection stored, PaneViewModel pane)
     {
         if (ConnectionManager.IsConnected(stored.Id))
@@ -319,21 +248,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OpenConnectDialog(stored, pane);
     }
 
-    /// <summary>
-    /// Wires the popover's connection seams so it can list and check saved connections.
-    /// Also subscribes to popover events for disconnect handling.
-    /// Call after Left/Right panes are constructed.
-    /// </summary>
+    // Call after Left/Right panes are constructed.
     private void WirePopoverSeams(DrivePopoverViewModel drives)
     {
         drives.ListConnections = () => ConnectionStore.Load();
         drives.IsConnected = id => ConnectionManager.IsConnected(id);
     }
 
-    /// <summary>
-    /// Rebuilds the <see cref="RemotePlaces"/> list from the current <see cref="ConnectionStore"/> contents.
-    /// Call after a connection is added or removed.
-    /// </summary>
     public void RebuildRemotePlaces()
     {
         RemotePlaces.Clear();
@@ -354,11 +275,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     public void NavigatePlace(Place place) => ActivePane.NavigateTo(place.Path);
 
-    /// <summary>
-    /// Address-bar navigation from the search field: resolves ~, relative, and
-    /// absolute paths against the active pane. Directories open; files are
-    /// revealed (parent opened, file selected). Returns false if nothing exists.
-    /// </summary>
     public bool TryNavigatePath(string input)
     {
         var text = input.Trim();
@@ -465,13 +381,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         StartTransfer(paths, InactivePane.CurrentPath, mode, source, sourceScope: source.CurrentPath);
     }
 
-    /// <param name="paths">Provider-local source paths (what pane rows / search hits carry).</param>
-    /// <param name="destinationDir">Destination directory as a full address (local path or scheme://id/…).</param>
-    /// <param name="sourcePane">The pane the rows came from, for per-row status; null for search results.</param>
-    /// <param name="sourceScope">
-    ///   The full address of the directory the sources live under (pane path or search scope);
-    ///   resolves the source provider — the paths themselves are already provider-local.
-    /// </param>
+    // paths are provider-local (what rows/hits carry); destinationDir is a full address.
+    // sourceScope is the full address the sources live under and resolves the source provider —
+    // the paths themselves are already provider-local.
     private void StartTransfer(
         IReadOnlyList<string> paths, string destinationDir, TransferMode mode,
         PaneViewModel? sourcePane, string sourceScope)
@@ -535,20 +447,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         DeleteCompletion = RunDeleteAsync(paths, op, cts.Token, fromSearch, hasTrash);
     }
 
-    /// <summary>
-    /// Rebuilds the full <c>scheme://id/…</c> address for a provider-local row path when the
-    /// owning pane shows a remote directory; local pane paths pass through unchanged.
-    /// Delegates to <see cref="PathUtil.ToAddress"/> — one canonical implementation.
-    /// </summary>
     private static string ToAddress(string panePath, string rowPath) =>
         PathUtil.ToAddress(panePath, rowPath);
 
-    /// <summary>
-    /// Default <see cref="TrashFn"/>: routes the delete through the owning provider —
-    /// local paths go to the OS trash; a remote provider without
-    /// <see cref="FileSystemCapabilities.HasTrash"/> deletes permanently on its side.
-    /// Returns null — the caller ignores it.
-    /// </summary>
+    // Routes the delete through the owning provider — local paths go to the OS trash; a remote
+    // provider without HasTrash deletes permanently on its side.
     private string? TrashViaProvider(string path)
     {
         var (provider, localPath) = Registry.Resolve(path);
@@ -556,11 +459,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return null;
     }
 
-    /// <summary>
-    /// Trashes each path on a worker thread, checking cancellation before every item
-    /// (cancel stops before the next one; already-trashed items stay trashed). A
-    /// per-item failure is swallowed so one bad entry doesn't abort the batch.
-    /// </summary>
+    // Checks cancellation before every item (cancel stops before the next one; already-trashed
+    // items stay trashed). A per-item failure is swallowed so one bad entry doesn't abort the batch.
     private async Task RunDeleteAsync(
         IReadOnlyList<string> paths, SimpleOperationViewModel op, CancellationToken token, bool fromSearch,
         bool hasTrash)
@@ -634,7 +534,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ActiveOperation?.Dispose();
         Left.Dispose();
         Right.Dispose();
-        // Disconnect all live SFTP connections and unregister their providers.
         ConnectionManager.Dispose();
     }
 }

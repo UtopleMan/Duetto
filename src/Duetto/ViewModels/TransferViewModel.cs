@@ -47,7 +47,6 @@ public partial class TransferViewModel : ObservableObject, IStripOperation
 
     public ObservableCollection<string> SkippedItems { get; } = [];
 
-    /// <summary>Raised when the strip should go away (auto-hide or user dismiss).</summary>
     public event Action? Dismissed;
 
     public TransferViewModel(TransferSession session, PaneViewModel? sourcePane)
@@ -94,7 +93,7 @@ public partial class TransferViewModel : ObservableObject, IStripOperation
         Dismissed?.Invoke();
     }
 
-    /// <summary>Pulls a snapshot into the bindable properties. Called by the timer; public for tests.</summary>
+    // public for tests; normally driven by the timer.
     public void UpdateNow()
     {
         var snap = Session.Snapshot();

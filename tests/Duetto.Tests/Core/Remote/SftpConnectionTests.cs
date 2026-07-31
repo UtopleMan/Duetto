@@ -5,18 +5,12 @@ using DuettoConnectionInfo = Duetto.Core.Remote.ConnectionInfo;
 
 namespace Duetto.Tests.Core.Remote;
 
-/// <summary>
-/// Unit tests for <see cref="SftpConnection"/> using a fake client factory.
-/// No sockets are opened.
-/// </summary>
 public class SftpConnectionTests
 {
     private static DuettoConnectionInfo MakeInfo() =>
         new("id1", "Test", "host.test.local");
 
     private static ConnectSecret MakeSecret() => ConnectSecret.FromPassword("pw");
-
-    // ── connect / disconnect / IsConnected ───────────────────────────────────
 
     [Fact]
     public void IsConnected_false_before_Connect()
@@ -50,7 +44,6 @@ public class SftpConnectionTests
     {
         var factory = new FakeFactory();
         using var conn = new SftpConnection(MakeInfo(), MakeSecret(), factory);
-        // never connected — should be a no-op
         conn.Disconnect();
     }
 
@@ -74,14 +67,10 @@ public class SftpConnectionTests
 
         Assert.Throws<SshConnectionException>(() => conn.Connect());
 
-        // The fresh adapter must not leak, and the connection must not point at
-        // a disposed adapter.
         Assert.True(factory.LastAdapter!.IsDisposed);
         Assert.False(conn.IsConnected);
         Assert.Throws<InvalidOperationException>(() => conn.Adapter);
     }
-
-    // ── reconnect logic ──────────────────────────────────────────────────────
 
     [Fact]
     public void WithReconnect_calls_op_when_connected()
@@ -100,11 +89,9 @@ public class SftpConnectionTests
     {
         var factory = new FakeFactory();
         using var conn = new SftpConnection(MakeInfo(), MakeSecret(), factory);
-        // deliberately not calling Connect
 
         conn.WithReconnect(() => { });
 
-        // factory should have been called once (for the implicit connect)
         Assert.Equal(1, factory.CreateCount);
         Assert.True(conn.IsConnected);
     }
@@ -122,12 +109,9 @@ public class SftpConnectionTests
             callCount++;
             if (callCount == 1)
                 throw new SshConnectionException("dropped");
-            // second call succeeds
         });
 
-        // op was called twice (first throws, reconnects, retries)
         Assert.Equal(2, callCount);
-        // factory.Create was called twice: initial connect + reconnect
         Assert.Equal(2, factory.CreateCount);
     }
 
@@ -146,7 +130,6 @@ public class SftpConnectionTests
                 throw new SshConnectionException("always fails");
             }));
 
-        // op was called twice (initial + one retry after reconnect)
         Assert.Equal(2, callCount);
     }
 
@@ -176,11 +159,8 @@ public class SftpConnectionTests
                 throw new InvalidOperationException("not a connection error");
             }));
 
-        // Should not retry for non-connection exceptions
         Assert.Equal(1, callCount);
     }
-
-    // ── dispose ──────────────────────────────────────────────────────────────
 
     [Fact]
     public void Dispose_cleans_up_adapter()
@@ -210,8 +190,6 @@ public class SftpConnectionTests
         Assert.Throws<ObjectDisposedException>(() => conn.WithReconnect(() => { }));
     }
 
-    // ── host-key store wiring ────────────────────────────────────────────────
-
     [Fact]
     public void Connect_wires_HostKeyStore_handler_before_connecting()
     {
@@ -232,14 +210,11 @@ public class SftpConnectionTests
     }
 }
 
-// ── fakes ─────────────────────────────────────────────────────────────────────
-
 internal sealed class FakeFactory : ISftpClientFactory
 {
     public int CreateCount { get; private set; }
     public FakeAdapter? LastAdapter { get; private set; }
 
-    /// <summary>When set, the fake adapter's Connect call will throw this.</summary>
     public Exception? OnConnectThrow { get; set; }
 
     public ISftpClientAdapter Create(DuettoConnectionInfo info, ConnectSecret secret)

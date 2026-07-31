@@ -4,7 +4,6 @@ namespace Duetto.Core.FileSystem;
 
 public static class FormatUtil
 {
-    /// <summary>"—" for directories; otherwise "412 B", "1.8 KB", "14 KB", "6.7 GB".</summary>
     public static string HumanSize(long bytes, bool isDirectory = false)
     {
         if (isDirectory || bytes < 0)
@@ -27,11 +26,9 @@ public static class FormatUtil
         return $"{text} {units[unit]}";
     }
 
-    /// <summary>"26 Jul 2026"</summary>
     public static string DateLong(DateTime utc) =>
         utc.ToLocalTime().ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
 
-    /// <summary>"26 Jul"</summary>
     public static string DateShort(DateTime utc) =>
         utc.ToLocalTime().ToString("dd MMM", CultureInfo.InvariantCulture);
 

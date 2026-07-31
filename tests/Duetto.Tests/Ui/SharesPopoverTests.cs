@@ -11,14 +11,8 @@ using DuettoConnectionInfo = Duetto.Core.Remote.ConnectionInfo;
 
 namespace Duetto.Tests.Ui;
 
-/// <summary>
-/// VM-level and headless UI tests for the CONNECTED SHARES section of
-/// <see cref="DrivePopoverViewModel"/> (Task J, Phase 4 part 2).
-/// </summary>
 public sealed class SharesPopoverTests
 {
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
     private static StoredConnection MakeStored(
         string id = "conn1",
         string name = "My Server",
@@ -39,10 +33,6 @@ public sealed class SharesPopoverTests
             ObfuscatedSecret = obfuscated,
         };
 
-    /// <summary>
-    /// Builds a popover with the given stored connections injected via the seam.
-    /// <paramref name="connectedIds"/> controls which ids IsConnected returns true for.
-    /// </summary>
     private static DrivePopoverViewModel Popover(
         PaneViewModel pane,
         StoredConnection[] stored,
@@ -56,8 +46,6 @@ public sealed class SharesPopoverTests
         popover.Refresh();
         return popover;
     }
-
-    // ── Shares list ───────────────────────────────────────────────────────────
 
     [AvaloniaFact]
     public void Shares_list_populates_from_store_seam()
@@ -105,8 +93,6 @@ public sealed class SharesPopoverTests
         Assert.True(deadRow.StatusTextVisible);
     }
 
-    // ── Click-connected: navigate ─────────────────────────────────────────────
-
     [AvaloniaFact]
     public void Activate_connected_share_raises_ShareActivated()
     {
@@ -125,26 +111,21 @@ public sealed class SharesPopoverTests
         Assert.Equal("/home/user", activated.InitialRemotePath);
     }
 
-    // ── Click-not-connected-no-secret: raises EditShareRequested ─────────────
-
     [AvaloniaFact]
     public void Activate_offline_share_raises_ShareActivated_for_connect_or_prompt()
     {
         using var tmp = new TempDir();
         using var pane = new PaneViewModel(tmp.Path);
         var stored = new[] { MakeStored("srv1") };
-        var popover = Popover(pane, stored, connectedIds: []); // not connected
+        var popover = Popover(pane, stored, connectedIds: []);
 
         ShareRowViewModel? activated = null;
         popover.ShareActivated += s => activated = s;
 
         popover.ActivateShare(popover.Shares.Single());
 
-        // The VM fires ShareActivated regardless; PaneView decides what to do.
         Assert.NotNull(activated);
     }
-
-    // ── Edit affordance ───────────────────────────────────────────────────────
 
     [AvaloniaFact]
     public void EditShare_raises_EditShareRequested_with_stored_connection()
@@ -164,8 +145,6 @@ public sealed class SharesPopoverTests
         Assert.Equal("Edit Target", requested.Name);
     }
 
-    // ── Remove affordance ─────────────────────────────────────────────────────
-
     [AvaloniaFact]
     public void RemoveShare_raises_RemoveShareRequested_with_connection_id()
     {
@@ -181,8 +160,6 @@ public sealed class SharesPopoverTests
 
         Assert.Equal("rm-me", removedId);
     }
-
-    // ── Disconnect row ────────────────────────────────────────────────────────
 
     [AvaloniaFact]
     public void Disconnect_row_hidden_when_pane_is_local()
@@ -258,8 +235,6 @@ public sealed class SharesPopoverTests
         Assert.True(disconnected);
     }
 
-    // ── Volume chip shows connection name for remote path ─────────────────────
-
     [AvaloniaFact]
     public void Chip_shows_connection_name_for_remote_path()
     {
@@ -269,7 +244,6 @@ public sealed class SharesPopoverTests
         using var pane = new PaneViewModel("sftp://srv1/home/user", registry);
         pane.Lister = _ => [];
 
-        // Wire the seam so the chip can look up the connection name.
         pane.Drives.ListConnections = () => [MakeStored("srv1", "Production Server")];
         pane.Drives.ListVolumes = () => [];
 
@@ -319,14 +293,11 @@ public sealed class SharesPopoverTests
         Assert.Equal("", pane.PathTailText);
     }
 
-    // ── Headless UI: shares section visibility ────────────────────────────────
-
     [AvaloniaFact]
     public void Popover_shows_shares_section_when_connections_exist()
     {
         using var tmp = new TempDir();
         using var vm = new MainViewModel(tmp.Path, tmp.Path);
-        // Wire the left pane's popover to return one connection.
         vm.Left.Drives.ListConnections = () => [MakeStored("srv1", "Test Server")];
         vm.Left.Drives.ListVolumes = () => [];
         vm.Left.Drives.Refresh();
@@ -335,7 +306,6 @@ public sealed class SharesPopoverTests
         window.Show();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-        // The shares section should be visible when there are connections.
         Assert.True(vm.Left.Drives.SharesSectionVisible);
         Assert.Single(vm.Left.Drives.Shares);
         Assert.Equal("Test Server", vm.Left.Drives.Shares[0].Name);
@@ -362,15 +332,12 @@ public sealed class SharesPopoverTests
         window.Close();
     }
 
-    // ── Remote places (GNOME rail) ────────────────────────────────────────────
-
     [AvaloniaFact]
     public void RebuildRemotePlaces_populates_from_connection_store()
     {
         using var tmp = new TempDir();
         var stored = new[] { MakeStored("s1", "Server A"), MakeStored("s2", "Server B") };
         var store = new ConnectionStore(":mem:", _ => null, (_, _) => { });
-        // Inject the store by overriding the reader.
         var codec = new SecretCodec();
         var json = System.Text.Json.JsonSerializer.Serialize(stored);
         var store2 = new ConnectionStore(":mem:", _ => json, (_, _) => { });
@@ -390,16 +357,12 @@ public sealed class SharesPopoverTests
         using var tmp = new TempDir();
         using var vm = new MainViewModel(tmp.Path, tmp.Path);
 
-        // Default store has no-op reader → empty list.
         vm.RebuildRemotePlaces();
 
         Assert.Empty(vm.RemotePlaces);
         Assert.False(vm.RemotePlacesVisible);
     }
 
-    // ── Remove disconnects a live share ───────────────────────────────────────
-
-    /// <summary>Factory returning one fixed fake adapter (mirrors ConnectionManagerTests).</summary>
     private sealed class FixedAdapterFactory(FakeSftpClientAdapter adapter) : ISftpClientFactory
     {
         public ISftpClientAdapter Create(DuettoConnectionInfo info, ConnectSecret secret) => adapter;
@@ -421,7 +384,6 @@ public sealed class SharesPopoverTests
             registry: registry, connectionManager: manager,
             connectionStore: store, hostKeyStore: hks);
 
-        // Establish the live connection and put the left pane on it.
         manager.Connect(new DuettoConnectionInfo("srv1", "My Server", "fake.local"), ConnectSecret.FromPassword("pw"));
         vm.Left.NavigateTo("sftp://srv1/");
         Assert.True(manager.IsConnected("srv1"));
@@ -431,12 +393,10 @@ public sealed class SharesPopoverTests
         window.Show();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-        // Fire the remove affordance for the share (PaneView handles RemoveShareRequested).
         var share = new ShareRowViewModel(MakeStored("srv1", "My Server"), isConnected: true);
         vm.Left.Drives.RemoveShare(share);
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-        // The live session is disconnected, the pane left the share, and the record is gone.
         Assert.False(manager.IsConnected("srv1"));
         Assert.Equal(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), vm.Left.CurrentPath);
         Assert.Empty(store.Load());
@@ -445,14 +405,9 @@ public sealed class SharesPopoverTests
         window.Close();
     }
 
-    // ── Remote path: no volume/capacity in popover ────────────────────────────
-
     [AvaloniaFact]
     public void Remote_path_has_no_current_volume_or_capacity_in_popover()
     {
-        // A pane at a remote (sftp://) path opens the drive popover:
-        // Current must be null (no local volume), CanEject false (no eject row),
-        // and the eject row is hidden — the popover makes no capacity claims.
         using var tmp = new TempDir();
         var registry = new FileSystemRegistry();
         registry.Register("sftp", "srv1", new FakeProvider());
@@ -471,10 +426,6 @@ public sealed class SharesPopoverTests
     }
 }
 
-/// <summary>
-/// Minimal <see cref="IFileSystemProvider"/> stub for constructing test panes
-/// with a remote path without triggering any real filesystem calls.
-/// </summary>
 internal sealed class FakeProvider : IFileSystemProvider
 {
     public FileSystemCapabilities Capabilities { get; } = new()

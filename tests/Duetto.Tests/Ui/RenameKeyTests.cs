@@ -23,7 +23,7 @@ public class RenameKeyTests
         Dispatcher.UIThread.RunJobs();
 
         var row = vm.Left.Rows.First(r => r.Name == "f.txt");
-        Assert.True(row.IsEditing); // precondition: F2 started rename
+        Assert.True(row.IsEditing);
         return (window, vm, row);
     }
 
@@ -37,7 +37,7 @@ public class RenameKeyTests
         Dispatcher.UIThread.RunJobs();
 
         Assert.False(row.IsEditing);
-        Assert.True(File.Exists(Path.Combine(tmp.Path, "f.txt"))); // unchanged
+        Assert.True(File.Exists(Path.Combine(tmp.Path, "f.txt")));
         window.Close();
     }
 

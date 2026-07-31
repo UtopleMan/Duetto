@@ -4,17 +4,12 @@ using System.Text.Json;
 
 namespace Duetto.Tests.Core.Remote;
 
-/// <summary>
-/// Tests for ConnectionStore, StoredConnection, and the Resolve/Pack helpers.
-/// All tests use injected IO (dictionary-backed) — no real filesystem access.
-/// </summary>
 public class ConnectionStoreTests
 {
     // Fixed test codec so secrets are stable across machines.
     private static readonly byte[] TestKey = SHA256.HashData("duetto-cs-test-v1"u8.ToArray());
     private static SecretCodec MakeCodec() => new(TestKey);
 
-    // Helpers for creating test data.
     private static ConnectionInfo MakeInfo(string id = "conn-1") => new(
         Id: id,
         Name: "My Server",
@@ -34,8 +29,6 @@ public class ConnectionStoreTests
         AuthMode: AuthMode.Key,
         KeyPath: "/home/bob/.ssh/id_ed25519",
         InitialRemotePath: "/");
-
-    // ── ConnectionStore: Load/Save round-trips ────────────────────────────────
 
     private static ConnectionStore MakeStore(out Dictionary<string, string> storage)
     {
@@ -231,8 +224,6 @@ public class ConnectionStoreTests
         Assert.Equal("b", loaded[1].Id);
     }
 
-    // ── Resolve helpers ───────────────────────────────────────────────────────
-
     [Fact]
     public void ResolveInfo_produces_correct_ConnectionInfo()
     {
@@ -307,8 +298,6 @@ public class ConnectionStoreTests
         Assert.Null(resolvedSecret);
     }
 
-    // ── Pack: obfuscated secret is non-empty when savePassword=true ───────────
-
     [Fact]
     public void Pack_with_savePassword_sets_ObfuscatedSecret_non_empty()
     {
@@ -335,7 +324,6 @@ public class ConnectionStoreTests
         // Key with no passphrase: savePassword=true, but passphrase is null → obfuscate empty string.
         var packed = ConnectionStore.Pack(info, ConnectSecret.FromKey(null), savePassword: true, codec);
         Assert.True(packed.SavePassword);
-        // Decrypt to empty string.
         var resolved = ConnectionStore.ResolveSecret(packed, codec);
         Assert.NotNull(resolved);
         Assert.Null(resolved!.KeyPassphrase); // empty string → null passphrase via FromKey

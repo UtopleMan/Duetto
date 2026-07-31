@@ -5,14 +5,8 @@ using Renci.SshNet.Security;
 
 namespace Duetto.Tests.Core.Remote;
 
-/// <summary>
-/// Tests HostKeyStore TOFU semantics.  Most tests call <see cref="HostKeyStore.Verify"/>
-/// directly; the handler-path tests build a real <see cref="HostKeyEventArgs"/> from a
-/// synthetic ed25519 public key.  No network sockets are opened.
-///
-/// Store key format: <c>"algo:[host]:port"</c> (OpenSSH-style), e.g.
-/// <c>"ssh-ed25519:[host1.example.com]:22"</c>.  Phase 3 must persist keys in this format.
-/// </summary>
+// Store key format: "algo:[host]:port" (OpenSSH-style), e.g.
+// "ssh-ed25519:[host1.example.com]:22".  Phase 3 must persist keys in this format.
 public class HostKeyStoreTests
 {
     // SSH.NET's HostKeyEventArgs.FingerPrintSHA256 is the SHA-256 hash of the host key as
@@ -27,11 +21,8 @@ public class HostKeyStoreTests
     private const int Port22 = 22;
     private const int Port2222 = 2222;
 
-    // Convenience: the canonical store key for Host1 on port 22, algo ssh-ed25519.
     private static string Ed25519Key22(string host = Host1) =>
         HostKeyStore.MakeStoreKey("ssh-ed25519", host, Port22);
-
-    // ── first-use pins ───────────────────────────────────────────────────────
 
     [Fact]
     public void FirstUse_pins_the_fingerprint_and_returns_true()
@@ -75,7 +66,6 @@ public class HostKeyStoreTests
         Assert.Throws<HostKeyChangedException>(
             () => store.Verify(Host1, Port22, "ssh-ed25519", FpB));
 
-        // original pin must still be stored
         Assert.Equal(FpA, store.GetPinned(Ed25519Key22()));
     }
 
@@ -94,7 +84,7 @@ public class HostKeyStoreTests
     public void DifferentAlgorithms_same_host_same_port_raise_algorithm_substitution()
     {
         // Once a host+port is pinned with one algorithm, presenting a different algorithm
-        // must raise HostKeyChangedException (algorithm substitution guard — Finding 3).
+        // must raise HostKeyChangedException (algorithm substitution guard).
         var store = new HostKeyStore();
         store.Verify(Host1, Port22, "ssh-ed25519", FpA);
 
@@ -118,7 +108,7 @@ public class HostKeyStoreTests
         Assert.True(removed);
         Assert.Null(store.GetPinned(Ed25519Key22()));
 
-        // re-pin with a NEW fingerprint — should succeed (TOFU again)
+        // Re-pinning with a NEW fingerprint must succeed (TOFU again after Forget).
         var trusted = store.Verify(Host1, Port22, "ssh-ed25519", FpC);
         Assert.True(trusted);
         Assert.Equal(FpC, store.GetPinned(Ed25519Key22()));
@@ -138,8 +128,6 @@ public class HostKeyStoreTests
         Assert.Null(store.GetPinned(Ed25519Key22("unknown.example.com")));
     }
 
-    // ── Finding 1: same-host-different-port gets independent pins ────────────
-
     [Fact]
     public void SameHost_DifferentPort_pinned_independently()
     {
@@ -147,7 +135,6 @@ public class HostKeyStoreTests
         store.Verify(Host1, Port22, "ssh-ed25519", FpA);
         store.Verify(Host1, Port2222, "ssh-ed25519", FpB);
 
-        // Each port gets its own pin.
         Assert.Equal(FpA, store.GetPinned(HostKeyStore.MakeStoreKey("ssh-ed25519", Host1, Port22)));
         Assert.Equal(FpB, store.GetPinned(HostKeyStore.MakeStoreKey("ssh-ed25519", Host1, Port2222)));
     }
@@ -159,15 +146,12 @@ public class HostKeyStoreTests
         store.Verify(Host1, Port22, "ssh-ed25519", FpA);
         store.Verify(Host1, Port2222, "ssh-ed25519", FpB);
 
-        // Changing key for port 22 must not affect port 2222's pin.
         Assert.Throws<HostKeyChangedException>(
             () => store.Verify(Host1, Port22, "ssh-ed25519", FpC));
 
         Assert.Equal(FpA, store.GetPinned(HostKeyStore.MakeStoreKey("ssh-ed25519", Host1, Port22)));
         Assert.Equal(FpB, store.GetPinned(HostKeyStore.MakeStoreKey("ssh-ed25519", Host1, Port2222)));
     }
-
-    // ── Finding 2: HostKeyChangedException carries AlgorithmName + StoreKey ──
 
     [Fact]
     public void HostKeyChangedException_carries_AlgorithmName_and_StoreKey()
@@ -194,20 +178,15 @@ public class HostKeyStoreTests
         var ex = Assert.Throws<HostKeyChangedException>(
             () => store.Verify(Host1, Port22, "ssh-ed25519", FpC));
 
-        // Forget only the pin identified by the exception.
         var removed = store.Forget(ex.StoreKey);
         Assert.True(removed);
 
-        // Port 22 pin is gone.
         Assert.Null(store.GetPinned(HostKeyStore.MakeStoreKey("ssh-ed25519", Host1, Port22)));
         Assert.Null(persistence.GetPinned(HostKeyStore.MakeStoreKey("ssh-ed25519", Host1, Port22)));
 
-        // Port 2222 pin is untouched.
         Assert.Equal(FpB, store.GetPinned(HostKeyStore.MakeStoreKey("ssh-ed25519", Host1, Port2222)));
         Assert.Equal(FpB, persistence.GetPinned(HostKeyStore.MakeStoreKey("ssh-ed25519", Host1, Port2222)));
     }
-
-    // ── Finding 3: algorithm-substitution raises, true first-contact pins ─────
 
     [Fact]
     public void AlgorithmSubstitution_after_pin_raises_HostKeyChangedException()
@@ -236,8 +215,6 @@ public class HostKeyStoreTests
         Assert.Equal(FpB, store.GetPinned(HostKeyStore.MakeStoreKey("ecdsa-sha2-nistp256", Host1, Port22)));
     }
 
-    // ── persistence seam ─────────────────────────────────────────────────────
-
     [Fact]
     public void Loads_persisted_pins_at_construction()
     {
@@ -249,7 +226,6 @@ public class HostKeyStoreTests
 
         var store = new HostKeyStore(persistence);
 
-        // Presenting the same fingerprint must pass
         var trusted = store.Verify(Host1, Port22, "ssh-ed25519", FpA);
         Assert.True(trusted);
     }
@@ -295,8 +271,6 @@ public class HostKeyStoreTests
         Assert.Null(persistence.GetPinned(Ed25519Key22()));
     }
 
-    // ── HandleHostKeyReceived (the real SSH.NET event path) ──────────────────
-
     [Fact]
     public void Handler_first_use_pins_real_fingerprint_and_sets_CanTrust()
     {
@@ -319,7 +293,6 @@ public class HostKeyStoreTests
         var args = MakeRealHostKeyArgs();
         var sender = new FakeHostKeySender(Host1, Port22);
 
-        // Pin a different fingerprint for the same host+port+algorithm first.
         store.Verify(Host1, Port22, args.HostKeyName, FpB);
 
         var ex = Assert.Throws<HostKeyChangedException>(
@@ -328,13 +301,10 @@ public class HostKeyStoreTests
         Assert.Equal(Host1, ex.Host);
         Assert.Equal(FpB, ex.OldFingerprint);
         Assert.Equal(args.FingerPrintSHA256, ex.NewFingerprint);
-        Assert.False(args.CanTrust); // must NOT be trusted
+        Assert.False(args.CanTrust);
     }
 
-    /// <summary>
-    /// Builds a real <see cref="HostKeyEventArgs"/> from a synthetic (non-random) ed25519
-    /// public key encoded in SSH wire format: <c>string "ssh-ed25519" + string(32-byte key)</c>.
-    /// </summary>
+    // Encodes the key in SSH wire format: string "ssh-ed25519" + string(32-byte key).
     private static HostKeyEventArgs MakeRealHostKeyArgs()
     {
         var algo = System.Text.Encoding.ASCII.GetBytes("ssh-ed25519");
@@ -353,12 +323,6 @@ public class HostKeyStoreTests
     }
 }
 
-// ── fakes / helpers ───────────────────────────────────────────────────────────
-
-/// <summary>
-/// Minimal <see cref="IBaseClient"/> so <see cref="HostKeyStore.HandleHostKeyReceived"/> can
-/// read the host name and port from the event sender, exactly as it does with a real SftpClient.
-/// </summary>
 internal sealed class FakeHostKeySender : IBaseClient
 {
     private readonly string _host;
@@ -373,7 +337,6 @@ internal sealed class FakeHostKeySender : IBaseClient
     public Renci.SshNet.ConnectionInfo ConnectionInfo =>
         new(_host, _port, "unused", new PasswordAuthenticationMethod("u", "p"));
 
-    // ── unused IBaseClient members ────────────────────────────────────────
     public bool IsConnected => false;
     public TimeSpan KeepAliveInterval { get => TimeSpan.Zero; set { } }
     public void Connect() { }
@@ -388,9 +351,6 @@ internal sealed class FakeHostKeySender : IBaseClient
     public void Dispose() { }
 }
 
-/// <summary>
-/// In-memory <see cref="IHostKeyPersistence"/> for test assertions.
-/// </summary>
 internal sealed class DictionaryHostKeyPersistence : IHostKeyPersistence
 {
     private readonly Dictionary<string, string> _store;

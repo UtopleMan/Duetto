@@ -1,6 +1,5 @@
 namespace Duetto.Tests.Core;
 
-/// <summary>Disposable scratch directory for filesystem tests.</summary>
 public sealed class TempDir : IDisposable
 {
     public string Path { get; } =

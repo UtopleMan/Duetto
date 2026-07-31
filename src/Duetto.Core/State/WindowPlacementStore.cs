@@ -2,13 +2,8 @@ using System.Text.Json;
 
 namespace Duetto.Core.State;
 
-/// <summary>
-/// Persists the main window's <see cref="WindowPlacement"/> as JSON. Mirrors
-/// <c>ConnectionStore</c>: the production constructor uses the real filesystem with an
-/// atomic temp-then-move write; the injected constructor takes reader/writer delegates for
-/// unit tests. <see cref="Load"/> never throws — a missing, empty, or corrupt file yields
-/// <see langword="null"/> so the caller falls back to a default placement.
-/// </summary>
+// Load never throws — a missing, empty, or corrupt file yields null so the caller falls
+// back to a default placement.
 public sealed class WindowPlacementStore
 {
     private readonly string _path;
@@ -21,7 +16,6 @@ public sealed class WindowPlacementStore
         PropertyNameCaseInsensitive = true,
     };
 
-    /// <summary>Creates a store backed by the real filesystem at <paramref name="path"/>.</summary>
     public WindowPlacementStore(string path)
         : this(path,
                p => File.Exists(p) ? File.ReadAllText(p) : null,
@@ -33,10 +27,6 @@ public sealed class WindowPlacementStore
                })
     { }
 
-    /// <summary>Creates a store with injected IO — intended for unit tests.</summary>
-    /// <param name="path">Logical path passed to <paramref name="reader"/> and <paramref name="writer"/>.</param>
-    /// <param name="reader">Returns the file content, or <see langword="null"/> when the file does not exist.</param>
-    /// <param name="writer">Writes the file content (temp + move logic belongs here for production use).</param>
     public WindowPlacementStore(string path, Func<string, string?> reader, Action<string, string> writer)
     {
         _path = path;
@@ -44,10 +34,6 @@ public sealed class WindowPlacementStore
         _writer = writer;
     }
 
-    /// <summary>
-    /// Loads the saved placement, or <see langword="null"/> when the file is missing, empty,
-    /// or corrupt. Never throws.
-    /// </summary>
     public WindowPlacement? Load()
     {
         try
@@ -68,7 +54,6 @@ public sealed class WindowPlacementStore
         }
     }
 
-    /// <summary>Saves <paramref name="placement"/>, overwriting any existing file.</summary>
     public void Save(WindowPlacement placement)
     {
         ArgumentNullException.ThrowIfNull(placement);

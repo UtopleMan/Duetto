@@ -1,11 +1,7 @@
 namespace Duetto.Core.Remote;
 
-/// <summary>
-/// A thin value record that carries the SFTP metadata that <see cref="SftpFileSystemProvider"/>
-/// needs from a directory listing or a single-path stat.  The real adapter populates this from
-/// <c>ISftpFile</c>; the test fake populates it from an in-memory tree.  Neither side is
-/// required to implement SSH.NET's ~30-member <c>ISftpFile</c> interface.
-/// </summary>
+// A thin subset of SFTP metadata so neither the real adapter nor the test fake has to
+// implement SSH.NET's ~30-member ISftpFile interface.
 public sealed record SftpEntry(
     string Name,
     string FullName,

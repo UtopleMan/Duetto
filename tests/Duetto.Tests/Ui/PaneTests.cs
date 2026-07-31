@@ -174,7 +174,7 @@ public class PaneTests
         tmp.File("real.txt", "x");
         using var vm = new PaneViewModel(tmp.Path);
 
-        vm.Selection.Select(0); // cursor on ".."
+        vm.Selection.Select(0);
         Assert.Empty(vm.SelectedRows);
         Assert.Null(vm.StartRename());
         Assert.Equal("1 item", vm.StatusText);
@@ -192,7 +192,7 @@ public class PaneTests
 
         var cursor = vm.Left.Selection.SelectedItem as FileRowViewModel;
         Assert.NotNull(cursor);
-        Assert.True(cursor!.IsParentNav); // ".." is row 0 in a non-root dir
+        Assert.True(cursor!.IsParentNav);
         window.Close();
     }
 
@@ -202,18 +202,18 @@ public class PaneTests
         using var tmp = new TempDir();
         tmp.File("aaa.txt", "x");
         tmp.File("bbb.txt", "x");
-        using var vm = new PaneViewModel(tmp.Path); // rows: .., aaa, bbb
+        using var vm = new PaneViewModel(tmp.Path);
 
         vm.Selection.Select(1);
-        vm.ToggleMarkAndAdvance(); // marks aaa, cursor to bbb
+        vm.ToggleMarkAndAdvance();
         Assert.Equal(["aaa.txt"], vm.SelectedRows.Select(r => r.Name));
         Assert.Equal(2, vm.Selection.SelectedIndex);
 
-        vm.ToggleMarkAndAdvance(); // marks bbb too, cursor stays on last row
+        vm.ToggleMarkAndAdvance();
         Assert.Equal(["aaa.txt", "bbb.txt"], vm.SelectedRows.Select(r => r.Name).Order());
         Assert.Equal(2, vm.Selection.SelectedIndex);
 
-        vm.ToggleMarkAndAdvance(); // bbb marked -> toggles off
+        vm.ToggleMarkAndAdvance();
         Assert.Equal(["aaa.txt"], vm.SelectedRows.Select(r => r.Name));
     }
 
@@ -235,9 +235,8 @@ public class PaneTests
         Dispatcher.UIThread.RunJobs();
 
         Assert.True(vm.Left.Rows.Single(r => r.Name == "aaa.txt").IsMarked);
-        Assert.Equal(before, vm.Left.Selection.SelectedIndex); // no advance
+        Assert.Equal(before, vm.Left.Selection.SelectedIndex);
 
-        // Pressing Space again toggles the mark back off.
         window.KeyPressQwerty(PhysicalKey.Space, RawInputModifiers.None);
         Dispatcher.UIThread.RunJobs();
         Assert.False(vm.Left.Rows.Single(r => r.Name == "aaa.txt").IsMarked);
@@ -250,10 +249,10 @@ public class PaneTests
     {
         using var tmp = new TempDir();
         tmp.File("aaa.txt", "x");
-        using var vm = new PaneViewModel(tmp.Path); // rows: .., aaa
+        using var vm = new PaneViewModel(tmp.Path);
 
         vm.Selection.Select(0);
-        vm.ToggleMarkAndAdvance(); // ".." skipped, cursor to aaa
+        vm.ToggleMarkAndAdvance();
         Assert.False(vm.HasMarks);
         Assert.Equal(1, vm.Selection.SelectedIndex);
 
@@ -269,7 +268,7 @@ public class PaneTests
         tmp.File("bbb.txt", "x");
         using var vm = new PaneViewModel(tmp.Path);
 
-        vm.SelectByName("bbb.txt"); // cursor only, nothing marked
+        vm.SelectByName("bbb.txt");
         Assert.False(vm.HasMarks);
         Assert.Equal(["bbb.txt"], vm.SelectedRows.Select(r => r.Name));
     }
@@ -281,18 +280,18 @@ public class PaneTests
         tmp.File("aaa.txt", "x");
         tmp.File("bbb.txt", "x");
         tmp.File("ccc.txt", "x");
-        using var vm = new PaneViewModel(tmp.Path); // .., aaa, bbb, ccc
+        using var vm = new PaneViewModel(tmp.Path);
 
         vm.Selection.Select(1);
-        vm.MarkCursorAndMove(1); // marks aaa, cursor bbb
-        vm.MarkCursorAndMove(1); // marks bbb, cursor ccc
+        vm.MarkCursorAndMove(1);
+        vm.MarkCursorAndMove(1);
         Assert.Equal(["aaa.txt", "bbb.txt"], vm.SelectedRows.Select(r => r.Name).Order());
 
         vm.ClearMarks();
         Assert.False(vm.HasMarks);
 
         vm.Selection.Select(1);
-        vm.MarkRangeTo(vm.Rows[3]); // range aaa..ccc
+        vm.MarkRangeTo(vm.Rows[3]);
         Assert.Equal(["aaa.txt", "bbb.txt", "ccc.txt"], vm.SelectedRows.Select(r => r.Name).Order());
         Assert.Equal(3, vm.Selection.SelectedIndex);
     }
@@ -326,7 +325,7 @@ public class PaneTests
 
         window.KeyPressQwerty(PhysicalKey.PageUp, RawInputModifiers.None);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(0, vm.Left.Selection.SelectedIndex); // clamped at top
+        Assert.Equal(0, vm.Left.Selection.SelectedIndex);
         window.Close();
     }
 
@@ -344,12 +343,8 @@ public class PaneTests
         Assert.Equal(Path.Combine(tmp.Path, "doc.txt"), launched);
     }
 
-    // ── Remote navigation (registry seam) ──────────────────────────────────
-    //
-    // Each test builds a fresh registry, registers an InMemoryFileSystemProvider,
-    // then constructs a PaneViewModel that starts at a remote address and assigns
-    // the registry to vm.Registry. The default Lister lambda captures `this`, so
-    // it reads Registry at call time — no re-wiring needed.
+    // The default Lister lambda captures `this`, so it reads Registry at call time —
+    // no re-wiring needed after assigning the registry.
 
     [AvaloniaFact]
     public void Remote_pane_lists_directory_via_injected_registry()
@@ -419,7 +414,6 @@ public class PaneTests
 
         Assert.Equal("sftp://srv/work", vm.CurrentPath);
         Assert.Equal("work", vm.DirName);
-        // After going up, the child directory "src" should be selected.
         Assert.Equal("src", (vm.Selection.SelectedItem as FileRowViewModel)?.Name);
     }
 
@@ -436,17 +430,15 @@ public class PaneTests
         using var localVm = new PaneViewModel(tmp.Path);
         Assert.True(localVm.HasActiveWatcher);
 
-        // Remote pane: the IsRemote gate must prevent any watcher from starting.
+        // The IsRemote gate must prevent any watcher from starting for a remote pane.
         using var vm = new PaneViewModel("sftp://host2/", reg);
         Dispatcher.UIThread.RunJobs();
         Assert.False(vm.HasActiveWatcher);
 
-        // Still none after navigating within the remote tree.
         vm.NavigateTo("sftp://host2/sub");
         Dispatcher.UIThread.RunJobs();
         Assert.False(vm.HasActiveWatcher);
 
-        // Navigating back to a local path re-arms the watcher.
         vm.NavigateTo(tmp.Path);
         Dispatcher.UIThread.RunJobs();
         Assert.True(vm.HasActiveWatcher);

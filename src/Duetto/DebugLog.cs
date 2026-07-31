@@ -1,6 +1,5 @@
 namespace Duetto;
 
-/// <summary>Diagnostic trace, active only when DUETTO_LOG points at a file.</summary>
 internal static class DebugLog
 {
     public static void Write(string message)

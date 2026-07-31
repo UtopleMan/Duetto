@@ -6,45 +6,15 @@ using Renci.SshNet.Common;
 
 namespace Duetto.ViewModels;
 
-/// <summary>
-/// ViewModel for the Connect dialog.  Builds a <see cref="ConnectionInfo"/>, invokes
-/// <see cref="ConnectionManager.Connect"/>, and surfaces errors inline.
-///
-/// <para>
-/// <b>Injection seams:</b>
-/// <list type="bullet">
-///   <item><description><see cref="ConnectAction"/> — synchronous connect invoked on a background thread;
-///     tests inject a fake that does not open any sockets.</description></item>
-///   <item><description><see cref="SaveAction"/> — persists the connection; tests inject a recorder.</description></item>
-///   <item><description><see cref="ForgetKeyAction"/> — calls <see cref="HostKeyStore.Forget"/>;
-///     injected for HostKeyChangedException path tests.</description></item>
-/// </list>
-/// </para>
-/// </summary>
 public partial class ConnectDialogViewModel : ObservableObject
 {
-    // ── injected seams ────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Performs the actual connect; receives a <see cref="ConnectionInfo"/> and a
-    /// <see cref="ConnectSecret"/>.  Runs on a background thread.
-    /// Default implementation calls <see cref="ConnectionManager.Connect"/>.
-    /// </summary>
+    // Runs on a background thread; tests inject a fake that opens no sockets.
     public Action<ConnectionInfo, ConnectSecret> ConnectAction { get; set; }
 
-    /// <summary>
-    /// Persists a successful connection; receives the packed <see cref="StoredConnection"/>.
-    /// Default implementation appends to the <see cref="ConnectionStore"/> and calls Save.
-    /// </summary>
     public Action<StoredConnection> SaveAction { get; set; }
 
-    /// <summary>
-    /// Removes a stale host-key pin so the next connect attempt re-pins.
-    /// Default implementation calls <see cref="HostKeyStore.Forget"/>.
-    /// </summary>
+    // Removes a stale host-key pin so the next connect attempt re-pins.
     public Action<string> ForgetKeyAction { get; set; }
-
-    // ── editable fields ───────────────────────────────────────────────────────
 
     [ObservableProperty]
     private string _name = "";
@@ -78,8 +48,6 @@ public partial class ConnectDialogViewModel : ObservableObject
     [ObservableProperty]
     private bool _savePassword;
 
-    // ── state ─────────────────────────────────────────────────────────────────
-
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasError))]
     private string _errorText = "";
@@ -87,7 +55,6 @@ public partial class ConnectDialogViewModel : ObservableObject
     [ObservableProperty]
     private bool _isConnecting;
 
-    /// <summary>True when the dialog is in the host-key-changed confirmation state.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasHostKeyWarning))]
     private bool _isHostKeyChanged;
@@ -98,10 +65,7 @@ public partial class ConnectDialogViewModel : ObservableObject
     [ObservableProperty]
     private string _newFingerprint = "";
 
-    /// <summary>The StoreKey from the caught <see cref="HostKeyChangedException"/>; used by AcceptNewKeyCommand.</summary>
     private string _hostKeyStoreKey = "";
-
-    // ── computed ──────────────────────────────────────────────────────────────
 
     public bool IsPasswordMode => AuthMode == AuthMode.Password;
     public bool IsKeyMode => AuthMode == AuthMode.Key;
@@ -111,16 +75,11 @@ public partial class ConnectDialogViewModel : ObservableObject
     public bool IsPortValid =>
         int.TryParse(PortText, out var port) && port is >= 1 and <= 65535;
 
-    /// <summary>Raised when a connection was established successfully.</summary>
     public event Action<ConnectionInfo>? Connected;
-
-    /// <summary>Raised when the user cancels.</summary>
     public event Action? Cancelled;
 
-    // ── stored connection id (null for new, set for editing) ──────────────────
+    // Null for a new connection, set when editing an existing one.
     private string? _editingId;
-
-    // ── constructor ───────────────────────────────────────────────────────────
 
     public ConnectDialogViewModel(
         ConnectionManager manager,
@@ -133,7 +92,6 @@ public partial class ConnectDialogViewModel : ObservableObject
         SaveAction = stored =>
         {
             var all = store.Load().ToList();
-            // Replace existing entry if editing, otherwise append.
             var idx = all.FindIndex(c => c.Id == stored.Id);
             if (idx >= 0)
                 all[idx] = stored;
@@ -148,12 +106,6 @@ public partial class ConnectDialogViewModel : ObservableObject
 
     private readonly SecretCodec _codec;
 
-    // ── factory method for editing an existing connection ─────────────────────
-
-    /// <summary>
-    /// Pre-fills the dialog fields from a <see cref="StoredConnection"/> for editing.
-    /// Call after construction.
-    /// </summary>
     public void ForEdit(StoredConnection stored)
     {
         _editingId = stored.Id;
@@ -166,7 +118,6 @@ public partial class ConnectDialogViewModel : ObservableObject
         InitialRemotePath = stored.InitialRemotePath;
         SavePassword = stored.SavePassword;
 
-        // Prefill the secret field if the password was saved.
         if (stored.SavePassword && !string.IsNullOrEmpty(stored.ObfuscatedSecret))
         {
             var secret = ConnectionStore.ResolveSecret(stored, _codec);
@@ -179,8 +130,6 @@ public partial class ConnectDialogViewModel : ObservableObject
             }
         }
     }
-
-    // ── validation ────────────────────────────────────────────────────────────
 
     private string? Validate()
     {
@@ -197,8 +146,6 @@ public partial class ConnectDialogViewModel : ObservableObject
         return null;
     }
 
-    // ── BuildInfo/BuildSecret helpers ─────────────────────────────────────────
-
     private ConnectionInfo BuildInfo() => new(
         Id: _editingId ?? Guid.NewGuid().ToString("N"),
         Name: string.IsNullOrWhiteSpace(Name) ? Host : Name.Trim(),
@@ -214,8 +161,6 @@ public partial class ConnectDialogViewModel : ObservableObject
         AuthMode.Key => ConnectSecret.FromKey(string.IsNullOrEmpty(KeyPassphrase) ? null : KeyPassphrase),
         _ => ConnectSecret.FromPassword(Password),
     };
-
-    // ── commands ──────────────────────────────────────────────────────────────
 
     [RelayCommand]
     public async Task ConnectAsync()
@@ -287,10 +232,6 @@ public partial class ConnectDialogViewModel : ObservableObject
         OnConnectSuccess(info, secret);
     }
 
-    /// <summary>
-    /// Clears the stale host-key pin and retries the connection once.
-    /// Only valid when <see cref="IsHostKeyChanged"/> is true.
-    /// </summary>
     [RelayCommand]
     public async Task AcceptNewKeyAsync()
     {
@@ -360,8 +301,6 @@ public partial class ConnectDialogViewModel : ObservableObject
 
     [RelayCommand]
     public void Cancel() => Cancelled?.Invoke();
-
-    // ── private helpers ───────────────────────────────────────────────────────
 
     private void OnConnectSuccess(ConnectionInfo info, ConnectSecret secret)
     {

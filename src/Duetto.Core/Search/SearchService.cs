@@ -24,14 +24,6 @@ public static class SearchService
 
     private static readonly FileSystemRegistry _defaultRegistry = new();
 
-    /// <summary>
-    /// Streams hits below <paramref name="scopeDir"/> whose name contains
-    /// <paramref name="query"/> (ordinal, case-insensitive) or, when
-    /// <paramref name="includeContents"/> is set, whose text content contains it.
-    /// Unreadable directories are skipped. <paramref name="stats"/> updates live.
-    /// Returns no results when the resolved provider's
-    /// <see cref="FileSystemCapabilities.SupportsSearch"/> is false.
-    /// </summary>
     public static IAsyncEnumerable<SearchHit> Search(
         string scopeDir,
         string query,
@@ -40,14 +32,7 @@ public static class SearchService
         CancellationToken ct = default)
         => Search(scopeDir, query, includeContents, stats, _defaultRegistry, ct);
 
-    /// <summary>
-    /// Provider-aware overload: resolves <paramref name="scopeDir"/> via
-    /// <paramref name="registry"/> and walks using the owning provider's
-    /// <see cref="IFileSystemProvider.EnumerateRecursive"/> and
-    /// <see cref="IFileSystemProvider.OpenRead"/>. Gated on
-    /// <see cref="FileSystemCapabilities.SupportsSearch"/>; returns no results
-    /// when the capability is false (clean no-op, no exception).
-    /// </summary>
+    // Returns no results when SupportsSearch is false (clean no-op, no exception).
     public static async IAsyncEnumerable<SearchHit> Search(
         string scopeDir,
         string query,
@@ -73,7 +58,6 @@ public static class SearchService
                 {
                     ct.ThrowIfCancellationRequested();
 
-                    // Compute the folder of this entry relative to the scope root.
                     var entryParent = entry.FullPath.Contains(sep)
                         ? entry.FullPath[..entry.FullPath.LastIndexOf(sep)]
                         : "";

@@ -9,15 +9,8 @@ using Renci.SshNet.Common;
 
 namespace Duetto.Tests.Ui;
 
-/// <summary>
-/// End-to-end tests for remote-provider routing of file operations:
-/// transfer (Req 1), new folder/file (Req 2), rename (Req 3), and delete status text (Req 4).
-/// All tests use <see cref="InMemoryFileSystemProvider"/> — no real SFTP connection.
-/// </summary>
 public class RemoteOpsTests
 {
-    // ── helpers ──────────────────────────────────────────────────────────────
-
     private static InMemoryFileSystemProvider MakeRemoteFs() => new();
 
     private static FileSystemRegistry MakeRegistry(string scheme, string id, IFileSystemProvider provider)
@@ -35,12 +28,6 @@ public class RemoteOpsTests
         w.Write(bytes);
     }
 
-    // ── Req 1: Transfer routing ───────────────────────────────────────────────
-
-    /// <summary>
-    /// Copy from remote src to remote dst (same provider, different dirs) routes through the
-    /// provider-aware TransferEngine overload. File must appear in dst via the in-memory provider.
-    /// </summary>
     [AvaloniaFact]
     public async Task StartTransfer_routes_remote_source_through_provider_overload()
     {
@@ -62,9 +49,6 @@ public class RemoteOpsTests
         Assert.True(fs.FileExists("/dst/hello.txt"));
     }
 
-    /// <summary>
-    /// Cross-provider transfer: local source file gets copied to in-memory remote dst.
-    /// </summary>
     [AvaloniaFact]
     public async Task Cross_provider_transfer_local_to_remote()
     {
@@ -90,9 +74,6 @@ public class RemoteOpsTests
         Assert.True(remoteFs.FileExists("/incoming/data.txt"));
     }
 
-    /// <summary>
-    /// Download: remote (in-memory) source file gets copied to a local TempDir destination.
-    /// </summary>
     [AvaloniaFact]
     public async Task Cross_provider_transfer_remote_to_local_download()
     {
@@ -116,10 +97,6 @@ public class RemoteOpsTests
         Assert.Equal("remote bytes", File.ReadAllText(landed));
     }
 
-    /// <summary>
-    /// Move within one remote (same provider instance on both panes): the source must be
-    /// gone and the destination present — the engine takes the native-Move path.
-    /// </summary>
     [AvaloniaFact]
     public async Task Move_within_one_remote_removes_source_and_delivers_destination()
     {
@@ -142,10 +119,6 @@ public class RemoteOpsTests
         Assert.True(fs.FileExists("/b/doc.txt"));
     }
 
-    /// <summary>
-    /// Move between two DIFFERENT remote providers: falls back to copy+delete — the file
-    /// lands on the destination provider and is removed from the source provider.
-    /// </summary>
     [AvaloniaFact]
     public async Task Move_across_two_remotes_copies_then_deletes()
     {
@@ -172,12 +145,6 @@ public class RemoteOpsTests
         Assert.True(dstFs.FileExists("/in/payload.txt"));
     }
 
-    // ── Req 2: New folder/file on remote pane ────────────────────────────────
-
-    /// <summary>
-    /// NewFolder on a remote pane creates the directory through the in-memory provider,
-    /// not through local disk.
-    /// </summary>
     [AvaloniaFact]
     public void NewFolder_on_remote_pane_creates_via_provider()
     {
@@ -198,9 +165,6 @@ public class RemoteOpsTests
         Assert.DoesNotContain(vm.Rows, r => r.IsNewPlaceholder);
     }
 
-    /// <summary>
-    /// NewFile on a remote pane creates the file through the in-memory provider.
-    /// </summary>
     [AvaloniaFact]
     public void NewFile_on_remote_pane_creates_via_provider()
     {
@@ -221,10 +185,6 @@ public class RemoteOpsTests
         Assert.DoesNotContain(vm.Rows, r => r.IsNewPlaceholder);
     }
 
-    /// <summary>
-    /// Committing a name that already exists in the remote provider keeps editing
-    /// (collision detected via provider, not local disk).
-    /// </summary>
     [AvaloniaFact]
     public void NewFolder_collision_detected_via_remote_provider()
     {
@@ -240,17 +200,10 @@ public class RemoteOpsTests
         placeholder.EditName = "Existing";
         vm.CommitRename(placeholder);
 
-        // Stays in edit mode — collision detected.
         Assert.True(placeholder.IsEditing);
         Assert.Contains(vm.Rows, r => r.IsNewPlaceholder);
     }
 
-    // ── Req 3: Rename on remote pane ────────────────────────────────────────
-
-    /// <summary>
-    /// Rename on a remote pane routes through the provider (InMemoryFileSystemProvider),
-    /// not through local FileOps/local disk.
-    /// </summary>
     [AvaloniaFact]
     public async Task Rename_on_remote_pane_routes_through_provider()
     {
@@ -273,14 +226,6 @@ public class RemoteOpsTests
         Assert.Equal("new.txt", vm.CursorRow?.Name);
     }
 
-    // ── Req 4: Delete status text ────────────────────────────────────────────
-
-    /// <summary>
-    /// Delete on a remote pane uses the DEFAULT TrashFn (no test override): the provider-local
-    /// row path must be rebuilt to its full sftp://id/... address so the delete lands on the
-    /// remote provider — never on a same-named local path. The strip title must say
-    /// "Deleted N items" (HasTrash = false), not "Moved … to Trash".
-    /// </summary>
     [AvaloniaFact]
     public async Task Delete_on_remote_pane_uses_provider_and_says_deleted_not_trash()
     {
@@ -308,10 +253,6 @@ public class RemoteOpsTests
         Assert.DoesNotContain("Trash", op.Title);
     }
 
-    /// <summary>
-    /// After deleting from a local pane (HasTrash = true), the strip title must say
-    /// "Moved N items to Trash".
-    /// </summary>
     [AvaloniaFact]
     public async Task Delete_status_text_says_trash_for_local()
     {
@@ -320,7 +261,6 @@ public class RemoteOpsTests
 
         using var vm = new MainViewModel(tmp.Path, tmp.Path);
 
-        // Inline scheduler; TrashFn swallows (file deletion, but we only check the title).
         vm.DeleteScheduler = (work, ct) => { work(ct); return Task.CompletedTask; };
         vm.TrashFn = _ => null;
 
@@ -335,12 +275,6 @@ public class RemoteOpsTests
         Assert.DoesNotContain("Deleted", op.Title);
     }
 
-    // ── Req 5: Open on remote pane guard tests ───────────────────────────────
-
-    /// <summary>
-    /// Open on a remote directory row must navigate the pane to the full sftp:// address
-    /// (scheme + id + provider-local sub-path), not the raw provider-local path.
-    /// </summary>
     [AvaloniaFact]
     public void Open_remote_directory_row_navigates_to_full_sftp_address()
     {
@@ -358,15 +292,9 @@ public class RemoteOpsTests
         vm.Open(row);
         Dispatcher.UIThread.RunJobs();
 
-        // Must have navigated to the full remote address, not the bare local "/sub".
         Assert.Equal("sftp://id/sub", vm.CurrentPath);
     }
 
-    /// <summary>
-    /// Open on a remote directory row must NOT navigate to a same-named LOCAL directory.
-    /// Data-loss guard: confirms the seam routes through the remote provider, not the
-    /// local one, even when a same-named directory exists on disk.
-    /// </summary>
     [AvaloniaFact]
     public void Open_remote_directory_row_does_not_navigate_to_local_same_named_directory()
     {
@@ -374,7 +302,6 @@ public class RemoteOpsTests
         fs.CreateDirectory("/", "docs");
         var reg = MakeRegistry("sftp", "id", fs);
 
-        // The pane starts at the remote root.
         using var vm = new PaneViewModel("sftp://id/", reg);
         Dispatcher.UIThread.RunJobs();
 
@@ -383,16 +310,11 @@ public class RemoteOpsTests
         vm.Open(row);
         Dispatcher.UIThread.RunJobs();
 
-        // The pane must stay on a remote path — never a bare local "/docs".
         Assert.True(PathUtil.IsRemote(vm.CurrentPath),
             $"Expected a remote address but got: {vm.CurrentPath}");
         Assert.Equal("sftp://id/docs", vm.CurrentPath);
     }
 
-    /// <summary>
-    /// Open on a remote FILE row must be a no-op (remote file open is a deferred feature).
-    /// The pane path must be unchanged and LaunchFile must not be invoked.
-    /// </summary>
     [AvaloniaFact]
     public void Open_remote_file_row_is_noop_and_does_not_invoke_LaunchFile()
     {
@@ -421,13 +343,6 @@ public class RemoteOpsTests
         Assert.Equal(pathBefore, vm.CurrentPath);
     }
 
-    // ── Req 6: NavigateTo pre-flight exception guard ─────────────────────────
-
-    /// <summary>
-    /// NavigateTo to a remote address that has no registered provider
-    /// (InvalidOperationException from Registry.Resolve — the "reveal after disconnect"
-    /// scenario) must not propagate and must leave the pane at its current path.
-    /// </summary>
     [AvaloniaFact]
     public void NavigateTo_unregistered_remote_address_does_not_throw_and_leaves_path_unchanged()
     {
@@ -445,13 +360,6 @@ public class RemoteOpsTests
         Assert.Equal(pathBefore, vm.CurrentPath);
     }
 
-    /// <summary>
-    /// NavigateTo to a remote address whose provider throws SshConnectionException
-    /// (connection dropped) must not propagate and must leave the pane at its current path.
-    /// The provider is registered so Resolve succeeds; the exception surfaces from the
-    /// Lister (load path) — the NavigateTo guard ensures the pane commits the new path
-    /// only after a clean resolve, and the load guard handles failures during listing.
-    /// </summary>
     [AvaloniaFact]
     public void NavigateTo_remote_address_with_SshConnectionException_does_not_throw_and_pane_survives()
     {
@@ -469,17 +377,10 @@ public class RemoteOpsTests
         using var vm = new PaneViewModel(tmp.Path, reg);
         Dispatcher.UIThread.RunJobs();
 
-        // Must not throw regardless of whether DirectoryExists is called.
         var ex = Record.Exception(() => vm.NavigateTo("sftp://srv/sub"));
         Assert.Null(ex);
     }
 
-    // ── Helper: provider whose DirectoryExists always throws ────────────────
-
-    /// <summary>
-    /// Wraps InMemoryFileSystemProvider but throws a given exception from DirectoryExists.
-    /// Used to simulate a connection drop that could surface during a pre-flight check.
-    /// </summary>
     private sealed class DirectoryExistsThrowingProvider(Exception ex) : IFileSystemProvider
     {
         private readonly InMemoryFileSystemProvider _inner = new();

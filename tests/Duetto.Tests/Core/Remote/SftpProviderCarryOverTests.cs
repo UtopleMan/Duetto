@@ -5,15 +5,8 @@ using DuettoConnectionInfo = Duetto.Core.Remote.ConnectionInfo;
 
 namespace Duetto.Tests.Core.Remote;
 
-/// <summary>
-/// Tests for Req 5 (POSIX-rename probe with fallback) and Req 6 (DeleteRecursive
-/// child-listing materialization) in <see cref="SftpFileSystemProvider"/>.
-/// All tests use an in-memory fake — no sockets opened.
-/// </summary>
 public class SftpProviderCarryOverTests
 {
-    // ── helpers ──────────────────────────────────────────────────────────────
-
     private static SftpFileSystemProvider MakeProvider(
         ISftpClientAdapter adapter, out SftpConnection conn)
     {
@@ -24,12 +17,6 @@ public class SftpProviderCarryOverTests
         return new SftpFileSystemProvider(conn);
     }
 
-    // ── Req 5: POSIX-rename probe ─────────────────────────────────────────────
-
-    /// <summary>
-    /// First ReplaceFile call: posix-rename throws OperationUnsupported → fall back to
-    /// delete-then-rename. The operation must still succeed (file ends up at destination).
-    /// </summary>
     [Fact]
     public void ReplaceFile_posix_rejected_falls_back_to_delete_and_rename()
     {
@@ -40,7 +27,6 @@ public class SftpProviderCarryOverTests
 
         using var provider = MakeProvider(adapter, out var conn);
 
-        // First call: posix throws OperationUnsupported → fallback deletes /dst.txt, renames.
         provider.ReplaceFile("/src.part", "/dst.txt");
 
         Assert.True(adapter.Exists("/dst.txt"));
@@ -50,10 +36,6 @@ public class SftpProviderCarryOverTests
         conn.Dispose();
     }
 
-    /// <summary>
-    /// After the first posix-rename failure the provider must NOT try posix again —
-    /// subsequent ReplaceFile calls go straight to the delete-then-rename fallback.
-    /// </summary>
     [Fact]
     public void ReplaceFile_after_posix_rejection_goes_straight_to_fallback()
     {
@@ -66,11 +48,9 @@ public class SftpProviderCarryOverTests
 
         using var provider = MakeProvider(adapter, out var conn);
 
-        // First call: posix fails, sets _posixRenameWorked = false.
         provider.ReplaceFile("/a.part", "/a.txt");
-        adapter.ResetCallTracking(); // reset counters to observe second call in isolation
+        adapter.ResetCallTracking();
 
-        // Second call: must NOT attempt posix rename.
         provider.ReplaceFile("/b.part", "/b.txt");
 
         Assert.False(adapter.PosixRenameAttempted);
@@ -78,9 +58,6 @@ public class SftpProviderCarryOverTests
         conn.Dispose();
     }
 
-    /// <summary>
-    /// After the first posix-rename failure, <c>Capabilities.AtomicRename</c> must be false.
-    /// </summary>
     [Fact]
     public void AtomicRename_capability_false_after_posix_rejection()
     {
@@ -99,17 +76,10 @@ public class SftpProviderCarryOverTests
         conn.Dispose();
     }
 
-    // ── Req 6: DeleteRecursive materialization ────────────────────────────────
-
-    /// <summary>
-    /// DeleteRecursive must materialise the directory listing before starting to delete
-    /// children. The materialization prevents a reconnect mid-delete from re-enumerating
-    /// from the top with a stale iterator.
-    ///
-    /// Guard: the adapter's ListDirectory returns a lazy sequence that THROWS if it is
-    /// advanced after any delete call — a lazy foreach-then-delete walk trips it; the
-    /// materialised (.ToList-first) walk consumes the sequence fully before deleting.
-    /// </summary>
+    // Materialising the listing first prevents a reconnect mid-delete from re-enumerating
+    // from the top with a stale iterator. The guard adapter's ListDirectory returns a lazy
+    // sequence that throws if advanced after any delete call, so a lazy foreach-then-delete
+    // walk trips it while the materialised (.ToList-first) walk does not.
     [Fact]
     public void DeleteRecursive_materializes_children_before_deleting()
     {
@@ -122,29 +92,17 @@ public class SftpProviderCarryOverTests
 
         provider.Delete("/dir", toTrash: false);
 
-        // The directory and all children must be gone.
         Assert.False(adapter.Exists("/dir"));
         Assert.False(adapter.Exists("/dir/a.txt"));
         Assert.False(adapter.Exists("/dir/b.txt"));
         conn.Dispose();
     }
 
-    // ── Fake adapters ─────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Factory that always returns the same pre-built adapter (no connect socket opened).
-    /// </summary>
     private sealed class SingleAdapterFactory(ISftpClientAdapter adapter) : ISftpClientFactory
     {
         public ISftpClientAdapter Create(DuettoConnectionInfo info, ConnectSecret secret) => adapter;
     }
 
-    /// <summary>
-    /// Adapter that wraps a <see cref="FakeSftpClientAdapter"/> and intercepts
-    /// <see cref="RenameFile"/> calls to track posix vs regular rename usage.
-    /// On the first posix rename call it throws <see cref="SftpException"/> with
-    /// <see cref="StatusCode.OperationUnsupported"/>; subsequent regular renames succeed.
-    /// </summary>
     private sealed class PosixProbeAdapter : ISftpClientAdapter
     {
         private readonly FakeSftpClientAdapter _inner = new();
@@ -159,9 +117,7 @@ public class SftpProviderCarryOverTests
             RegularRenameUsed = false;
         }
 
-        // ── forwarded ──────────────────────────────────────────────────────────
-
-        public bool IsConnected => true; // always appears connected in fake
+        public bool IsConnected => true;
         public void Connect() { }
         public void Disconnect() { }
         public void SetHostKeyReceived(EventHandler<HostKeyEventArgs> handler) { }
@@ -195,16 +151,10 @@ public class SftpProviderCarryOverTests
                 RegularRenameUsed = true;
             }
 
-            _inner.RenameFile(oldPath, newPath, isPosix: false); // regular rename in inner
+            _inner.RenameFile(oldPath, newPath, isPosix: false);
         }
     }
 
-    /// <summary>
-    /// Adapter whose <see cref="ListDirectory"/> returns a lazy sequence that throws
-    /// <see cref="InvalidOperationException"/> when advanced after any delete call.
-    /// A lazy list-then-delete-inside-the-loop walk trips the guard; a walk that
-    /// materialises the listing first (the DeleteRecursive fix) never does.
-    /// </summary>
     private sealed class EnumerationGuardAdapter : ISftpClientAdapter
     {
         private readonly FakeSftpClientAdapter _inner = new();

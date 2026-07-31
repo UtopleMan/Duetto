@@ -3,43 +3,19 @@ using System.Text;
 
 namespace Duetto.Core.Remote;
 
-/// <summary>
-/// Reversible obfuscation of short secret strings (passwords, key passphrases) for storage
-/// in <c>connections.json</c>.
-///
-/// <para>
-/// <b>Security model:</b> this is <em>obfuscation only</em>, not cryptographically secure
-/// protection.  The key is derived from <see cref="Environment.MachineName"/> + the OS
-/// user name + a fixed app salt, so the ciphertext is unreadable on a different machine or
-/// user account but is trivially reversible by anyone with access to the same account and
-/// the source code.  It protects against shoulder-surfing and casual file inspection; it
-/// does NOT protect against a local attacker who can execute code in the same user context.
-/// </para>
-///
-/// <para>
-/// Algorithm: AES-256-CBC, SHA-256 key derivation, random 16-byte IV prepended to the
-/// ciphertext, base64-encoded output.  A corrupt or foreign-machine ciphertext produces
-/// <see langword="null"/> from <see cref="TryDecrypt"/> rather than throwing.
-/// </para>
-/// </summary>
+// Security model: this is obfuscation only, not cryptographically secure protection. The key
+// is derived from machine name + OS user + a fixed app salt, so the ciphertext is unreadable on
+// a different machine or account but is trivially reversible by anyone with the same account and
+// the source. Protects against shoulder-surfing and casual file inspection; NOT against a local
+// attacker who can execute code in the same user context.
 public sealed class SecretCodec
 {
-    /// <summary>Fixed salt mixed into the key derivation so the key is app-specific.</summary>
     private const string AppSalt = "Duetto-ConfigStore-v1";
 
     private readonly byte[] _key;
 
-    /// <summary>
-    /// Creates a <see cref="SecretCodec"/> using the default machine-derived key.
-    /// The key is derived from <see cref="Environment.MachineName"/>,
-    /// <see cref="Environment.UserName"/>, and the fixed app salt.
-    /// </summary>
     public SecretCodec() : this(DeriveKey(Environment.MachineName, Environment.UserName)) { }
 
-    /// <summary>
-    /// Creates a <see cref="SecretCodec"/> with an explicit 32-byte AES-256 key.
-    /// Primarily used in unit tests to make round-trips deterministic across machines.
-    /// </summary>
     public SecretCodec(byte[] key)
     {
         if (key is null) throw new ArgumentNullException(nameof(key));
@@ -47,10 +23,6 @@ public sealed class SecretCodec
         _key = key;
     }
 
-    /// <summary>
-    /// Encrypts <paramref name="plaintext"/> and returns a base64 string
-    /// (IV prepended to ciphertext).
-    /// </summary>
     public string Encrypt(string plaintext)
     {
         ArgumentNullException.ThrowIfNull(plaintext);
@@ -73,12 +45,8 @@ public sealed class SecretCodec
         return Convert.ToBase64String(ms.ToArray());
     }
 
-    /// <summary>
-    /// Attempts to decrypt a base64 ciphertext produced by <see cref="Encrypt"/>.
-    /// Returns the original plaintext on success, or <see langword="null"/> when the
-    /// ciphertext is corrupt, too short, or was encrypted with a different key
-    /// (e.g. on a different machine or user account).
-    /// </summary>
+    // Returns null (never throws) on corrupt, too-short, or foreign-key ciphertext so the
+    // caller can fall back to prompting instead of crashing.
     public string? TryDecrypt(string? ciphertext)
     {
         if (string.IsNullOrEmpty(ciphertext))
@@ -124,12 +92,6 @@ public sealed class SecretCodec
         }
     }
 
-    // ── key derivation ────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Derives a 32-byte AES-256 key from the machine name, username, and app salt
-    /// by hashing their concatenation with SHA-256.
-    /// </summary>
     public static byte[] DeriveKey(string machineName, string userName)
     {
         var material = $"{AppSalt}|{machineName}|{userName}";

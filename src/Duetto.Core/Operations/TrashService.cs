@@ -5,10 +5,7 @@ namespace Duetto.Core.Operations;
 
 public static class TrashService
 {
-    /// <summary>
-    /// Moves a file or directory to the OS trash. Returns the path inside the
-    /// trash on Unix, null on Windows (shell API does not report it).
-    /// </summary>
+    // Returns the path inside the trash on Unix, null on Windows (the shell API does not report it).
     public static string? Trash(string fullPath)
     {
         if (!File.Exists(fullPath) && !Directory.Exists(fullPath))
