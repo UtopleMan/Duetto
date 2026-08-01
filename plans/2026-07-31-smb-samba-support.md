@@ -182,38 +182,52 @@ Container left **running** for Phases 2 & 5 (tear down with
 `docker compose -f docker-compose.smb.yml down` when finished).
 
 ## Phase 1: SMB connection layer (Core)
-Status: Not started
+Status: Complete
 
 Build the low-level, testable adapter + connection wrapper — the SMB analogue of
 `SftpConnection.cs`. No `IFileSystemProvider` yet.
 
-- [ ] `Remote/SmbEntry.cs`: thin record (`Name`, `FullName`, `IsDirectory`,
+- [x] `Remote/SmbEntry.cs`: thin record (`Name`, `FullName`, `IsDirectory`,
       `IsReadOnly`, `Length`, `LastWriteTimeUtc`).
-- [ ] `Remote/SmbConnection.cs` → `ISmbClientAdapter` interface: `IsConnected`,
-      `Connect`, `Disconnect`, `ListShares()`, `ListDirectory(path)`, `Get(path)`,
-      `IsDirectory`, `IsFile`, `CreateDirectory`, `CreateFile`, `RenameFile(old,new,replace)`,
-      `DeleteFile`, `DeleteDirectory`, `Exists`, `OpenRead→Stream`, `OpenWrite→Stream`,
-      `SetLastWriteTimeUtc`. Paths are provider-local (`/share/dir/...`); the adapter
-      owns the share→`TreeConnect` split and `/`→`\` translation.
-- [ ] `RealSmbClientAdapter` (SMB2Client): per-share `ISMBFileStore` cache, DNS
-      resolution, path translation, `NTStatus`→exception mapping.
-- [ ] `ISmbClientFactory` + `DefaultSmbClientFactory`: build+configure `SMB2Client`
-      (DirectTCP, port), perform `Login` with domain/user/pass or guest. Creates but
-      does NOT connect (mirrors `ISftpClientFactory`).
-- [ ] `SmbConnection` class: `Connect`/`Disconnect`/`WithReconnect<T>`/`WithReconnect`
-      + `Adapter` property, mirroring `SftpConnection` reconnect-once semantics. No
-      `HostKeyStore`.
-- [ ] `Remote/SmbFileStream.cs`: `Stream` over chunked `ReadFile`/`WriteFile` with
-      offset tracking; closes handle (and tree if per-stream) on `Dispose`.
+- [x] `Remote/SmbConnection.cs` → `ISmbClientAdapter` interface (+ `ISmbClientFactory`,
+      `SmbConnection`, `SmbConnectionException`, `SmbAuthenticationException`).
+- [x] `RealSmbClientAdapter` (SMB2Client): per-share `ISMBFileStore` cache, DNS
+      resolution, share/path split + `/`→`\` translation, `NTStatus`→exception mapping.
+      Returns `.`/`..` raw (provider filters, mirroring SFTP).
+- [x] `DefaultSmbClientFactory`: builds `RealSmbClientAdapter`; connect = DirectTCP 445
+      + `Login` (domain/user/pass, or guest `Login("","Guest","")`). Creates un-connected.
+- [x] `SmbConnection`: `Connect`/`Disconnect`/`WithReconnect<T>`/`WithReconnect` +
+      `Adapter`, mirroring `SftpConnection` reconnect-once. Catches `SmbConnectionException`
+      only. No `HostKeyStore`.
+- [x] `Remote/SmbFileStream.cs`: forward-only `Stream` over chunked `ReadFile`/`WriteFile`
+      (buffered writes flush at chunk size; reads pull chunk-sized server reads); closes
+      handle on `Dispose`.
+- [x] Pulled forward (needed here): `Remote/SmbConnectionInfo.cs` (Phase 3 item) and
+      `tests/.../FakeSmbClientAdapter.cs` + `FakeSmbFactory` (Phase 2 item).
+- [x] Added `<InternalsVisibleTo Include="Duetto.Tests" />` to `Duetto.Core.csproj`
+      (SmbFileStream is internal).
 
 ### Verification Plan
 - `dotnet build` succeeds.
-- `dotnet test --filter "FullyQualifiedName~SmbConnection"` passes (unit tests added
-  here for `WithReconnect` reconnect-once + `SmbFileStream` chunk math using a fake
-  adapter — no socket). Expected: green.
+- `dotnet test --filter "FullyQualifiedName~SmbConnection|FullyQualifiedName~SmbFileStream"`
+  passes. Expected: green.
 
 ### Phase Summary
-_(write when phase completes)_
+**Done. 9/9 tests green.** `SmbConnection` + `RealSmbClientAdapter` + `SmbFileStream`
+implemented. Key decisions:
+- **Reconnect** keys on the typed `SmbConnectionException`. `RealSmbClientAdapter.Run`
+  wraps every op: pre-checks `client.IsConnected` and converts SMBLibrary's
+  `InvalidOperationException`/`SocketException` (dropped socket) into `SmbConnectionException`
+  so `WithReconnect` retries exactly once.
+- **`SmbFileStream`** is delegate-backed (testable without a socket); a real bug was
+  caught + fixed — the write buffer is reused across flushes, so `FlushWrite` now always
+  hands out a right-sized **copy** (a Stream must not mutate data a caller may hold).
+- **`.`/`..` filtering** lives in the provider (Phase 2), not the adapter — the adapter
+  returns raw listings, matching `SftpFileSystemProvider`.
+- **Port limitation:** SMBLibrary has no custom-port `Connect`, so `SmbConnectionInfo.Port`
+  is stored for parity but the transport always uses 445 (documented in the record).
+- `FakeSmbClientAdapter` models an in-memory tree keyed by provider paths; top-level dirs
+  are the shares (`ListShares`), and it emits `.`/`..` like a real server.
 
 ## Phase 2: SmbFileSystemProvider + contract tests
 Status: Not started

@@ -11,4 +11,8 @@
     <PackageReference Include="SSH.NET" Version="2025.1.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Duetto.Tests" />
+  </ItemGroup>
+
 </Project>
