@@ -6,8 +6,8 @@ NAS boxes) alongside the local filesystem, using a pure-managed client
 
 ## Adding a connection
 
-Open the drive popover by clicking the volume chip in the path bar, then choose
-**Connect SMB…**. Fill in:
+Open the drive popover by clicking the volume chip in the path bar, choose
+**Connect…** (⌘K / Ctrl K), then set **Protocol** to **SMB / Samba**. Fill in:
 
 | Field | Notes |
 |---|---|

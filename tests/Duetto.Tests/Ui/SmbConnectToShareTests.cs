@@ -221,18 +221,4 @@ public sealed class SmbSharesPopoverMergeTests
         Assert.Equal("b", edited.Id);
         Assert.Null(sftpEdited);
     }
-
-    [AvaloniaFact]
-    public void ConnectSmb_command_raises_ConnectSmbRequested()
-    {
-        using var pane = new PaneViewModel("/tmp", new FileSystemRegistry());
-        var popover = new DrivePopoverViewModel(pane);
-
-        var requested = false;
-        popover.ConnectSmbRequested += () => requested = true;
-
-        popover.ConnectSmbCommand.Execute(null);
-
-        Assert.True(requested);
-    }
 }

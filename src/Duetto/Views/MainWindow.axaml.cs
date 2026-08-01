@@ -157,14 +157,20 @@ public partial class MainWindow : Window
             Vm.ConnectionManager,
             Vm.ConnectionStore,
             Vm.HostKeyStore,
-            Vm.Codec);
+            Vm.Codec,
+            Vm.SmbConnectionManager,
+            Vm.SmbConnectionStore);
         if (stored is not null)
             dialogVm.ForEdit(stored);
 
         dialogVm.Connected += info =>
         {
-            var remotePath = $"sftp://{info.Id}{info.InitialRemotePath}";
-            pane.NavigateTo(remotePath);
+            pane.NavigateTo($"sftp://{info.Id}{info.InitialRemotePath}");
+            Vm.RebuildRemotePlaces();
+        };
+        dialogVm.SmbConnected += info =>
+        {
+            pane.NavigateTo($"smb://{info.Id}{info.InitialPath}");
             Vm.RebuildRemotePlaces();
         };
         new ConnectWindow(dialogVm).ShowDialog(owner);

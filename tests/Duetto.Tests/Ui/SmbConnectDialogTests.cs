@@ -6,9 +6,10 @@ using Duetto.ViewModels;
 
 namespace Duetto.Tests.Ui;
 
+// The SMB path of the unified (protocol-aware) ConnectDialogViewModel.
 public sealed class SmbConnectDialogTests
 {
-    private static (SmbConnectDialogViewModel Vm,
+    private static (ConnectDialogViewModel Vm,
                     List<(SmbConnectionInfo Info, ConnectSecret Secret)> Connects,
                     List<StoredSmbConnection> Saved)
         MakeVm(Action<SmbConnectionInfo, ConnectSecret>? connectOverride = null)
@@ -17,15 +18,31 @@ public sealed class SmbConnectDialogTests
         var saved = new List<StoredSmbConnection>();
 
         var registry = new FileSystemRegistry();
-        var store = new SmbConnectionStore(":mem:", _ => null, (_, _) => { });
+        var hks = new HostKeyStore();
+        var store = new ConnectionStore(":mem:", _ => null, (_, _) => { });
+        var smbStore = new SmbConnectionStore(":mem:", _ => null, (_, _) => { });
         var codec = new SecretCodec();
-        var manager = new SmbConnectionManager(registry, new FakeSmbFactory(new FakeSmbClientAdapter()));
+        var manager = new ConnectionManager(registry, hks);
+        var smbManager = new SmbConnectionManager(registry, new FakeSmbFactory(new FakeSmbClientAdapter()));
 
-        var vm = new SmbConnectDialogViewModel(manager, store, codec);
-        vm.ConnectAction = connectOverride ?? ((i, s) => connects.Add((i, s)));
-        vm.SaveAction = s => saved.Add(s);
+        var vm = new ConnectDialogViewModel(manager, store, hks, codec, smbManager, smbStore)
+        {
+            Protocol = ConnectProtocol.Smb,
+        };
+        vm.SmbConnectAction = connectOverride ?? ((i, s) => connects.Add((i, s)));
+        vm.SmbSaveAction = s => saved.Add(s);
 
         return (vm, connects, saved);
+    }
+
+    [AvaloniaFact]
+    public void Selecting_smb_switches_port_default_and_field_visibility()
+    {
+        var (vm, _, _) = MakeVm();
+        Assert.True(vm.IsSmb);
+        Assert.Equal("445", vm.PortText);
+        Assert.True(vm.SmbFieldsVisible);
+        Assert.False(vm.SftpAuthVisible);
     }
 
     [AvaloniaFact]
@@ -67,32 +84,32 @@ public sealed class SmbConnectDialogTests
         Assert.Equal("", connects[0].Secret.Password);
         Assert.Single(saved);
         Assert.True(saved[0].Guest);
-        // Guest never persists a secret even if SavePassword happened to be set.
         Assert.Empty(saved[0].ObfuscatedSecret);
     }
 
     [AvaloniaFact]
-    public void Guest_toggle_hides_credentials()
+    public void Guest_toggle_hides_username_and_password()
     {
         var (vm, _, _) = MakeVm();
-        Assert.True(vm.CredentialsVisible);
+        Assert.True(vm.UsernameVisible);
+        Assert.True(vm.PasswordVisible);
 
         vm.Guest = true;
-        Assert.False(vm.CredentialsVisible);
+        Assert.False(vm.UsernameVisible);
+        Assert.False(vm.PasswordVisible);
     }
 
     [AvaloniaFact]
-    public async Task Successful_connect_saves_and_raises_Connected()
+    public async Task Successful_connect_saves_and_raises_SmbConnected()
     {
         var (vm, connects, saved) = MakeVm();
         SmbConnectionInfo? connected = null;
-        vm.Connected += i => connected = i;
+        vm.SmbConnected += i => connected = i;
 
         vm.Host = "nas.local";
         vm.Username = "alice";
         vm.Password = "pw";
         vm.Domain = "WORKGROUP";
-        vm.PortText = "445";
 
         await vm.ConnectAsync();
 
@@ -119,7 +136,7 @@ public sealed class SmbConnectDialogTests
     }
 
     [AvaloniaFact]
-    public void ForEdit_populates_fields_from_stored()
+    public void ForEdit_smb_sets_protocol_and_fields()
     {
         var (vm, _, _) = MakeVm();
         var stored = new StoredSmbConnection
@@ -137,10 +154,11 @@ public sealed class SmbConnectDialogTests
 
         vm.ForEdit(stored);
 
+        Assert.Equal(ConnectProtocol.Smb, vm.Protocol);
         Assert.Equal("NAS", vm.Name);
         Assert.Equal("nas.local", vm.Host);
         Assert.Equal("alice", vm.Username);
         Assert.Equal("WORKGROUP", vm.Domain);
-        Assert.Equal("/media", vm.InitialPath);
+        Assert.Equal("/media", vm.InitialRemotePath);
     }
 }

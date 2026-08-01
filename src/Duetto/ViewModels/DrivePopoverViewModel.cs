@@ -157,9 +157,6 @@ public partial class DrivePopoverViewModel : ObservableObject
     public event Action? CloseRequested;
     public event Action? ConnectRequested;
 
-    // SMB "new connection" entry point (the second Connect button).
-    public event Action? ConnectSmbRequested;
-
     public event Action<StoredConnection>? EditShareRequested;
 
     public event Action<StoredSmbConnection>? EditSmbShareRequested;
@@ -239,9 +236,6 @@ public partial class DrivePopoverViewModel : ObservableObject
 
     [RelayCommand]
     public void Connect() => ConnectRequested?.Invoke();
-
-    [RelayCommand]
-    public void ConnectSmb() => ConnectSmbRequested?.Invoke();
 
     [RelayCommand]
     public void Disconnect() => DisconnectRequested?.Invoke();

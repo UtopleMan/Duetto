@@ -34,8 +34,6 @@ public partial class PaneView : UserControl
                     OpenConnectDialog(newVm, stored));
                 newVm.Drives.RemoveShareRequested += id => Dispatcher.UIThread.Post(() =>
                     RemoveConnection(id));
-                newVm.Drives.ConnectSmbRequested += () => Dispatcher.UIThread.Post(() =>
-                    OpenSmbConnectDialog(newVm, null));
                 newVm.Drives.EditSmbShareRequested += stored => Dispatcher.UIThread.Post(() =>
                     OpenSmbConnectDialog(newVm, stored));
                 newVm.Drives.RemoveSmbShareRequested += id => Dispatcher.UIThread.Post(() =>
@@ -257,23 +255,37 @@ public partial class PaneView : UserControl
 
     private static void OpenConnectDialogCore(MainViewModel mainVm, PaneViewModel paneVm, StoredConnection? forEdit, Window owner)
     {
+        var dialogVm = BuildConnectDialog(mainVm, paneVm);
+        if (forEdit is not null)
+            dialogVm.ForEdit(forEdit);
+        new ConnectWindow(dialogVm).ShowDialog(owner);
+    }
+
+    // Builds the one protocol-aware connect dialog and wires both success paths (the dialog's
+    // protocol dropdown decides which fires).
+    private static ConnectDialogViewModel BuildConnectDialog(MainViewModel mainVm, PaneViewModel paneVm)
+    {
         var dialogVm = new ConnectDialogViewModel(
             mainVm.ConnectionManager,
             mainVm.ConnectionStore,
             mainVm.HostKeyStore,
-            mainVm.Codec);
-
-        if (forEdit is not null)
-            dialogVm.ForEdit(forEdit);
+            mainVm.Codec,
+            mainVm.SmbConnectionManager,
+            mainVm.SmbConnectionStore);
 
         dialogVm.Connected += info =>
         {
-            var remotePath = $"sftp://{info.Id}{info.InitialRemotePath}";
-            paneVm.NavigateTo(remotePath);
+            paneVm.NavigateTo($"sftp://{info.Id}{info.InitialRemotePath}");
             mainVm.RebuildRemotePlaces();
         };
 
-        new ConnectWindow(dialogVm).ShowDialog(owner);
+        dialogVm.SmbConnected += info =>
+        {
+            paneVm.NavigateTo($"smb://{info.Id}{info.InitialPath}");
+            mainVm.RebuildRemotePlaces();
+        };
+
+        return dialogVm;
     }
 
     private void RemoveConnection(string id)
@@ -365,21 +377,12 @@ public partial class PaneView : UserControl
 
     private static void OpenSmbConnectDialogCore(MainViewModel mainVm, PaneViewModel paneVm, StoredSmbConnection? forEdit, Window owner)
     {
-        var dialogVm = new SmbConnectDialogViewModel(
-            mainVm.SmbConnectionManager,
-            mainVm.SmbConnectionStore,
-            mainVm.Codec);
-
+        var dialogVm = BuildConnectDialog(mainVm, paneVm);
         if (forEdit is not null)
             dialogVm.ForEdit(forEdit);
-
-        dialogVm.Connected += info =>
-        {
-            paneVm.NavigateTo($"smb://{info.Id}{info.InitialPath}");
-            mainVm.RebuildRemotePlaces();
-        };
-
-        new SmbConnectWindow(dialogVm).ShowDialog(owner);
+        else
+            dialogVm.Protocol = ConnectProtocol.Smb;
+        new ConnectWindow(dialogVm).ShowDialog(owner);
     }
 
     private void RemoveSmbConnection(string id)

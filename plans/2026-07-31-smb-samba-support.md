@@ -352,6 +352,15 @@ Separate SMB dialog; drive popover merges SFTP + SMB shares.
   (`ReportsCapacity=false`, matching SFTP). Guest is modeled as a saved connection with a
   `Guest` flag.
 
+**Revision (design-guideline fix):** the initial two-button popover ("Connect SFTP…" /
+"Connect SMB…") violated the drive-popover spec, which mandates a **single "Connect…" (⌘K)**
+row. Reworked to one Connect button opening **one protocol-aware dialog**: `ConnectWindow`
+gained an enabled Protocol dropdown (SFTP / SMB) that swaps field sets, and
+`ConnectDialogViewModel` absorbed the SMB flow (`Protocol`, `Domain`, `Guest`, `SmbConnected`
+event, `ForEdit(StoredSmbConnection)`), routing connect/save by protocol. Storage stays
+separate (`connections.json` / `smb-connections.json`). `SmbConnectWindow` +
+`SmbConnectDialogViewModel` were deleted. Suite still 565 green.
+
 ## Phase 5: Integration tests, Docker Samba & docs
 Status: Complete
 

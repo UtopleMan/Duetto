@@ -22,7 +22,11 @@ public partial class ConnectWindow : Window
         DataContext = vm;
         InitializeComponent();
 
+        // Reflect the VM's starting protocol (set by ForEdit) in the dropdown.
+        ProtocolBox.SelectedIndex = vm.Protocol == ConnectProtocol.Smb ? 1 : 0;
+
         vm.Connected += _ => Close();
+        vm.SmbConnected += _ => Close();
         vm.Cancelled += Close;
     }
 
@@ -33,6 +37,12 @@ public partial class ConnectWindow : Window
             Vm.Cancel();
             e.Handled = true;
         }
+    }
+
+    private void OnProtocolChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is ConnectDialogViewModel vm)
+            vm.Protocol = ProtocolBox.SelectedIndex == 1 ? ConnectProtocol.Smb : ConnectProtocol.Sftp;
     }
 
     private void OnCancelClicked(object? sender, RoutedEventArgs e) => Vm.Cancel();

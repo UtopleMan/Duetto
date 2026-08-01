@@ -27,8 +27,10 @@ public sealed class ConnectDialogTests
         var store = new ConnectionStore(":mem:", _ => null, (_, _) => { });
         var codec = MakeCodec();
         var manager = new ConnectionManager(registry, hks);
+        var smbStore = new SmbConnectionStore(":mem:", _ => null, (_, _) => { });
+        var smbManager = new SmbConnectionManager(registry);
 
-        var vm = new ConnectDialogViewModel(manager, store, hks, codec);
+        var vm = new ConnectDialogViewModel(manager, store, hks, codec, smbManager, smbStore);
         vm.ConnectAction = connectOverride ?? ((i, s) => connects.Add((i, s)));
         vm.SaveAction = s => saved.Add(s);
         vm.ForgetKeyAction = k => forgot.Add(k);

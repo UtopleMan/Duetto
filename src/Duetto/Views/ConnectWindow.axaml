@@ -13,11 +13,13 @@
 
   <StackPanel Margin="24,20,24,20" Spacing="0">
 
-    <!-- Protocol row (SFTP only for now) -->
+    <!-- Protocol selector -->
     <TextBlock Text="PROTOCOL" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                Foreground="{StaticResource HeaderText}" Margin="0,0,0,4"/>
-    <ComboBox IsEnabled="False" SelectedIndex="0" HorizontalAlignment="Stretch" Margin="0,0,0,14">
+    <ComboBox x:Name="ProtocolBox" SelectedIndex="0" HorizontalAlignment="Stretch" Margin="0,0,0,14"
+              SelectionChanged="OnProtocolChanged">
       <ComboBoxItem Content="SFTP" />
+      <ComboBoxItem Content="SMB / Samba" />
     </ComboBox>
 
     <!-- Name -->
@@ -39,30 +41,46 @@
       </StackPanel>
     </Grid>
 
-    <!-- Username -->
-    <TextBlock Text="USERNAME" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
-               Foreground="{StaticResource HeaderText}" Margin="0,0,0,4"/>
-    <TextBox Text="{Binding Username}" Watermark="user" Margin="0,0,0,14"/>
+    <!-- Guest toggle (SMB only) -->
+    <CheckBox IsVisible="{Binding SmbFieldsVisible}" IsChecked="{Binding Guest}"
+              Content="Connect as guest (no credentials)"
+              Foreground="{StaticResource TextBody}" Margin="0,0,0,10"/>
 
-    <!-- Auth mode -->
-    <TextBlock Text="AUTHENTICATION" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
-               Foreground="{StaticResource HeaderText}" Margin="0,0,0,6"/>
-    <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,0,0,10">
-      <RadioButton Content="Password" IsChecked="{Binding IsPasswordMode, Mode=OneWay}"
-                   GroupName="AuthMode" Click="OnPasswordModeClicked"/>
-      <RadioButton Content="Key file" IsChecked="{Binding IsKeyMode, Mode=OneWay}"
-                   GroupName="AuthMode" Click="OnKeyModeClicked"/>
+    <!-- Username -->
+    <StackPanel IsVisible="{Binding UsernameVisible}" Spacing="4" Margin="0,0,0,14">
+      <TextBlock Text="USERNAME" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
+                 Foreground="{StaticResource HeaderText}"/>
+      <TextBox Text="{Binding Username}" Watermark="user"/>
     </StackPanel>
 
-    <!-- Password field (Password mode) -->
-    <StackPanel IsVisible="{Binding IsPasswordMode}" Spacing="4" Margin="0,0,0,14">
+    <!-- Auth mode (SFTP only) -->
+    <StackPanel IsVisible="{Binding SftpAuthVisible}" Spacing="0">
+      <TextBlock Text="AUTHENTICATION" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
+                 Foreground="{StaticResource HeaderText}" Margin="0,0,0,6"/>
+      <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,0,0,10">
+        <RadioButton Content="Password" IsChecked="{Binding IsPasswordMode, Mode=OneWay}"
+                     GroupName="AuthMode" Click="OnPasswordModeClicked"/>
+        <RadioButton Content="Key file" IsChecked="{Binding IsKeyMode, Mode=OneWay}"
+                     GroupName="AuthMode" Click="OnKeyModeClicked"/>
+      </StackPanel>
+    </StackPanel>
+
+    <!-- Password field -->
+    <StackPanel IsVisible="{Binding PasswordVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="PASSWORD" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
       <TextBox Text="{Binding Password}" PasswordChar="•" Watermark="(not stored unless checked below)"/>
     </StackPanel>
 
-    <!-- Key file + passphrase (Key mode) -->
-    <StackPanel IsVisible="{Binding IsKeyMode}" Spacing="4" Margin="0,0,0,14">
+    <!-- Domain (SMB only) -->
+    <StackPanel IsVisible="{Binding SmbFieldsVisible}" Spacing="4" Margin="0,0,0,14">
+      <TextBlock Text="DOMAIN / WORKGROUP (optional)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
+                 Foreground="{StaticResource HeaderText}"/>
+      <TextBox Text="{Binding Domain}" Watermark="WORKGROUP"/>
+    </StackPanel>
+
+    <!-- Key file + passphrase (SFTP key mode) -->
+    <StackPanel IsVisible="{Binding KeySectionVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="PRIVATE KEY FILE" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
       <Grid ColumnDefinitions="*,6,Auto">
@@ -75,17 +93,18 @@
       <TextBox Text="{Binding KeyPassphrase}" PasswordChar="•" Watermark="(leave blank for unencrypted key)"/>
     </StackPanel>
 
-    <!-- Initial remote path -->
-    <TextBlock Text="INITIAL REMOTE PATH" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
+    <!-- Initial path -->
+    <TextBlock Text="INITIAL PATH" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                Foreground="{StaticResource HeaderText}" Margin="0,0,0,4"/>
     <TextBox Text="{Binding InitialRemotePath}" Watermark="/" Margin="0,0,0,14"/>
 
     <!-- Save password checkbox -->
-    <CheckBox IsChecked="{Binding SavePassword}" Content="Save password / passphrase"
+    <CheckBox IsVisible="{Binding PasswordVisible}" IsChecked="{Binding SavePassword}"
+              Content="Save password / passphrase"
               Foreground="{StaticResource TextBody}" Margin="0,0,0,14"/>
 
-    <!-- Host key changed warning -->
-    <Border IsVisible="{Binding HasHostKeyWarning}"
+    <!-- Host key changed warning (SFTP only) -->
+    <Border IsVisible="{Binding HostKeyWarningVisible}"
             Background="{StaticResource DangerBg}"
             BorderBrush="{StaticResource DangerRed}"
             BorderThickness="1" CornerRadius="6"
