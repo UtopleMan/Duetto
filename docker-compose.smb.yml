@@ -1,0 +1,23 @@
+# Throwaway Samba server for Duetto SMB integration tests.
+# Two shares: `duetto` (authenticated: smbuser/smbpass) and `public` (guest).
+# Brought up/down by scripts/smb-it.sh; never used in production.
+# SMBLibrary dials port 445 directly (no custom-port support), so the host must
+# publish 445:445 and tests connect to 127.0.0.1.
+services:
+  samba:
+    image: dperson/samba
+    platform: linux/amd64
+    container_name: duetto-samba-it
+    ports:
+      - "445:445"
+    environment:
+      TZ: UTC
+    command: >
+      -u "smbuser;smbpass"
+      -w "WORKGROUP"
+      -s "duetto;/share/duetto;yes;no;no;smbuser;smbuser;smbuser"
+      -s "public;/share/public;yes;no;yes;all"
+      -p
+    tmpfs:
+      - /share/duetto
+      - /share/public
