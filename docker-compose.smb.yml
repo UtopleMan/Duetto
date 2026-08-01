@@ -1,8 +1,16 @@
-# Throwaway Samba server for Duetto SMB integration tests.
-# Two shares: `duetto` (authenticated: smbuser/smbpass) and `public` (guest).
-# Brought up/down by scripts/smb-it.sh; never used in production.
-# SMBLibrary dials port 445 directly (no custom-port support), so the host must
-# publish 445:445 and tests connect to 127.0.0.1.
+# Throwaway backend servers for Duetto remote integration tests.
+#
+# Services:
+#   samba  — SMB shares `duetto` (auth smbuser/smbpass) + `public` (guest), on 445.
+#   sftp   — SSH/SFTP server, user test/test, writable dir /upload, on 2222.
+#   minio  — S3-compatible object store (duetto/duettosecret), API 9000 / console 9001;
+#            minio-setup creates a `duetto` bucket.
+#
+# Bring up one service at a time (e.g. `docker compose -f docker-compose.smb.yml up -d samba`)
+# or all of them. Never used in production.
+#
+# Note: SMBLibrary dials port 445 directly (no custom-port support), so the host must
+# publish 445:445 and SMB tests connect to 127.0.0.1.
 services:
   samba:
     image: dperson/samba
@@ -21,3 +29,41 @@ services:
     tmpfs:
       - /share/duetto
       - /share/public
+
+  # SFTP server for SftpIntegrationTests (gated on DUETTO_SFTP_TEST).
+  # Defaults align with the test's fallbacks: user `test`, password `test`.
+  # Host 2222 -> container 22 (avoids clashing with a host sshd); set
+  # DUETTO_SFTP_TEST_PORT=2222 when pointing the tests here.
+  sftp:
+    image: atmoz/sftp
+    platform: linux/amd64
+    container_name: duetto-sftp-it
+    ports:
+      - "2222:22"
+    command: "test:test:::upload"
+
+  # S3-compatible object store (forward-looking: no S3 backend in Duetto yet).
+  minio:
+    image: minio/minio
+    container_name: duetto-minio-it
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: duetto
+      MINIO_ROOT_PASSWORD: duettosecret
+    command: server /data --console-address ":9001"
+
+  # Creates the `duetto` bucket once MinIO answers. Waits via a retry loop rather
+  # than a healthcheck (the minio image ships no curl).
+  minio-setup:
+    image: minio/mc
+    container_name: duetto-minio-setup
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 duetto duettosecret; do sleep 1; done &&
+      mc mb --ignore-existing local/duetto &&
+      mc anonymous set download local/duetto
+      "

@@ -18,7 +18,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "==> Starting Samba container"
-docker compose -f "$compose_file" up -d
+docker compose -f "$compose_file" up -d samba
 
 echo "==> Waiting for SMB on 127.0.0.1:445"
 for _ in $(seq 1 30); do
