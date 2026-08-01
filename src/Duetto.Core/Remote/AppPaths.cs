@@ -19,6 +19,8 @@ public static class AppPaths
 
     public static string ConnectionsJsonPath => Path.Combine(ConfigDir, "connections.json");
 
+    public static string SmbConnectionsJsonPath => Path.Combine(ConfigDir, "smb-connections.json");
+
     public static string HostKeysJsonPath => Path.Combine(ConfigDir, "hostkeys.json");
 
     public static string WindowJsonPath => Path.Combine(ConfigDir, "window.json");

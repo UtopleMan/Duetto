@@ -62,8 +62,21 @@ internal sealed class FakeSmbClientAdapter : ISmbClientAdapter
     // Persistent: every enumeration of a listed path throws the mapped exception.
     public Dictionary<string, Exception> ListThrowsByPath { get; } = new();
 
+    // Lock-scope tests: signalled on Connect entry; Connect blocks on the gate to simulate a
+    // slow handshake.
+    public ManualResetEventSlim? ConnectEntered { get; set; }
+    public ManualResetEventSlim? ConnectGate { get; set; }
+
+    // Lock-scope tests: signalled on Disconnect/Dispose entry; blocks on the gate to simulate a
+    // stalled graceful close.
+    public ManualResetEventSlim? DisconnectEntered { get; set; }
+    public ManualResetEventSlim? DisconnectGate { get; set; }
+
     public void Connect()
     {
+        ConnectEntered?.Set();
+        ConnectGate?.Wait();
+
         if (NextConnectThrow is { } ex)
         {
             NextConnectThrow = null;
@@ -74,9 +87,19 @@ internal sealed class FakeSmbClientAdapter : ISmbClientAdapter
         ConnectCount++;
     }
 
-    public void Disconnect() => connected = false;
+    public void Disconnect()
+    {
+        DisconnectEntered?.Set();
+        DisconnectGate?.Wait();
+        connected = false;
+    }
 
-    public void Dispose() => connected = false;
+    public void Dispose()
+    {
+        DisconnectEntered?.Set();
+        DisconnectGate?.Wait();
+        connected = false;
+    }
 
     public IReadOnlyList<string> ListShares() =>
         nodes.Where(kv => IsShare(kv.Key) && kv.Value.IsDirectory)

@@ -267,31 +267,35 @@ Capabilities: `HasPermissions=false`, `AtomicRename=true`, `HasTrash=false`,
 `CaseSensitive=false`, `Separator='/'`.
 
 ## Phase 3: SMB connection manager + storage (Core)
-Status: Not started
+Status: Complete
 
 Lifecycle + persistence, parallel to `ConnectionManager` / `ConnectionStore`, with
 SEPARATE storage.
 
-- [ ] `Remote/SmbConnectionInfo.cs`: `Id, Name, Host, Port=445, Username, Domain="",
-      Guest=false, InitialPath="/"`.
-- [ ] `Remote/SmbConnectionStore.cs` + `StoredSmbConnection` DTO (`id, name, host,
-      port, username, domain, guest, initialPath, savePassword, obfuscatedSecret`).
-      Reuse `SecretCodec` + `ConnectSecret.FromPassword`; guest → no secret.
-      `Load`/`Save`/`Pack`/`Resolve*` mirror `ConnectionStore`.
-- [ ] `Remote/AppPaths.cs`: add `SmbConnectionsJsonPath` (e.g. `smb-connections.json`
-      alongside `connections.json`).
-- [ ] `Remote/SmbConnectionManager.cs`: registers `SmbFileSystemProvider` under scheme
-      `"smb"`; mirror `ConnectionManager` lock/eviction/dispose. No `HostKeyStore`.
-- [ ] Tests: `SmbConnectionManagerTests`, `SmbConnectionStoreTests`,
-      `SmbConnectionInfoTests` mirroring their SFTP counterparts (fake factory/adapter).
+- [x] `Remote/SmbConnectionInfo.cs` (created in Phase 1).
+- [x] `Remote/SmbConnectionStore.cs` + `StoredSmbConnection` DTO (`id, name, host, port,
+      username, domain, guest, initialPath, savePassword, obfuscatedSecret`). Reuses
+      `SecretCodec` + `ConnectSecret.FromPassword`. Guest → never persists a secret but
+      `ResolveSecret` returns an empty password so connect needs no prompt.
+- [x] `Remote/AppPaths.cs`: added `SmbConnectionsJsonPath` (`smb-connections.json`).
+- [x] `Remote/SmbConnectionManager.cs`: registers `SmbFileSystemProvider` under scheme
+      `"smb"`; mirrors `ConnectionManager` lock / evict-outside-lock / dispose. No
+      `HostKeyStore`.
+- [x] Tests: `SmbConnectionManagerTests` (register/resolve, replace-on-reconnect,
+      connect-failure cleanup, dispose, case-insensitive ids, lock-scope responsiveness)
+      + `SmbConnectionStoreTests` (roundtrip, obfuscate/decrypt, no-save, guest). Added
+      concurrency gate hooks to `FakeSmbClientAdapter`. **17/17 green.**
 
 ### Verification Plan
-- `dotnet test --filter "FullyQualifiedName~SmbConnection|FullyQualifiedName~SmbConnectionManager|FullyQualifiedName~SmbConnectionStore"`
-  passes. Expected: green — register/unregister/evict/reconnect + JSON roundtrip + guest
-  (no-secret) case covered.
+- `dotnet test --filter "FullyQualifiedName~SmbConnectionManager|FullyQualifiedName~SmbConnectionStore"`
+  — 17/17 green.
+- `dotnet test` (full suite) — **550 passed, 0 failed**.
 
 ### Phase Summary
-_(write when phase completes)_
+**Done.** SMB lifecycle + persistence complete and isolated from SFTP: separate
+`smb-connections.json`, separate `SmbConnectionStore`/`SmbConnectionManager`, scheme
+`"smb"` in the shared `FileSystemRegistry`. Registry keys are `smb://id`, so SMB and SFTP
+ids never collide. Guest connections resolve without a prompt.
 
 ## Phase 4: UI — SMB connect dialog + merged shares popover
 Status: Not started
