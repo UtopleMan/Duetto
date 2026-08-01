@@ -353,36 +353,94 @@ Separate SMB dialog; drive popover merges SFTP + SMB shares.
   `Guest` flag.
 
 ## Phase 5: Integration tests, Docker Samba & docs
-Status: Not started
+Status: Complete
 
 Reproducible live-server coverage + user-facing docs.
 
-- [ ] Finalize `docker-compose.smb.yml` (from Phase 0) as the committed integration
-      fixture: authenticated `duetto` share + guest `public` share, fixed creds.
-- [ ] `scripts/smb-it.sh`: `docker compose -f docker-compose.smb.yml up -d` → wait for
-      445 healthy → export `DUETTO_SMB_TEST=1` + host/port/user/pass/domain →
-      `dotnet test --filter "Category=Integration&FullyQualifiedName~Smb"` → `down` on exit.
-- [ ] `tests/.../Core/Remote/SmbIntegrationTests.cs` (`[Trait("Category","Integration")]`,
-      gated on `DUETTO_SMB_TEST`, early-return when unset — mirror `SftpIntegrationTests`):
-      connect → list shares → tree → write/read roundtrip → rename → recursive delete →
-      guest-share read.
-- [ ] Docs: add `docs/smb.md` (mirror the existing SFTP doc), a README feature line,
-      and a `CHANGELOG.md` entry. Optional: a popover screenshot showing an SMB share.
-- [ ] Optional: CI wiring to run `scripts/smb-it.sh` (note as optional; SFTP integration
-      is not in CI either).
+- [x] `docker-compose.smb.yml` (from Phase 0) is the committed fixture: authenticated
+      `duetto` share (smbuser/smbpass) + guest `public` share, host port 445:445.
+- [x] `scripts/smb-it.sh`: compose up → wait for 445 → export `DUETTO_SMB_TEST` + creds →
+      `dotnet test --filter "Category=Integration&FullyQualifiedName~Smb"` → `down` via trap.
+- [x] `SmbIntegrationTests` (added in Phase 2, gated on `DUETTO_SMB_TEST`): connect → list
+      shares → write/read roundtrip → mtime → rename → atomic replace → recursive delete →
+      guest-share write.
+- [x] Docs: `docs/remote-smb.md` (mirrors the SFTP doc), README feature line, `CHANGELOG.md`
+      Unreleased entry.
+- [ ] Optional CI wiring to run `scripts/smb-it.sh` — intentionally skipped (SFTP integration
+      isn't in CI either; run locally on demand).
 
 ### Verification Plan
-- `bash scripts/smb-it.sh` exits 0 with all SMB integration tests passing against the
-  container. Expected: green; container torn down afterward.
-- `dotnet test` (default, no env var) stays green and does NOT touch the network
-  (integration tests skip). Expected: green.
+- `bash scripts/smb-it.sh` — exits 0, **3/3 SMB integration tests pass**, container torn
+  down afterward (verified: no `duetto-samba-it` container remains).
+- `dotnet test` (default, no env var, no Docker) — **565 passed, 0 failed**; integration
+  tests early-return (no network).
 
 ### Phase Summary
-_(write when phase completes)_
+**Done.** `scripts/smb-it.sh` runs the gated `SmbIntegrationTests` against the committed
+`docker-compose.smb.yml` fixture and cleans up on exit — verified green end-to-end. User
+docs (`docs/remote-smb.md`), README, and CHANGELOG updated. CI wiring intentionally left
+out to match the existing SFTP integration approach.
 
 ## Final Recap
-_(write when all phases complete: summary of the entire piece of work)_
+
+SMB/Samba is a first-class remote backend in Duetto, parallel to SFTP, built on the
+pure-managed **SMBLibrary 1.5.7.1** SMB2/3 client. All five phases are complete; the full
+test suite is **565 passing** with the SMB layer covered by fake-adapter unit/contract
+tests and validated end-to-end against a real Samba container.
+
+**What shipped, by layer:**
+- **Core client** (`Remote/`): `ISmbClientAdapter` + `RealSmbClientAdapter` (SMB2Client,
+  per-share tree cache, share/path split + `/`→`\` translation, `NTStatus` mapping,
+  reconnect-once via `SmbConnectionException`), `SmbConnection`, `SmbFileStream`
+  (chunked forward-only), `SmbEntry`, `SmbConnectionInfo`.
+- **Provider**: `SmbFileSystemProvider : IFileSystemProvider` — root `/` = share list,
+  `/share/...` = tree; full parity (list/stat/read/write/create/rename/move/replace/
+  delete-recursive/mtime/enumerate). Passes the shared `FileSystemProviderContract`.
+- **Lifecycle/storage**: `SmbConnectionManager` (scheme `"smb"`), `SmbConnectionStore` +
+  `StoredSmbConnection` (separate `smb-connections.json`), `AppPaths.SmbConnectionsJsonPath`.
+- **UI**: `SmbConnectDialogViewModel` + `SmbConnectWindow`; drive popover merges SFTP+SMB
+  shares via a `Scheme` discriminator; `MainViewModel.ConnectToSmbShare`; "Connect SMB…"
+  button; scheme-routed activate/disconnect/remove.
+- **Testing/docs**: `docker-compose.smb.yml`, `scripts/smb-it.sh`, gated
+  `SmbIntegrationTests`, `docs/remote-smb.md`, README + CHANGELOG.
+
+**Key decisions & constraints:** SMBLibrary dials port 445 only (no custom port —
+`Port` is stored for parity but not honored by the transport); no host-key pinning (SMB
+has none); `HasPermissions=false` (DOS read-only → access summary); `AtomicRename=true`
+via `FileRenameInformationType2.ReplaceIfExists` with a delete+rename fallback. SFTP's
+UI event surface was left untouched (SMB added in parallel), so no existing tests changed.
+
+**Known v1 limitations (accepted by the user):** the `RemotePlaces` sidebar stays
+SFTP-only (the popover is the SMB entry point); SMB free-space/capacity is not surfaced;
+cross-share `Move` throws a clear error (same-share moves are atomic).
+
+**Commits (branch `feature/smb-samba-support`):** phase 0 dependency+fixture → phase 1
+connection layer → phase 2 provider+contract → phase 3 manager+storage → phase 4 UI →
+phase 5 script+docs.
 
 ## Deployment Plan
-_(write when all phases complete: step-by-step release/integration instructions —
-merge branch, version bump, changelog, packaging)_
+
+This is additive (new files + parallel wiring; no schema migration, no changes to SFTP
+behavior). Steps:
+
+1. **Review & merge the branch.**
+   - `git checkout feature/smb-samba-support`
+   - `dotnet build` (0 errors) and `dotnet test` (565 passing) must be green.
+   - Optional live check: `bash scripts/smb-it.sh` (needs Docker + free host port 445).
+   - Open a PR into `main`, review the six phase commits, squash-or-merge per project norm.
+
+2. **Version bump.** SMB is a new feature → **minor** bump. Update `Directory.Build.props`
+   `<Version>` (e.g. `1.1.0`) and move the CHANGELOG **Unreleased** section under a new
+   `## 1.1.0 — <date>` heading. (CI overrides the version from the git tag on publish.)
+
+3. **Tag & publish.** Tag `v1.1.0`; the existing release pipeline
+   (`scripts/publish-all.sh` / CI from the tag) builds the per-OS artifacts. No new build
+   inputs — `SMBLibrary` restores from NuGet like `SSH.NET`.
+
+4. **Post-merge sanity.** Launch the app, open the drive popover, use **Connect SMB…**
+   against a real share (or the docker fixture): guest `public` lists/writes; an
+   authenticated share round-trips a copy. Confirm SFTP connections still work unchanged.
+
+5. **Nothing to migrate.** No existing config is touched: SMB writes only the new
+   `smb-connections.json`; `connections.json`/`hostkeys.json` are untouched. Rollback is a
+   straight revert of the merge (no persisted state to unwind).
