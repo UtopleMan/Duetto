@@ -210,6 +210,15 @@ internal sealed class FakeSmbClientAdapter : ISmbClientAdapter
         node.LastWriteTimeUtc = DateTime.SpecifyKind(utc, DateTimeKind.Utc);
     }
 
+    // Test hook: flip the read-only DOS attribute so provider mapping can be exercised.
+    public void MarkReadOnly(string path, bool readOnly)
+    {
+        var n = Norm(path);
+        if (!nodes.TryGetValue(n, out var node))
+            throw new FileNotFoundException($"File not found: {n}");
+        node.IsReadOnly = readOnly;
+    }
+
     private sealed class WriteBackStream(Action<byte[]> commit) : MemoryStream
     {
         protected override void Dispose(bool disposing)

@@ -230,31 +230,41 @@ implemented. Key decisions:
   are the shares (`ListShares`), and it emits `.`/`..` like a real server.
 
 ## Phase 2: SmbFileSystemProvider + contract tests
-Status: Not started
+Status: Complete
 
 Implement the full `IFileSystemProvider` and prove parity via the shared contract.
 
-- [ ] `Remote/SmbFileSystemProvider.cs : IFileSystemProvider, IDisposable`:
-      `SmbCapabilities` (values above); `Exec` lock+`WithReconnect` wrapper;
-      `MapEntry(SmbEntry)→FileEntry`; root `/` → share list mapped as directories;
-      deeper paths routed into the share tree; `Move` guards existing target
-      (throws `IOException`); `ReplaceFile` atomic rename with delete+rename fallback;
-      recursive `Delete`; `EnumerateRecursive` skipping bad dirs but propagating
-      auth/connection failures (mirror SFTP semantics); `VolumeFor` → null.
-- [ ] `tests/.../Core/Remote/FakeSmbClientAdapter.cs`: in-memory tree with top-level
-      shares + a controllable "throw once" hook (mirror `FakeSftpClientAdapter`).
-- [ ] `tests/.../Core/Remote/SmbFileSystemProviderContractTests.cs`: subclass
-      `FileSystemProviderContract` with `Root = "/Shared"` (a dir inside a fake share);
-      add SMB-specific tests: root lists shares, `.`/`..` filtered, readonly attr →
-      `AccessSummary`, mtime roundtrip, reconnect-once on a simulated drop.
+- [x] `Remote/SmbFileSystemProvider.cs : IFileSystemProvider, IDisposable`:
+      `SmbCapabilities`; `Exec` lock+`WithReconnect` wrapper; `MapEntry`; root `/` →
+      share list as directories; deeper paths routed into the share tree; `Move` guards
+      existing target; `ReplaceFile` atomic rename with delete+rename fallback (guarded
+      so it never swallows connection/auth drops); recursive `Delete`;
+      `EnumerateRecursive` (incl. root=share-list) skipping bad dirs but propagating
+      `SmbConnectionException`/`SmbAuthenticationException`; `VolumeFor` → null.
+- [x] `FakeSmbClientAdapter` (created in Phase 1) reused; added a `MarkReadOnly` test hook.
+- [x] `tests/.../Core/Remote/SmbFileSystemProviderContractTests.cs`: subclasses
+      `FileSystemProviderContract` with `Root = "/Shared"`; SMB-specific tests: root
+      lists shares, `.`/`..` filtered, readonly→`AccessSummary`, mtime roundtrip,
+      reconnect-once, EnumerateRecursive skip-bad-dir + propagate-auth. **19/19 green.**
+- [x] Pulled forward from Phase 5: `SmbIntegrationTests` (gated on `DUETTO_SMB_TEST`) to
+      validate the REAL adapter against the live container now — de-risks SMBLibrary flag
+      choices before building UI.
 
 ### Verification Plan
-- `dotnet test --filter "FullyQualifiedName~SmbFileSystemProviderContract"` passes —
-  the same contract that Local/InMemory/SFTP satisfy. Expected: all contract tests green.
-- `dotnet test` (full suite) stays green (no regressions).
+- `dotnet test --filter "FullyQualifiedName~SmbFileSystemProviderContract"` — 19/19 green.
+- `dotnet test` (full suite) — **530 passed, 0 failed** (no regressions).
+- Live: `DUETTO_SMB_TEST=1 … dotnet test --filter FullyQualifiedName~SmbIntegrationTests`
+  against `docker-compose.smb.yml` — **3/3 green**; skips (5 ms) without the env var.
 
 ### Phase Summary
-_(write when phase completes)_
+**Done.** `SmbFileSystemProvider` passes the shared provider contract that Local /
+InMemory / SFTP satisfy, plus SMB-specific tests. **Validated against real Samba**: the
+`SmbIntegrationTests` roundtrip (create/write/read/mtime/rename/atomic-replace/enumerate/
+recursive-delete) and guest write to `public` all pass through the real SMBLibrary path —
+confirming the earlier flag choices (`FileRenameInformationType2`, `SetFileTime` mtime,
+`FILE_OVERWRITE_IF`, `ReplaceIfExists`). `.`/`..` filtering lives in the provider.
+Capabilities: `HasPermissions=false`, `AtomicRename=true`, `HasTrash=false`,
+`CaseSensitive=false`, `Separator='/'`.
 
 ## Phase 3: SMB connection manager + storage (Core)
 Status: Not started
