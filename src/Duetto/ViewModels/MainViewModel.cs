@@ -43,6 +43,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public ConnectionStore ConnectionStore { get; }
 
+    public SmbConnectionManager SmbConnectionManager { get; }
+
+    public SmbConnectionStore SmbConnectionStore { get; }
+
     public HostKeyStore HostKeyStore { get; }
 
     public SecretCodec Codec { get; }
@@ -78,13 +82,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ConnectionStore? connectionStore = null,
         HostKeyStore? hostKeyStore = null,
         SecretCodec? codec = null,
-        SessionStore? sessionStore = null)
+        SessionStore? sessionStore = null,
+        SmbConnectionManager? smbConnectionManager = null,
+        SmbConnectionStore? smbConnectionStore = null)
     {
         _sessionStore = sessionStore;
         Registry = registry ?? new FileSystemRegistry();
         HostKeyStore = hostKeyStore ?? new HostKeyStore();
         ConnectionManager = connectionManager ?? new ConnectionManager(Registry, HostKeyStore);
         ConnectionStore = connectionStore ?? new ConnectionStore(":memory:", _ => null, (_, _) => { });
+        SmbConnectionManager = smbConnectionManager ?? new SmbConnectionManager(Registry);
+        SmbConnectionStore = smbConnectionStore ?? new SmbConnectionStore(":memory:", _ => null, (_, _) => { });
         Codec = codec ?? new SecretCodec();
 
         TrashFn = TrashViaProvider;
@@ -184,7 +192,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             registry: new FileSystemRegistry(),
             connectionStore: new ConnectionStore(AppPaths.ConnectionsJsonPath),
             hostKeyStore: BuildProductionHostKeyStore(),
-            sessionStore: startup.Store)
+            sessionStore: startup.Store,
+            smbConnectionStore: new SmbConnectionStore(AppPaths.SmbConnectionsJsonPath))
     {
         // Production only: run listing and rename off the UI thread. Tests use the
         // explicit ctor above and keep the default inline schedulers for deterministic asserts.
@@ -248,11 +257,57 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OpenConnectDialog(stored, pane);
     }
 
+    // Seam: replace in tests to capture SMB dialog-open calls without instantiating a window.
+    public Action<StoredSmbConnection?, PaneViewModel> OpenSmbConnectDialog { get; set; } = (_, _) => { };
+
+    // SMB counterpart of ConnectToShare. Connection/auth failures reopen the dialog prefilled;
+    // any other exception surfaces as an unobserved task fault (a genuine bug).
+    public void ConnectToSmbShare(StoredSmbConnection stored, PaneViewModel pane)
+    {
+        if (SmbConnectionManager.IsConnected(stored.Id))
+        {
+            pane.NavigateTo($"smb://{stored.Id}{stored.InitialPath}");
+            return;
+        }
+
+        var secret = SmbConnectionStore.ResolveSecret(stored, Codec);
+        if (secret is not null)
+        {
+            var info = SmbConnectionStore.ResolveInfo(stored);
+            var capturedPath = $"smb://{info.Id}{info.InitialPath}";
+            var openDialog = OpenSmbConnectDialog;
+            _ = ConnectScheduler(() =>
+            {
+                try
+                {
+                    SmbConnectionManager.Connect(info, secret);
+                }
+                // SmbConnectionException / SmbAuthenticationException ⊂ IOException; listed for documentation.
+                catch (Exception ex) when (ex is SmbAuthenticationException
+                    or SmbConnectionException
+                    or SocketException
+                    or ObjectDisposedException
+                    or IOException
+                    or InvalidOperationException)
+                {
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() => openDialog(stored, pane));
+                    return;
+                }
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => pane.NavigateTo(capturedPath));
+            });
+            return;
+        }
+
+        OpenSmbConnectDialog(stored, pane);
+    }
+
     // Call after Left/Right panes are constructed.
     private void WirePopoverSeams(DrivePopoverViewModel drives)
     {
         drives.ListConnections = () => ConnectionStore.Load();
         drives.IsConnected = id => ConnectionManager.IsConnected(id);
+        drives.ListSmbConnections = () => SmbConnectionStore.Load();
+        drives.IsSmbConnected = id => SmbConnectionManager.IsConnected(id);
     }
 
     public void RebuildRemotePlaces()
@@ -535,5 +590,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Left.Dispose();
         Right.Dispose();
         ConnectionManager.Dispose();
+        SmbConnectionManager.Dispose();
     }
 }

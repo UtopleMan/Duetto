@@ -192,6 +192,11 @@
                                     <TextBlock Text="{Binding Host}"
                                                FontFamily="{StaticResource MonoFont}" FontSize="10"
                                                Foreground="{StaticResource TextGhost}" VerticalAlignment="Center" />
+                                    <Border Background="{StaticResource ChipBg}" CornerRadius="3"
+                                            Padding="4,1" VerticalAlignment="Center">
+                                      <TextBlock Text="{Binding SchemeLabel}" FontSize="9"
+                                                 Foreground="{StaticResource TextGhost}" />
+                                    </Border>
                                   </StackPanel>
                                 </DockPanel>
                               </Button>
@@ -218,7 +223,7 @@
                       </ItemsControl>
                     </StackPanel>
                     <Border Height="1" Background="{StaticResource HairlineLight}" Margin="10,7" />
-                    <!-- Connect… row (stub; dialog wired in Task 6) -->
+                    <!-- Connect SFTP row -->
                     <Button x:Name="ConnectRow" Command="{Binding ConnectCommand}"
                             Background="{StaticResource ChipBg}" CornerRadius="7" Height="34"
                             Padding="10,0" HorizontalAlignment="Stretch"
@@ -232,9 +237,24 @@
                                    FontFamily="{StaticResource MonoFont}" FontSize="10"
                                    Foreground="{StaticResource AccentDim}" VerticalAlignment="Center" />
                         <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                          <TextBlock Text="Connect…" FontSize="12.5" FontWeight="Medium"
+                          <TextBlock Text="Connect SFTP…" FontSize="12.5" FontWeight="Medium"
                                      Foreground="{StaticResource Accent}" />
-                          <TextBlock Text="SFTP, S3 or SMB" FontSize="11"
+                        </StackPanel>
+                      </DockPanel>
+                    </Button>
+                    <!-- Connect SMB row -->
+                    <Button x:Name="ConnectSmbRow" Command="{Binding ConnectSmbCommand}"
+                            Background="{StaticResource ChipBg}" CornerRadius="7" Height="34"
+                            Padding="10,0" HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch" BorderThickness="0" Margin="0,4,0,0">
+                      <DockPanel VerticalAlignment="Center">
+                        <Border DockPanel.Dock="Left" Width="12" Height="12" CornerRadius="3"
+                                BorderBrush="{StaticResource Accent}" BorderThickness="1.5"
+                                Margin="0,0,10,0" VerticalAlignment="Center" />
+                        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                          <TextBlock Text="Connect SMB…" FontSize="12.5" FontWeight="Medium"
+                                     Foreground="{StaticResource Accent}" />
+                          <TextBlock Text="Samba / Windows share" FontSize="11"
                                      Foreground="{StaticResource AccentDim}" />
                         </StackPanel>
                       </DockPanel>

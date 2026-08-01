@@ -298,7 +298,7 @@ SEPARATE storage.
 ids never collide. Guest connections resolve without a prompt.
 
 ## Phase 4: UI — SMB connect dialog + merged shares popover
-Status: Not started
+Status: Complete
 
 Separate SMB dialog; drive popover merges SFTP + SMB shares.
 
@@ -325,14 +325,32 @@ Separate SMB dialog; drive popover merges SFTP + SMB shares.
       `ConnectDialogTests` / `ConnectToShareTests` / `SharesPopoverTests`.
 
 ### Verification Plan
-- `dotnet test --filter "FullyQualifiedName~SmbConnectDialog|FullyQualifiedName~SmbConnectToShare|FullyQualifiedName~SharesPopover"`
-  passes. Expected: green.
-- `dotnet build` of `src/Duetto` (Avalonia XAML compiles). Expected: no XAML/compile errors.
-- Manual smoke (documented, not required for autonomous pass): `dotnet run --project src/Duetto`,
-  Connect SMB → guest `public` share lists; authenticated `duetto` share read/write works.
+- `dotnet test --filter "FullyQualifiedName~SmbConnectDialog|FullyQualifiedName~SmbConnectToShare|FullyQualifiedName~SmbSharesPopoverMerge"`
+  — 15/15 green.
+- `dotnet build src/Duetto` — Avalonia XAML compiles, 0 errors.
+- `dotnet test` (full suite) — **565 passed, 0 failed** (SFTP UI tests unaffected).
 
 ### Phase Summary
-_(write when phase completes)_
+**Done.** SMB is reachable from the UI with **zero changes to the SFTP event surface**
+(existing tests untouched):
+- `SmbConnectDialogViewModel` + `SmbConnectWindow.axaml(.cs)`: host/port/user/password/
+  domain/guest/initial-path; guest hides credentials; SMB-specific exception handling.
+  No SSH-key / host-key rows.
+- Popover merge: `ShareRowViewModel` gained a `Scheme` discriminator + second ctor
+  (`StoredSmbConnection`) + `SchemeLabel` badge; `DrivePopoverViewModel` got parallel
+  seams (`ListSmbConnections`/`IsSmbConnected`), parallel events
+  (`ConnectSmbRequested`/`EditSmbShareRequested`/`RemoveSmbShareRequested`), a
+  `ConnectSmbCommand`, and `RebuildShareRows` appends SMB rows. `ShareActivated` stays
+  row-based; the view routes by `row.Scheme`.
+- `MainViewModel`: holds `SmbConnectionManager` + `SmbConnectionStore`; `ConnectToSmbShare`
+  (mirrors `ConnectToShare`, builds `smb://id/path`); `OpenSmbConnectDialog` seam;
+  disposes the SMB manager.
+- `PaneView.axaml(.cs)`: "Connect SMB…" button; `ActivateShare`/`DisconnectCurrentPane`/
+  remove routed by scheme; `OpenSmbConnectDialogCore` opens `SmbConnectWindow`.
+- **Known v1 limitations (accepted):** the separate `RemotePlaces` sidebar stays SFTP-only
+  (popover is the SMB entry point); SMB free-space/capacity is not shown
+  (`ReportsCapacity=false`, matching SFTP). Guest is modeled as a saved connection with a
+  `Guest` flag.
 
 ## Phase 5: Integration tests, Docker Samba & docs
 Status: Not started

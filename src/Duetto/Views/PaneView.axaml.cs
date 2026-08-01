@@ -34,6 +34,12 @@ public partial class PaneView : UserControl
                     OpenConnectDialog(newVm, stored));
                 newVm.Drives.RemoveShareRequested += id => Dispatcher.UIThread.Post(() =>
                     RemoveConnection(id));
+                newVm.Drives.ConnectSmbRequested += () => Dispatcher.UIThread.Post(() =>
+                    OpenSmbConnectDialog(newVm, null));
+                newVm.Drives.EditSmbShareRequested += stored => Dispatcher.UIThread.Post(() =>
+                    OpenSmbConnectDialog(newVm, stored));
+                newVm.Drives.RemoveSmbShareRequested += id => Dispatcher.UIThread.Post(() =>
+                    RemoveSmbConnection(id));
                 newVm.Drives.ShareActivated += share => Dispatcher.UIThread.Post(() =>
                     ActivateShare(newVm, share));
                 newVm.Drives.DisconnectRequested += () => Dispatcher.UIThread.Post(() =>
@@ -301,11 +307,26 @@ public partial class PaneView : UserControl
             owner.DataContext is not MainViewModel mainVm)
             return;
 
-        // Resolve the freshest stored record for this share (the share row's Stored may
-        // be stale after an edit); fall back to the share row's own Stored when absent.
+        if (share.IsSmb)
+        {
+            // Resolve the freshest stored record (the row's copy may be stale after an edit).
+            var smbStored = mainVm.SmbConnectionStore.Load()
+                                .FirstOrDefault(c => string.Equals(c.Id, share.Id, StringComparison.OrdinalIgnoreCase))
+                            ?? share.SmbStored;
+            if (smbStored is null)
+                return;
+
+            mainVm.OpenSmbConnectDialog = (forEdit, targetPane) =>
+                OpenSmbConnectDialogCore(mainVm, targetPane, forEdit, owner);
+            mainVm.ConnectToSmbShare(smbStored, paneVm);
+            return;
+        }
+
         var stored = mainVm.ConnectionStore.Load()
                          .FirstOrDefault(c => string.Equals(c.Id, share.Id, StringComparison.OrdinalIgnoreCase))
                      ?? share.Stored;
+        if (stored is null)
+            return;
 
         // Wire the dialog seam for this call site so ConnectToShare can open the window.
         mainVm.OpenConnectDialog = (forEdit, targetPane) =>
@@ -324,8 +345,64 @@ public partial class PaneView : UserControl
         if (PathUtil.ParseRemote(paneVm.CurrentPath) is not { } remote)
             return;
 
-        mainVm.ConnectionManager.Disconnect(remote.Id);
+        if (string.Equals(remote.Scheme, "smb", StringComparison.OrdinalIgnoreCase))
+            mainVm.SmbConnectionManager.Disconnect(remote.Id);
+        else
+            mainVm.ConnectionManager.Disconnect(remote.Id);
+
         paneVm.NavigateTo(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+    }
+
+    private void OpenSmbConnectDialog(PaneViewModel paneVm, StoredSmbConnection? forEdit)
+    {
+        HideDriveFlyout();
+        if (TopLevel.GetTopLevel(this) is not Window owner ||
+            owner.DataContext is not MainViewModel mainVm)
+            return;
+
+        OpenSmbConnectDialogCore(mainVm, paneVm, forEdit, owner);
+    }
+
+    private static void OpenSmbConnectDialogCore(MainViewModel mainVm, PaneViewModel paneVm, StoredSmbConnection? forEdit, Window owner)
+    {
+        var dialogVm = new SmbConnectDialogViewModel(
+            mainVm.SmbConnectionManager,
+            mainVm.SmbConnectionStore,
+            mainVm.Codec);
+
+        if (forEdit is not null)
+            dialogVm.ForEdit(forEdit);
+
+        dialogVm.Connected += info =>
+        {
+            paneVm.NavigateTo($"smb://{info.Id}{info.InitialPath}");
+            mainVm.RebuildRemotePlaces();
+        };
+
+        new SmbConnectWindow(dialogVm).ShowDialog(owner);
+    }
+
+    private void RemoveSmbConnection(string id)
+    {
+        HideDriveFlyout();
+        if (TopLevel.GetTopLevel(this) is not Window owner ||
+            owner.DataContext is not MainViewModel mainVm)
+            return;
+
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        foreach (var pane in new[] { mainVm.Left, mainVm.Right })
+        {
+            if (PathUtil.ParseRemote(pane.CurrentPath) is { } remote
+                && string.Equals(remote.Scheme, "smb", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(remote.Id, id, StringComparison.OrdinalIgnoreCase))
+                pane.NavigateTo(home);
+        }
+
+        mainVm.SmbConnectionManager.Disconnect(id);
+        var all = mainVm.SmbConnectionStore.Load()
+            .Where(c => !string.Equals(c.Id, id, StringComparison.OrdinalIgnoreCase)).ToArray();
+        mainVm.SmbConnectionStore.Save(all);
+        mainVm.RebuildRemotePlaces();
     }
 
     // x:Name fields inside Flyout content can be unreliable; go via the chip.

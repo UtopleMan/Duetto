@@ -24,14 +24,49 @@ public sealed class VolumeRowViewModel(VolumeInfo volume, bool isCurrent)
     public string RowBg => IsCurrent ? "#eef1f7" : "Transparent";
 }
 
-public sealed class ShareRowViewModel(StoredConnection stored, bool isConnected)
+// One row in the popover's "Connected Shares" list. Scheme-tagged so a single list can merge
+// SFTP and SMB connections drawn from two separate stores; exactly one of Stored / SmbStored is
+// set. The view routes activate/edit/remove by Scheme.
+public sealed class ShareRowViewModel
 {
-    public StoredConnection Stored { get; } = stored;
-    public bool IsConnected { get; } = isConnected;
-    public string Id => Stored.Id;
-    public string Name => Stored.Name;
-    public string Host => Stored.Host;
-    public string InitialRemotePath => Stored.InitialRemotePath;
+    public string Scheme { get; }
+
+    public StoredConnection? Stored { get; }
+
+    public StoredSmbConnection? SmbStored { get; }
+
+    public bool IsConnected { get; }
+
+    public ShareRowViewModel(StoredConnection stored, bool isConnected)
+    {
+        Scheme = "sftp";
+        Stored = stored;
+        IsConnected = isConnected;
+        Id = stored.Id;
+        Name = stored.Name;
+        Host = stored.Host;
+        InitialRemotePath = stored.InitialRemotePath;
+    }
+
+    public ShareRowViewModel(StoredSmbConnection stored, bool isConnected)
+    {
+        Scheme = "smb";
+        SmbStored = stored;
+        IsConnected = isConnected;
+        Id = stored.Id;
+        Name = stored.Name;
+        Host = stored.Host;
+        InitialRemotePath = stored.InitialPath;
+    }
+
+    public string Id { get; }
+    public string Name { get; }
+    public string Host { get; }
+    public string InitialRemotePath { get; }
+
+    public bool IsSmb => Scheme == "smb";
+
+    public string SchemeLabel => IsSmb ? "SMB" : "SFTP";
 
     public string DotColor => IsConnected ? "#2f8f5b" : "#c2bfb5";
 
@@ -61,6 +96,11 @@ public partial class DrivePopoverViewModel : ObservableObject
 
     // Test/wiring seam: defaults to false, replaced by MainViewModel after construction.
     public Func<string, bool> IsConnected { get; set; } = _ => false;
+
+    // SMB counterparts of the two seams above; merged into the same Shares list.
+    public Func<StoredSmbConnection[]> ListSmbConnections { get; set; } = () => [];
+
+    public Func<string, bool> IsSmbConnected { get; set; } = _ => false;
 
     public string PaneSide { get; set; } = "left";
     public string HeaderText => $"Open in {PaneSide} pane";
@@ -117,9 +157,16 @@ public partial class DrivePopoverViewModel : ObservableObject
     public event Action? CloseRequested;
     public event Action? ConnectRequested;
 
+    // SMB "new connection" entry point (the second Connect button).
+    public event Action? ConnectSmbRequested;
+
     public event Action<StoredConnection>? EditShareRequested;
 
+    public event Action<StoredSmbConnection>? EditSmbShareRequested;
+
     public event Action<string>? RemoveShareRequested;
+
+    public event Action<string>? RemoveSmbShareRequested;
 
     public event Action<ShareRowViewModel>? ShareActivated;
 
@@ -176,16 +223,25 @@ public partial class DrivePopoverViewModel : ObservableObject
 
     public void EditShare(ShareRowViewModel share)
     {
-        EditShareRequested?.Invoke(share.Stored);
+        if (share.IsSmb)
+            EditSmbShareRequested?.Invoke(share.SmbStored!);
+        else
+            EditShareRequested?.Invoke(share.Stored!);
     }
 
     public void RemoveShare(ShareRowViewModel share)
     {
-        RemoveShareRequested?.Invoke(share.Id);
+        if (share.IsSmb)
+            RemoveSmbShareRequested?.Invoke(share.Id);
+        else
+            RemoveShareRequested?.Invoke(share.Id);
     }
 
     [RelayCommand]
     public void Connect() => ConnectRequested?.Invoke();
+
+    [RelayCommand]
+    public void ConnectSmb() => ConnectSmbRequested?.Invoke();
 
     [RelayCommand]
     public void Disconnect() => DisconnectRequested?.Invoke();
@@ -221,6 +277,8 @@ public partial class DrivePopoverViewModel : ObservableObject
         Shares.Clear();
         foreach (var stored in ListConnections())
             Shares.Add(new ShareRowViewModel(stored, IsConnected(stored.Id)));
+        foreach (var stored in ListSmbConnections())
+            Shares.Add(new ShareRowViewModel(stored, IsSmbConnected(stored.Id)));
         OnPropertyChanged(nameof(SharesSectionVisible));
         OnPropertyChanged(nameof(DisconnectLabel));
     }
