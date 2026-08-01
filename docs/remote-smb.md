@@ -67,12 +67,13 @@ read-write access.
 ## Running the SMB integration tests
 
 The unit tests use an in-memory fake, so `dotnet test` needs no server. To
-exercise the real client end-to-end against a throwaway Samba container:
+exercise the real client end-to-end against throwaway containers:
 
 ```sh
-scripts/smb-it.sh
+scripts/smoke.sh
 ```
 
-This brings up `docker-compose.smb.yml` (an authenticated `duetto` share and a
-guest `public` share), runs the `DUETTO_SMB_TEST`-gated `SmbIntegrationTests`,
-and tears the container down. Requires Docker and a free host port 445.
+This brings up `docker-compose.yml` (Samba with an authenticated `duetto` share
+and a guest `public` share, plus SFTP and MinIO backends), runs the
+`Category=Integration` tests (`SmbIntegrationTests` + `SftpIntegrationTests`),
+and tears the containers down. Requires Docker and a free host port 445.

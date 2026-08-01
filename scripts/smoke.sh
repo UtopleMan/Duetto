@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Smoke test: stand up the throwaway backend servers and run Duetto's gated
+# integration tests against them.
+#
+#   scripts/smoke.sh
+#
+# Brings up docker-compose.yml (samba + sftp + minio), waits for each backend,
+# runs the SMB and SFTP integration tests (Category=Integration), then tears
+# everything down. Requires Docker and the .NET SDK.
+#
+# Host port 445 must be free (SMBLibrary dials 445 directly, no custom-port support).
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+compose_file="$repo_root/docker-compose.yml"
+
+cleanup() {
+  docker compose -f "$compose_file" down --remove-orphans >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+# Wait until a TCP port answers (or fail after ~30s).
+wait_for_port() {
+  local host="$1" port="$2" label="$3"
+  echo "==> Waiting for $label on $host:$port"
+  for _ in $(seq 1 30); do
+    if nc -z "$host" "$port" 2>/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "$label on $host:$port never became ready" >&2
+  exit 1
+}
+
+echo "==> Starting backend containers"
+docker compose -f "$compose_file" up -d
+
+wait_for_port 127.0.0.1 445 "SMB"
+wait_for_port 127.0.0.1 2222 "SFTP"
+wait_for_port 127.0.0.1 9000 "MinIO"
+
+# Give the SFTP handshake a moment to settle after the port opens.
+sleep 2
+
+echo "==> Running integration tests (SMB + SFTP)"
+DUETTO_SMB_TEST=1 \
+DUETTO_SMB_TEST_HOST=127.0.0.1 \
+DUETTO_SMB_TEST_USER=smbuser \
+DUETTO_SMB_TEST_PASSWORD=smbpass \
+DUETTO_SMB_TEST_DOMAIN=WORKGROUP \
+DUETTO_SMB_TEST_SHARE=duetto \
+DUETTO_SMB_TEST_GUEST_SHARE=public \
+DUETTO_SFTP_TEST=1 \
+DUETTO_SFTP_TEST_HOST=127.0.0.1 \
+DUETTO_SFTP_TEST_PORT=2222 \
+DUETTO_SFTP_TEST_USER=test \
+DUETTO_SFTP_TEST_PASSWORD=test \
+DUETTO_SFTP_TEST_PATH=/upload \
+  dotnet test "$repo_root/tests/Duetto.Tests/Duetto.Tests.csproj" \
+    --filter "Category=Integration"
+
+echo "==> Smoke test passed"
