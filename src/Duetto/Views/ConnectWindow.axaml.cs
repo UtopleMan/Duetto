@@ -20,10 +20,13 @@ public partial class ConnectWindow : Window
     public ConnectWindow(ConnectDialogViewModel vm)
     {
         DataContext = vm;
-        InitializeComponent();
 
-        // Reflect the VM's starting protocol (set by ForEdit) in the dropdown.
-        ProtocolBox.SelectedIndex = vm.Protocol == ConnectProtocol.Smb ? 1 : 0;
+        // Capture before InitializeComponent: the ComboBox's SelectedIndex="0" fires
+        // OnProtocolChanged during load and resets vm.Protocol to Sftp, so read the intended
+        // protocol (set by ForEdit) first, then reflect it in the dropdown afterwards.
+        var startProtocol = vm.Protocol;
+        InitializeComponent();
+        ProtocolBox.SelectedIndex = startProtocol == ConnectProtocol.Smb ? 1 : 0;
 
         vm.Connected += _ => Close();
         vm.SmbConnected += _ => Close();
@@ -39,10 +42,12 @@ public partial class ConnectWindow : Window
         }
     }
 
+    // Uses `sender` rather than the ProtocolBox field: this fires during InitializeComponent
+    // (ComboBox EndInit) before the named field is assigned, so the field is still null then.
     private void OnProtocolChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (DataContext is ConnectDialogViewModel vm)
-            vm.Protocol = ProtocolBox.SelectedIndex == 1 ? ConnectProtocol.Smb : ConnectProtocol.Sftp;
+        if (sender is ComboBox box && DataContext is ConnectDialogViewModel vm)
+            vm.Protocol = box.SelectedIndex == 1 ? ConnectProtocol.Smb : ConnectProtocol.Sftp;
     }
 
     private void OnCancelClicked(object? sender, RoutedEventArgs e) => Vm.Cancel();
