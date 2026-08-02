@@ -61,6 +61,12 @@ public interface ISmbClientAdapter : IDisposable
     Stream OpenWrite(string path);
 
     void SetLastWriteTimeUtc(string path, DateTime utc);
+
+    // Copies source -> dest entirely on the server (SMB2 copychunk). Both provider-local paths
+    // MUST be within the same share; the caller guarantees this. Reports per-step bytes via
+    // onBytesCopied. Returns false when the server does not support copychunk so the caller can
+    // stream instead.
+    bool ServerSideCopy(string source, string dest, Action<long> onBytesCopied, CancellationToken token);
 }
 
 // Inject a fake in tests to avoid real socket opens.
@@ -91,6 +97,8 @@ public sealed class SmbConnection : IDisposable
     }
 
     public bool IsConnected => adapter?.IsConnected ?? false;
+
+    public string Host => info.Host;
 
     public ISmbClientAdapter Adapter =>
         adapter ?? throw new InvalidOperationException("SmbConnection is not connected.");

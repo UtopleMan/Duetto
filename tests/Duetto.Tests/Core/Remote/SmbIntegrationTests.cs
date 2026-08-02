@@ -111,6 +111,49 @@ public sealed class SmbIntegrationTests
     }
 
     [Fact]
+    public void Server_side_copy_copies_bytes_exactly()
+    {
+        if (!TryConfig(out var info, out var secret, out var share))
+            return;
+
+        using var provider = Connect(info, secret);
+        var root = "/" + share;
+        var work = provider.CreateDirectory(root, "cc-" + Guid.NewGuid().ToString("N")[..8]);
+        try
+        {
+            // >2 MiB so the 1 MiB-per-call copychunk loop runs multiple iterations.
+            var payload = new byte[(2 * 1024 * 1024) + 777];
+            new Random(1234).NextBytes(payload);
+            var srcFile = provider.CreateFile(work, "src.bin");
+            using (var w = provider.OpenWrite(srcFile))
+                w.Write(payload, 0, payload.Length);
+
+            var dstFile = work + "/dst.bin";
+            long reported = 0;
+            var ok = ((IServerSideCopy)provider).TryServerSideCopy(
+                srcFile, dstFile, n => reported += n, CancellationToken.None);
+
+            // Skip silently if this server lacks copychunk (real use falls back to streaming).
+            if (!ok)
+                return;
+
+            Assert.Equal(payload.Length, reported);
+            var stat = provider.Stat(dstFile);
+            Assert.NotNull(stat);
+            Assert.Equal(payload.Length, stat.SizeBytes);
+
+            using var r = provider.OpenRead(dstFile);
+            using var ms = new MemoryStream();
+            r.CopyTo(ms);
+            Assert.Equal(payload, ms.ToArray());
+        }
+        finally
+        {
+            provider.Delete(work, toTrash: false);
+        }
+    }
+
+    [Fact]
     public void Guest_reads_public_share()
     {
         if (!TryConfig(out var info, out var secret, out _))

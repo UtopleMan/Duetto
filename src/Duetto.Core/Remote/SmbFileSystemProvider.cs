@@ -5,7 +5,7 @@ namespace Duetto.Core.Remote;
 // The provider-local root "/" maps to the server's share list; "/share/..." operates inside a
 // share's tree. This provider serialises concurrent calls with a lock (SmbConnection is not
 // thread-safe) so UI panes and search threads are safe.
-public sealed class SmbFileSystemProvider : IFileSystemProvider, IDisposable
+public sealed class SmbFileSystemProvider : IFileSystemProvider, IBackendIdentity, IServerSideCopy, IDisposable
 {
     private readonly SmbConnection conn;
     private readonly Lock gate = new();
@@ -260,6 +260,28 @@ public sealed class SmbFileSystemProvider : IFileSystemProvider, IDisposable
     }
 
     public VolumeInfo? VolumeFor(string path) => null;
+
+    // Server-side rename/copy domain: same host + same share. The share is the first path
+    // segment; the share-list root has no domain. Host and share are compared case-insensitively
+    // (SMB is case-insensitive), so two panes on the same host+share yield equal keys even as
+    // separate connections/provider instances.
+    public string? BackendKey(string path)
+    {
+        if (IsRoot(path))
+            return null;
+        var trimmed = path.TrimStart('/');
+        var slash = trimmed.IndexOf('/');
+        var share = slash < 0 ? trimmed : trimmed[..slash];
+        if (share.Length == 0)
+            return null;
+        return $"smb://{conn.Host.ToLowerInvariant()}/{share.ToLowerInvariant()}";
+    }
+
+    // Server-side copy via the adapter (SMB copychunk). The engine gates this on BackendKey
+    // equality (same host+share), so `dest` is reachable within this connection's tree. Returns
+    // false when the server lacks copychunk, so the engine streams instead.
+    public bool TryServerSideCopy(string source, string dest, Action<long> onBytesCopied, CancellationToken token)
+        => Exec(a => a.ServerSideCopy(source, dest, onBytesCopied, token));
 
     public void Dispose() => conn.Dispose();
 }

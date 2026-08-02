@@ -309,16 +309,35 @@ public static class TransferEngine
 
                 session.FileStarted(source, dest, size);
 
-                // Move shortcut: same provider instance, CanRename capability, and the
-                // destination does not already exist → use native Move (cross-directory allowed).
-                if (mode == TransferMode.Move && ReferenceEquals(srcProvider, destProvider)
+                // Move shortcut: same rename domain (same provider instance, or two instances
+                // addressing the same backend host+share), CanRename, and the destination does
+                // not already exist → native Move (cross-directory allowed), issued via the source
+                // provider so no bytes cross the client. A non-fatal refusal (permissions/replace)
+                // falls through to streaming copy + delete.
+                if (mode == TransferMode.Move
                     && srcProvider.Capabilities.CanRename
-                    && !srcProvider.FileExists(dest) && !srcProvider.DirectoryExists(dest))
+                    && SameRenameDomain(srcProvider, source, destProvider, dest)
+                    && !destProvider.FileExists(dest) && !destProvider.DirectoryExists(dest))
                 {
-                    srcProvider.Move(source, dest);
-                    session.FileProgress(source, size, size);
-                    session.FileDone(source);
-                    continue;
+                    var moved = false;
+                    try
+                    {
+                        srcProvider.Move(source, dest);
+                        moved = true;
+                    }
+                    catch (IOException ex) when (ex is not SmbConnectionException
+                        and not SmbAuthenticationException)
+                    {
+                        // Native rename refused — fall through to streaming copy + delete.
+                        // (HostKeyChangedException is not an IOException; it propagates to Run.)
+                    }
+
+                    if (moved)
+                    {
+                        session.FileProgress(source, size, size);
+                        session.FileDone(source);
+                        continue;
+                    }
                 }
 
                 var srcMtime = srcStat?.ModifiedUtc ?? DateTime.UtcNow;
@@ -365,9 +384,12 @@ public static class TransferEngine
         var succeeded = false;
         try
         {
-            using (var input = srcProvider.OpenRead(source))
-            using (var output = destProvider.OpenWrite(writePath))
+            // Prefer a server-side copy (SMB copychunk) when source and destination share a backend
+            // domain; fall back to streaming the bytes through the client otherwise.
+            if (!TryServerSideCopyInto(session, source, writePath, srcProvider, destProvider))
             {
+                using var input = srcProvider.OpenRead(source);
+                using var output = destProvider.OpenWrite(writePath);
                 var buffer = new byte[ChunkSize];
                 long total = 0;
                 int read;
@@ -395,6 +417,46 @@ public static class TransferEngine
                 destProvider.Delete(writePath, toTrash: false);
         }
     }
+
+    // Returns true when the file was fully copied server-side into writePath (no bytes crossed the
+    // client). Returns false to make the caller stream: the source provider does not support
+    // server-side copy, the paths are not in the same backend domain, or a non-fatal server error
+    // occurred. Cancellation and connection/auth failures propagate so the session faults/cancels.
+    private static bool TryServerSideCopyInto(
+        TransferSession session, string source, string writePath,
+        IFileSystemProvider srcProvider, IFileSystemProvider destProvider)
+    {
+        if (srcProvider is not IServerSideCopy ssc
+            || !SameRenameDomain(srcProvider, source, destProvider, writePath))
+            return false;
+
+        long copied = 0;
+        try
+        {
+            return ssc.TryServerSideCopy(source, writePath, delta =>
+            {
+                session.WaitIfPaused();
+                session.Token.ThrowIfCancellationRequested();
+                copied += delta;
+                session.FileProgress(source, copied, delta);
+            }, session.Token);
+        }
+        catch (IOException ex) when (ex is not SmbConnectionException and not SmbAuthenticationException)
+        {
+            // Non-fatal server error (e.g. copychunk rejected) — fall back to streaming.
+            return false;
+        }
+    }
+
+    // True when a native rename/copy from `source` (on `src`) to `destPath` (on `dest`) stays
+    // entirely server-side: either the same provider instance, or two instances that report equal,
+    // non-null backend keys (same host + share for SMB). Providers that do not implement
+    // IBackendIdentity (SFTP, local, in-memory) only match by instance.
+    internal static bool SameRenameDomain(
+        IFileSystemProvider src, string source, IFileSystemProvider dest, string destPath)
+        => ReferenceEquals(src, dest)
+           || (src is IBackendIdentity a && dest is IBackendIdentity b
+               && a.BackendKey(source) is { } key && key == b.BackendKey(destPath));
 
     private static string ProviderLeaf(string path, char sep)
     {

@@ -350,6 +350,77 @@ internal sealed class RealSmbClientAdapter(SmbConnectionInfo info, ConnectSecret
         }
     });
 
+    public bool ServerSideCopy(string source, string dest, Action<long> onBytesCopied, CancellationToken token) => Run(() =>
+    {
+        var (srcShare, srcRel) = Split(source);
+        var (dstShare, dstRel) = Split(dest);
+        if (!string.Equals(srcShare, dstShare, StringComparison.OrdinalIgnoreCase))
+            throw new IOException("SMB server-side copy across shares is not supported.");
+
+        var store = Tree(srcShare);
+        var length = Get(source)?.Length ?? throw new FileNotFoundException($"SMB copy source not found: {source}");
+        if (length < 0)
+            length = 0;
+
+        var openSrc = store.CreateFile(out var srcHandle, out _, srcRel,
+            AccessMask.GENERIC_READ | AccessMask.SYNCHRONIZE, FileAttributes.Normal,
+            ShareAccess.Read, CreateDisposition.FILE_OPEN,
+            CreateOptions.FILE_NON_DIRECTORY_FILE | CreateOptions.FILE_SYNCHRONOUS_IO_ALERT, null);
+        if (openSrc != NTStatus.STATUS_SUCCESS)
+            throw Translate(openSrc, $"open '{source}' for server-side copy");
+
+        object? dstHandle = null;
+        try
+        {
+            // Any non-success (unsupported FSCTL, or this build returning null output) -> stream.
+            // A dropped socket throws InvalidOperationException, surfaced as SmbConnectionException
+            // by the Run wrapper, so reconnect still works.
+            var rk = store.DeviceIOControl(srcHandle, SmbCopyChunk.FsctlRequestResumeKey, [], out var rkOut, 64);
+            if (rk != NTStatus.STATUS_SUCCESS || rkOut is not { Length: >= SmbCopyChunk.ResumeKeyLength })
+                return false;
+            var resumeKey = SmbCopyChunk.ParseResumeKey(rkOut);
+
+            var openDst = store.CreateFile(out dstHandle, out _, dstRel,
+                AccessMask.GENERIC_READ | AccessMask.GENERIC_WRITE | AccessMask.SYNCHRONIZE, FileAttributes.Normal,
+                ShareAccess.None, CreateDisposition.FILE_OVERWRITE_IF,
+                CreateOptions.FILE_NON_DIRECTORY_FILE | CreateOptions.FILE_SYNCHRONOUS_IO_ALERT, null);
+            if (openDst != NTStatus.STATUS_SUCCESS)
+                throw Translate(openDst, $"open '{dest}' for server-side copy");
+
+            // One 1 MiB chunk per call fits the MS-SMB2 default server limits (MaxChunkSize 1 MiB,
+            // MaxChunks 16, MaxDataSize 16 MiB), so a well-formed request is not rejected for
+            // sizing. This SMBLibrary build discards the FSCTL output on any non-success status, so
+            // we cannot read a server's advertised maxima: any non-success copychunk falls back to
+            // streaming (return false). A dropped socket still surfaces via the Run wrapper.
+            const int chunk = 1024 * 1024;
+            long offset = 0;
+            while (offset < length)
+            {
+                token.ThrowIfCancellationRequested();
+                var thisLen = (int)Math.Min(chunk, length - offset);
+                var request = SmbCopyChunk.BuildCopyChunkRequest(resumeKey,
+                    [new SmbCopyChunk.Chunk(offset, offset, thisLen)]);
+
+                var cc = store.DeviceIOControl(dstHandle, SmbCopyChunk.FsctlSrvCopyChunk, request, out var ccOut, 12);
+                if (cc != NTStatus.STATUS_SUCCESS || ccOut is not { Length: >= 12 })
+                    return false;   // unsupported / rejected -> caller streams
+
+                var result = SmbCopyChunk.ParseCopyChunkResponse(ccOut);
+                var written = result.TotalBytesWritten > 0 ? (long)result.TotalBytesWritten : thisLen;
+                offset += written;
+                onBytesCopied(written);
+            }
+
+            return true;
+        }
+        finally
+        {
+            CloseQuietly(store, srcHandle);
+            if (dstHandle is not null)
+                CloseQuietly(store, dstHandle);
+        }
+    });
+
     private ISMBFileStore Tree(string share)
     {
         if (trees.TryGetValue(share, out var cached))

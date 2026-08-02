@@ -233,6 +233,26 @@ internal sealed class FakeSmbClientAdapter : ISmbClientAdapter
         node.LastWriteTimeUtc = DateTime.SpecifyKind(utc, DateTimeKind.Utc);
     }
 
+    // Toggle for engine + provider fallback tests: when false, ServerSideCopy returns false so
+    // the caller streams instead.
+    public bool ServerSideCopySupported { get; set; } = true;
+
+    public bool ServerSideCopy(string source, string dest, Action<long> onBytesCopied, CancellationToken token)
+    {
+        if (!ServerSideCopySupported)
+            return false;
+
+        var from = Norm(source);
+        var to = Norm(dest);
+        if (!nodes.TryGetValue(from, out var srcNode))
+            throw new FileNotFoundException($"Source not found: {from}");
+
+        var copy = (byte[])srcNode.Bytes.Clone();
+        nodes[to] = new Node { IsDirectory = false, Bytes = copy, LastWriteTimeUtc = DateTime.UtcNow };
+        onBytesCopied(copy.Length);
+        return true;
+    }
+
     // Test hook: flip the read-only DOS attribute so provider mapping can be exercised.
     public void MarkReadOnly(string path, bool readOnly)
     {
