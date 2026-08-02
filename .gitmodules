@@ -1,0 +1,3 @@
+[submodule "vendor/SMBLibrary"]
+	path = vendor/SMBLibrary
+	url = https://github.com/TalAloni/SMBLibrary.git
