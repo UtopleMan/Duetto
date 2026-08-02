@@ -3,7 +3,7 @@
 All notable changes to Duetto are documented here. This project adheres to
 [Semantic Versioning](https://semver.org).
 
-## Unreleased
+## 1.1.0 — 2026-08-02
 
 ### Features
 - **SMB / Samba remote backend** — connect to SMB 2/3 shares (Windows shares,
@@ -13,6 +13,9 @@ All notable changes to Duetto are documented here. This project adheres to
   delete, recursive search, atomic `.part` writes). Separate **Connect SMB…**
   dialog and `smb-connections.json`; the drive popover merges SFTP and SMB shares.
   ([docs](docs/remote-smb.md))
+- **Server-side copy / move** — transfers between two panes on the same SMB host
+  and share are offloaded to the server instead of streaming through the client,
+  avoiding a full download/upload round-trip.
 
 ## 1.0.0 — 2026-07-31
 
