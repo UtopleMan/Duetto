@@ -136,6 +136,7 @@ public sealed class RemoteFileOpener : IDisposable
         var name = PathUtil.Leaf(localPath);
         var dir = Path.Combine(_tempRoot, Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
+        RestrictToOwner(dir);                         // 0700 on POSIX; no-op on Windows
         lock (_lock) _created.Add(dir);
         var target = Path.Combine(dir, name);
         using (var src = provider.OpenRead(localPath))
@@ -148,6 +149,15 @@ public sealed class RemoteFileOpener : IDisposable
 
     public void Dispose() { /* best-effort delete each tracked dir */ }
     private void SweepRoot() { /* best-effort recursive delete of _tempRoot contents */ }
+
+    // Downloaded remote files may be sensitive. Lock the per-open dir to the owner so a
+    // world-readable /tmp (mode 1777 on Linux) cannot leak them to other local users.
+    private static void RestrictToOwner(string dir)
+    {
+        if (OperatingSystem.IsWindows()) return;       // ACL-inherited from user profile; skip
+        File.SetUnixFileMode(dir,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); // 0700
+    }
 }
 ```
 
@@ -210,6 +220,12 @@ Note: `Guid.NewGuid()` is allowed here (production code); only workflow scripts 
 
 - Per-open `<guid>` subdir avoids filename collisions while preserving the real filename.
 - Root `Duetto/open` is owned entirely by this feature, so sweeping it is safe.
+- Each `<guid>` subdir is created `0700` (owner-only) on POSIX via `File.SetUnixFileMode`,
+  so downloaded remote files are not exposed to other local users on a shared, world-
+  readable `/tmp` (mode 1777). No-op on Windows, which inherits a private-by-default ACL
+  from the user profile. OS temp is preferred over `~`/home because temp is not backed up
+  or cloud-synced — sensitive remote copies must not leak into backups — and the OS
+  provides a cleanup backstop if our own sweep fails.
 
 ### Cleanup
 
@@ -243,6 +259,8 @@ Note: `Guid.NewGuid()` is allowed here (production code); only workflow scripts 
 - `Dispose` deletes the tracked dirs.
 - Constructor sweep deletes pre-existing junk under the temp root.
 - Cancelled token aborts the copy and does not launch.
+- On POSIX (guarded by `!OperatingSystem.IsWindows()`), the per-open `<guid>` dir has Unix
+  mode `0700` after download.
 
 **`PaneViewModel` (Avalonia UI test)**
 - Replace `Open_remote_file_row_is_noop_and_does_not_invoke_LaunchFile` (its contract
