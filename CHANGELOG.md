@@ -3,6 +3,14 @@
 All notable changes to Duetto are documented here. This project adheres to
 [Semantic Versioning](https://semver.org).
 
+## 1.2.1 — 2026-08-03
+
+### Fixed
+- **S3 connect no longer crashes on a bad endpoint** — entering an endpoint without a
+  scheme (e.g. `minio.example.ts.net`) made the AWS SDK throw at client construction, which
+  escaped the connect dialog's error handling and crashed the app. Scheme-less endpoints now
+  default to `https://`, and any connect failure is surfaced as an inline dialog error.
+
 ## 1.2.0 — 2026-08-03
 
 ### Features
