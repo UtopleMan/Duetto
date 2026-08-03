@@ -26,10 +26,16 @@ public partial class ConnectWindow : Window
         // protocol (set by ForEdit) first, then reflect it in the dropdown afterwards.
         var startProtocol = vm.Protocol;
         InitializeComponent();
-        ProtocolBox.SelectedIndex = startProtocol == ConnectProtocol.Smb ? 1 : 0;
+        ProtocolBox.SelectedIndex = startProtocol switch
+        {
+            ConnectProtocol.Smb => 1,
+            ConnectProtocol.S3 => 2,
+            _ => 0,
+        };
 
         vm.Connected += _ => Close();
         vm.SmbConnected += _ => Close();
+        vm.S3Connected += _ => Close();
         vm.Cancelled += Close;
     }
 
@@ -47,7 +53,12 @@ public partial class ConnectWindow : Window
     private void OnProtocolChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (sender is ComboBox box && DataContext is ConnectDialogViewModel vm)
-            vm.Protocol = box.SelectedIndex == 1 ? ConnectProtocol.Smb : ConnectProtocol.Sftp;
+            vm.Protocol = box.SelectedIndex switch
+            {
+                1 => ConnectProtocol.Smb,
+                2 => ConnectProtocol.S3,
+                _ => ConnectProtocol.Sftp,
+            };
     }
 
     private void OnCancelClicked(object? sender, RoutedEventArgs e) => Vm.Cancel();
@@ -63,6 +74,15 @@ public partial class ConnectWindow : Window
 
     private void OnKeyModeClicked(object? sender, RoutedEventArgs e) =>
         Vm.AuthMode = Core.Remote.AuthMode.Key;
+
+    private void OnS3KeysModeClicked(object? sender, RoutedEventArgs e) =>
+        Vm.S3Auth = Core.Remote.S3AuthMode.Keys;
+
+    private void OnS3ProfileModeClicked(object? sender, RoutedEventArgs e) =>
+        Vm.S3Auth = Core.Remote.S3AuthMode.Profile;
+
+    private void OnS3AnonymousModeClicked(object? sender, RoutedEventArgs e) =>
+        Vm.S3Auth = Core.Remote.S3AuthMode.Anonymous;
 
     private async void OnBrowseKeyFile(object? sender, RoutedEventArgs e)
     {

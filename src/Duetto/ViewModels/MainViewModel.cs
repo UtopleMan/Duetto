@@ -47,6 +47,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public SmbConnectionStore SmbConnectionStore { get; }
 
+    public S3ConnectionManager S3ConnectionManager { get; }
+
+    public S3ConnectionStore S3ConnectionStore { get; }
+
     public HostKeyStore HostKeyStore { get; }
 
     public SecretCodec Codec { get; }
@@ -84,7 +88,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         SecretCodec? codec = null,
         SessionStore? sessionStore = null,
         SmbConnectionManager? smbConnectionManager = null,
-        SmbConnectionStore? smbConnectionStore = null)
+        SmbConnectionStore? smbConnectionStore = null,
+        S3ConnectionManager? s3ConnectionManager = null,
+        S3ConnectionStore? s3ConnectionStore = null)
     {
         _sessionStore = sessionStore;
         Registry = registry ?? new FileSystemRegistry();
@@ -93,6 +99,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ConnectionStore = connectionStore ?? new ConnectionStore(":memory:", _ => null, (_, _) => { });
         SmbConnectionManager = smbConnectionManager ?? new SmbConnectionManager(Registry);
         SmbConnectionStore = smbConnectionStore ?? new SmbConnectionStore(":memory:", _ => null, (_, _) => { });
+        S3ConnectionManager = s3ConnectionManager ?? new S3ConnectionManager(Registry);
+        S3ConnectionStore = s3ConnectionStore ?? new S3ConnectionStore(":memory:", _ => null, (_, _) => { });
         Codec = codec ?? new SecretCodec();
 
         TrashFn = TrashViaProvider;
@@ -193,7 +201,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             connectionStore: new ConnectionStore(AppPaths.ConnectionsJsonPath),
             hostKeyStore: BuildProductionHostKeyStore(),
             sessionStore: startup.Store,
-            smbConnectionStore: new SmbConnectionStore(AppPaths.SmbConnectionsJsonPath))
+            smbConnectionStore: new SmbConnectionStore(AppPaths.SmbConnectionsJsonPath),
+            s3ConnectionStore: new S3ConnectionStore(AppPaths.S3ConnectionsJsonPath))
     {
         // Production only: run listing and rename off the UI thread. Tests use the
         // explicit ctor above and keep the default inline schedulers for deterministic asserts.
@@ -301,6 +310,51 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OpenSmbConnectDialog(stored, pane);
     }
 
+    // Seam: replace in tests to capture S3 dialog-open calls without instantiating a window.
+    public Action<StoredS3Connection?, PaneViewModel> OpenS3ConnectDialog { get; set; } = (_, _) => { };
+
+    // S3 counterpart of ConnectToShare. Connection/auth failures reopen the dialog prefilled;
+    // any other exception surfaces as an unobserved task fault (a genuine bug).
+    public void ConnectToS3Share(StoredS3Connection stored, PaneViewModel pane)
+    {
+        if (S3ConnectionManager.IsConnected(stored.Id))
+        {
+            pane.NavigateTo($"s3://{stored.Id}{stored.InitialPath}");
+            return;
+        }
+
+        var secret = S3ConnectionStore.ResolveSecret(stored, Codec);
+        if (secret is not null)
+        {
+            var info = S3ConnectionStore.ResolveInfo(stored);
+            var capturedPath = $"s3://{info.Id}{info.InitialPath}";
+            var openDialog = OpenS3ConnectDialog;
+            _ = ConnectScheduler(() =>
+            {
+                try
+                {
+                    S3ConnectionManager.Connect(info, secret);
+                }
+                // S3ConnectionException / S3AuthenticationException are surfaced from the adapter;
+                // SocketException/IOException cover transport faults. Listed for documentation.
+                catch (Exception ex) when (ex is S3AuthenticationException
+                    or S3ConnectionException
+                    or SocketException
+                    or ObjectDisposedException
+                    or IOException
+                    or InvalidOperationException)
+                {
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() => openDialog(stored, pane));
+                    return;
+                }
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => pane.NavigateTo(capturedPath));
+            });
+            return;
+        }
+
+        OpenS3ConnectDialog(stored, pane);
+    }
+
     // Call after Left/Right panes are constructed.
     private void WirePopoverSeams(DrivePopoverViewModel drives)
     {
@@ -308,6 +362,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         drives.IsConnected = id => ConnectionManager.IsConnected(id);
         drives.ListSmbConnections = () => SmbConnectionStore.Load();
         drives.IsSmbConnected = id => SmbConnectionManager.IsConnected(id);
+        drives.ListS3Connections = () => S3ConnectionStore.Load();
+        drives.IsS3Connected = id => S3ConnectionManager.IsConnected(id);
     }
 
     public void RebuildRemotePlaces()
@@ -591,5 +647,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Right.Dispose();
         ConnectionManager.Dispose();
         SmbConnectionManager.Dispose();
+        S3ConnectionManager.Dispose();
     }
 }

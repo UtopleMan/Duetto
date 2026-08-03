@@ -38,6 +38,10 @@ public partial class PaneView : UserControl
                     OpenSmbConnectDialog(newVm, stored));
                 newVm.Drives.RemoveSmbShareRequested += id => Dispatcher.UIThread.Post(() =>
                     RemoveSmbConnection(id));
+                newVm.Drives.EditS3ShareRequested += stored => Dispatcher.UIThread.Post(() =>
+                    OpenS3ConnectDialog(newVm, stored));
+                newVm.Drives.RemoveS3ShareRequested += id => Dispatcher.UIThread.Post(() =>
+                    RemoveS3Connection(id));
                 newVm.Drives.ShareActivated += share => Dispatcher.UIThread.Post(() =>
                     ActivateShare(newVm, share));
                 newVm.Drives.DisconnectRequested += () => Dispatcher.UIThread.Post(() =>
@@ -271,7 +275,9 @@ public partial class PaneView : UserControl
             mainVm.HostKeyStore,
             mainVm.Codec,
             mainVm.SmbConnectionManager,
-            mainVm.SmbConnectionStore);
+            mainVm.SmbConnectionStore,
+            mainVm.S3ConnectionManager,
+            mainVm.S3ConnectionStore);
 
         dialogVm.Connected += info =>
         {
@@ -282,6 +288,12 @@ public partial class PaneView : UserControl
         dialogVm.SmbConnected += info =>
         {
             paneVm.NavigateTo($"smb://{info.Id}{info.InitialPath}");
+            mainVm.RebuildRemotePlaces();
+        };
+
+        dialogVm.S3Connected += info =>
+        {
+            paneVm.NavigateTo($"s3://{info.Id}{info.InitialPath}");
             mainVm.RebuildRemotePlaces();
         };
 
@@ -334,6 +346,20 @@ public partial class PaneView : UserControl
             return;
         }
 
+        if (share.IsS3)
+        {
+            var s3Stored = mainVm.S3ConnectionStore.Load()
+                               .FirstOrDefault(c => string.Equals(c.Id, share.Id, StringComparison.OrdinalIgnoreCase))
+                           ?? share.S3Stored;
+            if (s3Stored is null)
+                return;
+
+            mainVm.OpenS3ConnectDialog = (forEdit, targetPane) =>
+                OpenS3ConnectDialogCore(mainVm, targetPane, forEdit, owner);
+            mainVm.ConnectToS3Share(s3Stored, paneVm);
+            return;
+        }
+
         var stored = mainVm.ConnectionStore.Load()
                          .FirstOrDefault(c => string.Equals(c.Id, share.Id, StringComparison.OrdinalIgnoreCase))
                      ?? share.Stored;
@@ -359,6 +385,8 @@ public partial class PaneView : UserControl
 
         if (string.Equals(remote.Scheme, "smb", StringComparison.OrdinalIgnoreCase))
             mainVm.SmbConnectionManager.Disconnect(remote.Id);
+        else if (string.Equals(remote.Scheme, "s3", StringComparison.OrdinalIgnoreCase))
+            mainVm.S3ConnectionManager.Disconnect(remote.Id);
         else
             mainVm.ConnectionManager.Disconnect(remote.Id);
 
@@ -405,6 +433,49 @@ public partial class PaneView : UserControl
         var all = mainVm.SmbConnectionStore.Load()
             .Where(c => !string.Equals(c.Id, id, StringComparison.OrdinalIgnoreCase)).ToArray();
         mainVm.SmbConnectionStore.Save(all);
+        mainVm.RebuildRemotePlaces();
+    }
+
+    private void OpenS3ConnectDialog(PaneViewModel paneVm, StoredS3Connection? forEdit)
+    {
+        HideDriveFlyout();
+        if (TopLevel.GetTopLevel(this) is not Window owner ||
+            owner.DataContext is not MainViewModel mainVm)
+            return;
+
+        OpenS3ConnectDialogCore(mainVm, paneVm, forEdit, owner);
+    }
+
+    private static void OpenS3ConnectDialogCore(MainViewModel mainVm, PaneViewModel paneVm, StoredS3Connection? forEdit, Window owner)
+    {
+        var dialogVm = BuildConnectDialog(mainVm, paneVm);
+        if (forEdit is not null)
+            dialogVm.ForEdit(forEdit);
+        else
+            dialogVm.Protocol = ConnectProtocol.S3;
+        new ConnectWindow(dialogVm).ShowDialog(owner);
+    }
+
+    private void RemoveS3Connection(string id)
+    {
+        HideDriveFlyout();
+        if (TopLevel.GetTopLevel(this) is not Window owner ||
+            owner.DataContext is not MainViewModel mainVm)
+            return;
+
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        foreach (var pane in new[] { mainVm.Left, mainVm.Right })
+        {
+            if (PathUtil.ParseRemote(pane.CurrentPath) is { } remote
+                && string.Equals(remote.Scheme, "s3", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(remote.Id, id, StringComparison.OrdinalIgnoreCase))
+                pane.NavigateTo(home);
+        }
+
+        mainVm.S3ConnectionManager.Disconnect(id);
+        var all = mainVm.S3ConnectionStore.Load()
+            .Where(c => !string.Equals(c.Id, id, StringComparison.OrdinalIgnoreCase)).ToArray();
+        mainVm.S3ConnectionStore.Save(all);
         mainVm.RebuildRemotePlaces();
     }
 

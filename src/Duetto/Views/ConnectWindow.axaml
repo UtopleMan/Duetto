@@ -20,6 +20,7 @@
               SelectionChanged="OnProtocolChanged">
       <ComboBoxItem Content="SFTP" />
       <ComboBoxItem Content="SMB / Samba" />
+      <ComboBoxItem Content="S3 / S3-compatible" />
     </ComboBox>
 
     <!-- Name -->
@@ -27,8 +28,8 @@
                Foreground="{StaticResource HeaderText}" Margin="0,0,0,4"/>
     <TextBox Text="{Binding Name}" Watermark="My Server" Margin="0,0,0,14"/>
 
-    <!-- Host + Port -->
-    <Grid ColumnDefinitions="*,8,80" Margin="0,0,0,14">
+    <!-- Host + Port (SFTP/SMB) -->
+    <Grid ColumnDefinitions="*,8,80" Margin="0,0,0,14" IsVisible="{Binding HostPortVisible}">
       <StackPanel Grid.Column="0" Spacing="4">
         <TextBlock Text="HOST" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                    Foreground="{StaticResource HeaderText}"/>
@@ -40,6 +41,66 @@
         <TextBox Text="{Binding PortText}" Watermark="22"/>
       </StackPanel>
     </Grid>
+
+    <!-- S3 endpoint + region -->
+    <Grid ColumnDefinitions="*,8,120" Margin="0,0,0,14" IsVisible="{Binding S3FieldsVisible}">
+      <StackPanel Grid.Column="0" Spacing="4">
+        <TextBlock Text="ENDPOINT (blank = AWS)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
+                   Foreground="{StaticResource HeaderText}"/>
+        <TextBox Text="{Binding Endpoint}" Watermark="https://s3.example.com"/>
+      </StackPanel>
+      <StackPanel Grid.Column="2" Spacing="4">
+        <TextBlock Text="REGION" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
+                   Foreground="{StaticResource HeaderText}"/>
+        <TextBox Text="{Binding Region}" Watermark="us-east-1"/>
+      </StackPanel>
+    </Grid>
+
+    <!-- S3 path-style toggle -->
+    <CheckBox IsVisible="{Binding S3FieldsVisible}" IsChecked="{Binding PathStyle}"
+              Content="Use path-style addressing (MinIO / on-prem)"
+              Foreground="{StaticResource TextBody}" Margin="0,0,0,10"/>
+
+    <!-- S3 auth mode selector -->
+    <StackPanel IsVisible="{Binding S3FieldsVisible}" Spacing="0">
+      <TextBlock Text="CREDENTIALS" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
+                 Foreground="{StaticResource HeaderText}" Margin="0,0,0,6"/>
+      <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,0,0,10">
+        <RadioButton Content="Access keys" IsChecked="{Binding IsS3KeysMode, Mode=OneWay}"
+                     GroupName="S3Auth" Click="OnS3KeysModeClicked"/>
+        <RadioButton Content="AWS profile" IsChecked="{Binding IsS3ProfileMode, Mode=OneWay}"
+                     GroupName="S3Auth" Click="OnS3ProfileModeClicked"/>
+        <RadioButton Content="Anonymous" IsChecked="{Binding IsS3AnonymousMode, Mode=OneWay}"
+                     GroupName="S3Auth" Click="OnS3AnonymousModeClicked"/>
+      </StackPanel>
+    </StackPanel>
+
+    <!-- S3 access key + secret + session token (Keys mode) -->
+    <StackPanel IsVisible="{Binding S3KeysVisible}" Spacing="4" Margin="0,0,0,14">
+      <TextBlock Text="ACCESS KEY ID" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
+                 Foreground="{StaticResource HeaderText}"/>
+      <TextBox Text="{Binding AccessKeyId}" Watermark="AKIA…"/>
+      <TextBlock Text="SECRET ACCESS KEY" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
+                 Foreground="{StaticResource HeaderText}" Margin="0,8,0,0"/>
+      <TextBox Text="{Binding SecretKey}" PasswordChar="•" Watermark="(not stored unless checked below)"/>
+      <TextBlock Text="SESSION TOKEN (optional)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
+                 Foreground="{StaticResource HeaderText}" Margin="0,8,0,0"/>
+      <TextBox Text="{Binding SessionToken}" PasswordChar="•" Watermark="(temporary / STS credentials)"/>
+    </StackPanel>
+
+    <!-- S3 profile name (Profile mode) -->
+    <StackPanel IsVisible="{Binding S3ProfileVisible}" Spacing="4" Margin="0,0,0,14">
+      <TextBlock Text="AWS PROFILE" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
+                 Foreground="{StaticResource HeaderText}"/>
+      <TextBox Text="{Binding Profile}" Watermark="default"/>
+    </StackPanel>
+
+    <!-- S3 bucket (optional; required for anonymous) -->
+    <StackPanel IsVisible="{Binding S3FieldsVisible}" Spacing="4" Margin="0,0,0,14">
+      <TextBlock Text="BUCKET (blank = list all buckets)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
+                 Foreground="{StaticResource HeaderText}"/>
+      <TextBox Text="{Binding Bucket}" Watermark="my-bucket"/>
+    </StackPanel>
 
     <!-- Guest toggle (SMB only) -->
     <CheckBox IsVisible="{Binding SmbFieldsVisible}" IsChecked="{Binding Guest}"
@@ -98,9 +159,9 @@
                Foreground="{StaticResource HeaderText}" Margin="0,0,0,4"/>
     <TextBox Text="{Binding InitialRemotePath}" Watermark="/" Margin="0,0,0,14"/>
 
-    <!-- Save password checkbox -->
-    <CheckBox IsVisible="{Binding PasswordVisible}" IsChecked="{Binding SavePassword}"
-              Content="Save password / passphrase"
+    <!-- Save password / secret checkbox -->
+    <CheckBox IsVisible="{Binding SaveSecretVisible}" IsChecked="{Binding SavePassword}"
+              Content="Save password / secret"
               Foreground="{StaticResource TextBody}" Margin="0,0,0,14"/>
 
     <!-- Host key changed warning (SFTP only) -->

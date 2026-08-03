@@ -43,7 +43,7 @@ wait_for_port 127.0.0.1 9000 "MinIO"
 # Give the SFTP handshake a moment to settle after the port opens.
 sleep 2
 
-echo "==> Running integration tests (SMB + SFTP)"
+echo "==> Running integration tests (SMB + SFTP + S3)"
 DUETTO_SMB_TEST=1 \
 DUETTO_SMB_TEST_HOST=127.0.0.1 \
 DUETTO_SMB_TEST_USER=smbuser \
@@ -57,6 +57,11 @@ DUETTO_SFTP_TEST_PORT=2222 \
 DUETTO_SFTP_TEST_USER=test \
 DUETTO_SFTP_TEST_PASSWORD=test \
 DUETTO_SFTP_TEST_PATH=/upload \
+DUETTO_S3_TEST=1 \
+DUETTO_S3_TEST_ENDPOINT=http://127.0.0.1:9000 \
+DUETTO_S3_TEST_ACCESS=duetto \
+DUETTO_S3_TEST_SECRET=duettosecret \
+DUETTO_S3_TEST_BUCKET=duetto \
   dotnet test "$repo_root/tests/Duetto.Tests/Duetto.Tests.csproj" \
     --filter "Category=Integration"
 

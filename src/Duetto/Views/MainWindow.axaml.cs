@@ -159,7 +159,9 @@ public partial class MainWindow : Window
             Vm.HostKeyStore,
             Vm.Codec,
             Vm.SmbConnectionManager,
-            Vm.SmbConnectionStore);
+            Vm.SmbConnectionStore,
+            Vm.S3ConnectionManager,
+            Vm.S3ConnectionStore);
         if (stored is not null)
             dialogVm.ForEdit(stored);
 
@@ -171,6 +173,11 @@ public partial class MainWindow : Window
         dialogVm.SmbConnected += info =>
         {
             pane.NavigateTo($"smb://{info.Id}{info.InitialPath}");
+            Vm.RebuildRemotePlaces();
+        };
+        dialogVm.S3Connected += info =>
+        {
+            pane.NavigateTo($"s3://{info.Id}{info.InitialPath}");
             Vm.RebuildRemotePlaces();
         };
         new ConnectWindow(dialogVm).ShowDialog(owner);

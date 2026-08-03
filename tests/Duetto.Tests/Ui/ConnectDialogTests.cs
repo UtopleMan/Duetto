@@ -29,8 +29,10 @@ public sealed class ConnectDialogTests
         var manager = new ConnectionManager(registry, hks);
         var smbStore = new SmbConnectionStore(":mem:", _ => null, (_, _) => { });
         var smbManager = new SmbConnectionManager(registry);
+        var s3Store = new S3ConnectionStore(":mem:", _ => null, (_, _) => { });
+        var s3Manager = new S3ConnectionManager(registry);
 
-        var vm = new ConnectDialogViewModel(manager, store, hks, codec, smbManager, smbStore);
+        var vm = new ConnectDialogViewModel(manager, store, hks, codec, smbManager, smbStore, s3Manager, s3Store);
         vm.ConnectAction = connectOverride ?? ((i, s) => connects.Add((i, s)));
         vm.SaveAction = s => saved.Add(s);
         vm.ForgetKeyAction = k => forgot.Add(k);

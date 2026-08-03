@@ -19,7 +19,9 @@ public sealed class ConnectWindowTests
         var smbStore = new SmbConnectionStore(":mem:", _ => null, (_, _) => { });
         var manager = new ConnectionManager(registry, hks);
         var smbManager = new SmbConnectionManager(registry, new FakeSmbFactory(new FakeSmbClientAdapter()));
-        return new ConnectDialogViewModel(manager, store, hks, new SecretCodec(), smbManager, smbStore);
+        var s3Store = new S3ConnectionStore(":mem:", _ => null, (_, _) => { });
+        var s3Manager = new S3ConnectionManager(registry);
+        return new ConnectDialogViewModel(manager, store, hks, new SecretCodec(), smbManager, smbStore, s3Manager, s3Store);
     }
 
     [AvaloniaFact]
@@ -72,6 +74,23 @@ public sealed class ConnectWindowTests
         Assert.True(vm.SmbFieldsVisible);
         Assert.False(vm.SftpAuthVisible);
         Assert.Equal("445", vm.PortText);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void Window_loads_for_s3_and_binds_the_s3_fields()
+    {
+        var vm = MakeVm();
+        var window = new ConnectWindow(vm);
+        window.Show();
+
+        vm.Protocol = ConnectProtocol.S3;
+
+        Assert.True(vm.IsS3);
+        Assert.True(vm.S3FieldsVisible);
+        Assert.True(vm.S3KeysVisible);
+        Assert.False(vm.HostPortVisible);
 
         window.Close();
     }

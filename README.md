@@ -42,6 +42,9 @@ an instant, and delete straight to the system trash.
 - **Remote over SMB / Samba** — connect to Windows shares and NAS boxes (SMB 2/3)
   with a pure-managed client; user/password/domain or guest, share browsing.
   ([setup & security →](docs/remote-smb.md))
+- **Remote over S3** — connect to Amazon S3 and S3-compatible stores (MinIO, R2,
+  Wasabi, B2); access keys, AWS profile, or anonymous; the root lists your buckets.
+  ([setup & security →](docs/remote-s3.md))
 - **Instant search** — recursive, scoped to the current folder or a remote share.
 - **Safe deletes** — everything goes to the system trash: the Recycle Bin on
   Windows, the FreeDesktop trash on Linux, and the native macOS trash (with

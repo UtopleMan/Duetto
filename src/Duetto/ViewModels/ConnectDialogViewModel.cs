@@ -10,6 +10,7 @@ public enum ConnectProtocol
 {
     Sftp,
     Smb,
+    S3,
 }
 
 // One protocol-aware connect dialog (per the drive-popover design spec: a single "Connect…"
@@ -22,17 +23,23 @@ public partial class ConnectDialogViewModel : ObservableObject
 
     public Action<SmbConnectionInfo, ConnectSecret> SmbConnectAction { get; set; }
 
+    public Action<S3ConnectionInfo, ConnectSecret> S3ConnectAction { get; set; }
+
     public Action<StoredConnection> SaveAction { get; set; }
 
     public Action<StoredSmbConnection> SmbSaveAction { get; set; }
+
+    public Action<StoredS3Connection> S3SaveAction { get; set; }
 
     // Removes a stale host-key pin so the next connect attempt re-pins (SFTP only).
     public Action<string> ForgetKeyAction { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsSftp), nameof(IsSmb), nameof(SftpAuthVisible),
+    [NotifyPropertyChangedFor(nameof(IsSftp), nameof(IsSmb), nameof(IsS3), nameof(SftpAuthVisible),
         nameof(SmbFieldsVisible), nameof(KeySectionVisible), nameof(PasswordVisible),
-        nameof(UsernameVisible), nameof(HostKeyWarningVisible))]
+        nameof(UsernameVisible), nameof(HostKeyWarningVisible), nameof(HostPortVisible),
+        nameof(S3FieldsVisible), nameof(S3KeysVisible), nameof(S3ProfileVisible),
+        nameof(SaveSecretVisible))]
     private ConnectProtocol _protocol = ConnectProtocol.Sftp;
 
     [ObservableProperty]
@@ -73,6 +80,37 @@ public partial class ConnectDialogViewModel : ObservableObject
     [ObservableProperty]
     private string _initialRemotePath = "/";
 
+    // S3 only.
+    [ObservableProperty]
+    private string _endpoint = "";
+
+    [ObservableProperty]
+    private string _region = "";
+
+    [ObservableProperty]
+    private bool _pathStyle;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(S3KeysVisible), nameof(S3ProfileVisible),
+        nameof(IsS3KeysMode), nameof(IsS3ProfileMode), nameof(IsS3AnonymousMode),
+        nameof(SaveSecretVisible))]
+    private S3AuthMode _s3Auth = S3AuthMode.Keys;
+
+    [ObservableProperty]
+    private string _accessKeyId = "";
+
+    [ObservableProperty]
+    private string _secretKey = "";
+
+    [ObservableProperty]
+    private string _sessionToken = "";
+
+    [ObservableProperty]
+    private string _profile = "";
+
+    [ObservableProperty]
+    private string _bucket = "";
+
     [ObservableProperty]
     private bool _savePassword;
 
@@ -97,9 +135,14 @@ public partial class ConnectDialogViewModel : ObservableObject
 
     public bool IsSftp => Protocol == ConnectProtocol.Sftp;
     public bool IsSmb => Protocol == ConnectProtocol.Smb;
+    public bool IsS3 => Protocol == ConnectProtocol.S3;
 
     public bool IsPasswordMode => AuthMode == AuthMode.Password;
     public bool IsKeyMode => AuthMode == AuthMode.Key;
+
+    public bool IsS3KeysMode => S3Auth == S3AuthMode.Keys;
+    public bool IsS3ProfileMode => S3Auth == S3AuthMode.Profile;
+    public bool IsS3AnonymousMode => S3Auth == S3AuthMode.Anonymous;
 
     // SSH auth section (password/key radios + key file) is SFTP-only.
     public bool SftpAuthVisible => IsSftp;
@@ -109,10 +152,25 @@ public partial class ConnectDialogViewModel : ObservableObject
 
     public bool KeySectionVisible => IsSftp && IsKeyMode;
 
+    // Host + port apply to SFTP/SMB; S3 uses an endpoint URL instead.
+    public bool HostPortVisible => !IsS3;
+
+    // Endpoint / region / path-style / bucket / auth selector are S3-only.
+    public bool S3FieldsVisible => IsS3;
+
+    // Access key + secret + session token show only for S3 Keys auth.
+    public bool S3KeysVisible => IsS3 && S3Auth == S3AuthMode.Keys;
+
+    // Profile name shows only for S3 Profile auth.
+    public bool S3ProfileVisible => IsS3 && S3Auth == S3AuthMode.Profile;
+
     // The password box is shown for SFTP password auth and for non-guest SMB.
     public bool PasswordVisible => (IsSftp && IsPasswordMode) || (IsSmb && !Guest);
 
-    // Username is hidden only for SMB guest connections.
+    // The "save secret" checkbox covers SFTP/SMB passwords and the S3 secret key.
+    public bool SaveSecretVisible => PasswordVisible || S3KeysVisible;
+
+    // Username is hidden only for SMB guest connections and for S3 (which uses an access key).
     public bool UsernameVisible => IsSftp || (IsSmb && !Guest);
 
     public bool HostKeyWarningVisible => IsSftp && IsHostKeyChanged;
@@ -125,6 +183,7 @@ public partial class ConnectDialogViewModel : ObservableObject
 
     public event Action<ConnectionInfo>? Connected;
     public event Action<SmbConnectionInfo>? SmbConnected;
+    public event Action<S3ConnectionInfo>? S3Connected;
     public event Action? Cancelled;
 
     // Null for a new connection, set when editing an existing one.
@@ -138,10 +197,13 @@ public partial class ConnectDialogViewModel : ObservableObject
         HostKeyStore hostKeyStore,
         SecretCodec codec,
         SmbConnectionManager smbManager,
-        SmbConnectionStore smbStore)
+        SmbConnectionStore smbStore,
+        S3ConnectionManager s3Manager,
+        S3ConnectionStore s3Store)
     {
         ConnectAction = (info, secret) => manager.Connect(info, secret);
         SmbConnectAction = (info, secret) => smbManager.Connect(info, secret);
+        S3ConnectAction = (info, secret) => s3Manager.Connect(info, secret);
 
         SaveAction = stored =>
         {
@@ -163,6 +225,17 @@ public partial class ConnectDialogViewModel : ObservableObject
             else
                 all.Add(stored);
             smbStore.Save(all.ToArray());
+        };
+
+        S3SaveAction = stored =>
+        {
+            var all = s3Store.Load().ToList();
+            var idx = all.FindIndex(c => c.Id == stored.Id);
+            if (idx >= 0)
+                all[idx] = stored;
+            else
+                all.Add(stored);
+            s3Store.Save(all.ToArray());
         };
 
         ForgetKeyAction = storeKey => hostKeyStore.Forget(storeKey);
@@ -225,8 +298,38 @@ public partial class ConnectDialogViewModel : ObservableObject
         }
     }
 
+    public void ForEdit(StoredS3Connection stored)
+    {
+        Protocol = ConnectProtocol.S3;
+        _editingId = stored.Id;
+        Name = stored.Name;
+        Endpoint = stored.Endpoint;
+        Region = stored.Region;
+        PathStyle = stored.PathStyle;
+        S3Auth = stored.AuthMode;
+        AccessKeyId = stored.AccessKeyId;
+        Profile = stored.Profile;
+        Bucket = stored.Bucket;
+        InitialRemotePath = stored.InitialPath;
+        SavePassword = stored.SavePassword;
+
+        if (stored.AuthMode == S3AuthMode.Keys && stored.SavePassword
+            && !string.IsNullOrEmpty(stored.ObfuscatedSecret))
+        {
+            var secret = S3ConnectionStore.ResolveSecret(stored, _codec);
+            if (secret is not null)
+            {
+                SecretKey = secret.Password ?? "";
+                SessionToken = secret.SessionToken ?? "";
+            }
+        }
+    }
+
     private string? Validate()
     {
+        if (IsS3)
+            return ValidateS3();
+
         if (string.IsNullOrWhiteSpace(Host))
             return "Host is required";
         if (!IsPortValid)
@@ -249,6 +352,16 @@ public partial class ConnectDialogViewModel : ObservableObject
 
         return null;
     }
+
+    private string? ValidateS3() => S3Auth switch
+    {
+        S3AuthMode.Keys when string.IsNullOrWhiteSpace(AccessKeyId) => "Access key ID is required",
+        S3AuthMode.Keys when string.IsNullOrWhiteSpace(SecretKey) => "Secret access key is required",
+        S3AuthMode.Profile when string.IsNullOrWhiteSpace(Profile) => "Profile name is required",
+        // Anonymous cannot list buckets, so a specific bucket is mandatory.
+        S3AuthMode.Anonymous when string.IsNullOrWhiteSpace(Bucket) => "Bucket is required for anonymous access",
+        _ => null,
+    };
 
     private ConnectionInfo BuildInfo() => new(
         Id: _editingId ?? Guid.NewGuid().ToString("N"),
@@ -279,6 +392,23 @@ public partial class ConnectDialogViewModel : ObservableObject
     private ConnectSecret BuildSmbSecret() =>
         ConnectSecret.FromPassword(Guest ? "" : Password);
 
+    private S3ConnectionInfo BuildS3Info() => new(
+        Id: _editingId ?? Guid.NewGuid().ToString("N"),
+        Name: string.IsNullOrWhiteSpace(Name) ? (Endpoint.Trim() is { Length: > 0 } ep ? ep : "S3") : Name.Trim(),
+        Endpoint: Endpoint.Trim(),
+        Region: Region.Trim(),
+        PathStyle: PathStyle,
+        AuthMode: S3Auth,
+        AccessKeyId: S3Auth == S3AuthMode.Keys ? AccessKeyId.Trim() : "",
+        Profile: S3Auth == S3AuthMode.Profile ? Profile.Trim() : "",
+        Bucket: Bucket.Trim(),
+        InitialPath: string.IsNullOrWhiteSpace(InitialRemotePath) ? "/" : InitialRemotePath.Trim());
+
+    private ConnectSecret BuildS3Secret() =>
+        S3Auth == S3AuthMode.Keys
+            ? ConnectSecret.FromKeys(SecretKey, string.IsNullOrEmpty(SessionToken) ? null : SessionToken)
+            : new ConnectSecret();
+
     [RelayCommand]
     public async Task ConnectAsync()
     {
@@ -295,6 +425,12 @@ public partial class ConnectDialogViewModel : ObservableObject
         if (IsSmb)
         {
             await ConnectSmbAsync();
+            return;
+        }
+
+        if (IsS3)
+        {
+            await ConnectS3Async();
             return;
         }
 
@@ -399,6 +535,50 @@ public partial class ConnectDialogViewModel : ObservableObject
         OnSmbConnectSuccess(info, secret);
     }
 
+    private async Task ConnectS3Async()
+    {
+        var info = BuildS3Info();
+        _editingId = info.Id;
+        var secret = BuildS3Secret();
+
+        IsConnecting = true;
+        try
+        {
+            await Task.Run(() => S3ConnectAction(info, secret));
+        }
+        catch (S3AuthenticationException)
+        {
+            ErrorText = "Authentication failed. Check your access key, secret, or profile.";
+            return;
+        }
+        catch (S3ConnectionException ex)
+        {
+            ErrorText = $"Connection failed: {ex.Message}";
+            return;
+        }
+        catch (SocketException ex)
+        {
+            ErrorText = $"Connection failed: {ex.Message}";
+            return;
+        }
+        catch (ObjectDisposedException)
+        {
+            ErrorText = "The connection manager was disposed. Restart the application.";
+            return;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            ErrorText = ex.Message;
+            return;
+        }
+        finally
+        {
+            IsConnecting = false;
+        }
+
+        OnS3ConnectSuccess(info, secret);
+    }
+
     [RelayCommand]
     public async Task AcceptNewKeyAsync()
     {
@@ -481,5 +661,12 @@ public partial class ConnectDialogViewModel : ObservableObject
         var stored = SmbConnectionStore.Pack(info, secret, SavePassword, _codec);
         SmbSaveAction(stored);
         SmbConnected?.Invoke(info);
+    }
+
+    private void OnS3ConnectSuccess(S3ConnectionInfo info, ConnectSecret secret)
+    {
+        var stored = S3ConnectionStore.Pack(info, secret, SavePassword, _codec);
+        S3SaveAction(stored);
+        S3Connected?.Invoke(info);
     }
 }

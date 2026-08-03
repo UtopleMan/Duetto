@@ -24,8 +24,10 @@ public sealed class SmbConnectDialogTests
         var codec = new SecretCodec();
         var manager = new ConnectionManager(registry, hks);
         var smbManager = new SmbConnectionManager(registry, new FakeSmbFactory(new FakeSmbClientAdapter()));
+        var s3Store = new S3ConnectionStore(":mem:", _ => null, (_, _) => { });
+        var s3Manager = new S3ConnectionManager(registry);
 
-        var vm = new ConnectDialogViewModel(manager, store, hks, codec, smbManager, smbStore)
+        var vm = new ConnectDialogViewModel(manager, store, hks, codec, smbManager, smbStore, s3Manager, s3Store)
         {
             Protocol = ConnectProtocol.Smb,
         };
