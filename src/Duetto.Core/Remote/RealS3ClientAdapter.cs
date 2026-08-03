@@ -27,7 +27,10 @@ internal sealed class RealS3ClientAdapter(S3ConnectionInfo info, ConnectSecret s
     public void Connect()
     {
         client?.Dispose();
-        client = new AmazonS3Client(BuildCredentials(), BuildConfig());
+        client = null;
+        // Wrap construction too: an invalid endpoint (e.g. a bare host with no scheme) makes the
+        // SDK throw AmazonClientException here, which must surface as a dialog error, not a crash.
+        client = Run(() => (IAmazonS3)new AmazonS3Client(BuildCredentials(), BuildConfig()));
 
         // Anonymous access often has only GetObject (e.g. a public "download" policy) and cannot
         // list — there is no cheap call to validate, so skip eager validation and let per-object
@@ -71,11 +74,22 @@ internal sealed class RealS3ClientAdapter(S3ConnectionInfo info, ConnectSecret s
         var config = new AmazonS3Config { ForcePathStyle = info.PathStyle };
 
         if (!string.IsNullOrWhiteSpace(info.Endpoint))
-            config.ServiceURL = info.Endpoint;
+            config.ServiceURL = NormalizeEndpoint(info.Endpoint);
         else if (!string.IsNullOrWhiteSpace(info.Region))
             config.RegionEndpoint = RegionEndpoint.GetBySystemName(info.Region);
 
         return config;
+    }
+
+    // The AWS SDK requires a scheme on ServiceURL and throws otherwise. Users commonly enter just a
+    // host (e.g. "minio.example.ts.net"); default to https so it forms a valid URL. A user who needs
+    // http (or a non-default port) types the full URL, which passes through unchanged.
+    internal static string NormalizeEndpoint(string endpoint)
+    {
+        var trimmed = endpoint.Trim();
+        if (trimmed.Length == 0)
+            return trimmed;
+        return trimmed.Contains("://", StringComparison.Ordinal) ? trimmed : "https://" + trimmed;
     }
 
     public IReadOnlyList<string> ListBuckets() =>
@@ -250,11 +264,18 @@ internal sealed class RealS3ClientAdapter(S3ConnectionInfo info, ConnectSecret s
         {
             throw Translate(ex);
         }
-        catch (AmazonServiceException ex)
+        // AmazonClientException is the base of AmazonServiceException, and also what the SDK throws
+        // for client-side faults such as an invalid ServiceURL — catch it so nothing escapes as an
+        // unhandled crash.
+        catch (AmazonClientException ex)
         {
             throw new S3ConnectionException(ex.Message, ex);
         }
         catch (HttpRequestException ex)
+        {
+            throw new S3ConnectionException(ex.Message, ex);
+        }
+        catch (Exception ex) when (ex is UriFormatException or ArgumentException)
         {
             throw new S3ConnectionException(ex.Message, ex);
         }
