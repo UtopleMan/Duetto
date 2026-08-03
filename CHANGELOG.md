@@ -3,6 +3,23 @@
 All notable changes to Duetto are documented here. This project adheres to
 [Semantic Versioning](https://semver.org).
 
+## 1.2.0 — 2026-08-03
+
+### Features
+- **S3 / S3-compatible remote backend** — connect to Amazon S3 and any
+  S3-compatible store (MinIO, Cloudflare R2, Wasabi, Backblaze B2) with the AWS
+  SDK for .NET, no OS mount. Access-key, AWS-profile, or anonymous auth (with
+  optional STS session token); custom endpoint + region + path-style for
+  non-AWS servers. The connection root lists your buckets (or a single configured
+  bucket); each bucket browses like a folder. Full read/write support (browse,
+  upload/download, copy/move, rename, delete, recursive search), empty folders via
+  zero-byte prefix markers, and multipart uploads for large objects. Separate
+  **S3** protocol in the Connect dialog and `s3-connections.json`; the drive
+  popover merges SFTP, SMB, and S3 connections. ([docs](docs/remote-s3.md))
+- **Server-side copy / move (S3)** — transfers between two panes on the same S3
+  connection are offloaded to the server via `CopyObject` instead of streaming
+  through the client, including cross-bucket copies within the connection.
+
 ## 1.1.0 — 2026-08-02
 
 ### Features
