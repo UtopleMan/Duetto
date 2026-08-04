@@ -63,6 +63,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public Task DeleteCompletion { get; private set; } = Task.CompletedTask;
 
+    // Runs the remote-file download off the UI thread; tests swap in an inline runner so the
+    // download and launch complete deterministically. Mirrors DeleteScheduler.
+    public Func<Action<CancellationToken>, CancellationToken, Task> OpenScheduler { get; set; }
+        = static (work, ct) => Task.Run(() => work(ct), ct);
+
+    public Task OpenCompletion { get; private set; } = Task.CompletedTask;
+
+    private readonly RemoteFileOpener _remoteOpener;
+
     public CommandBarViewModel CommandBar { get; }
     public SearchViewModel Search { get; }
 
@@ -90,7 +99,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         SmbConnectionManager? smbConnectionManager = null,
         SmbConnectionStore? smbConnectionStore = null,
         S3ConnectionManager? s3ConnectionManager = null,
-        S3ConnectionStore? s3ConnectionStore = null)
+        S3ConnectionStore? s3ConnectionStore = null,
+        string? remoteOpenTempRoot = null)
     {
         _sessionStore = sessionStore;
         Registry = registry ?? new FileSystemRegistry();
@@ -107,6 +117,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Chrome = chrome ?? Program.Options.Chrome;
         Left = new PaneViewModel(leftPath, Registry);
         Right = new PaneViewModel(rightPath, Registry);
+        _remoteOpener = new RemoteFileOpener(Registry, p => Left.LaunchFile(p), remoteOpenTempRoot);
+        Left.OpenRemoteFile = row => StartRemoteFileOpen(Left, row);
+        Right.OpenRemoteFile = row => StartRemoteFileOpen(Right, row);
         Left.Drives.PaneSide = "left";
         Right.Drives.PaneSide = "right";
         WirePopoverSeams(Left.Drives);
@@ -631,6 +644,61 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    // Enter / double-click on a remote file row: download to temp behind a progress strip,
+    // then launch the local copy. Same single-slot guard as copy/delete.
+    private void StartRemoteFileOpen(PaneViewModel pane, FileRowViewModel row)
+    {
+        if (ActiveOperation is { IsFinished: false })
+            return;
+
+        var address = ToAddress(pane.CurrentPath, row.Entry.FullPath);
+        var cts = new CancellationTokenSource();
+        var op = new SimpleOperationViewModel($"Opening {row.Name}…", cts);
+        op.Dismissed += () =>
+        {
+            if (ReferenceEquals(ActiveOperation, op))
+                ActiveOperation = null;
+            op.Dispose();
+        };
+        ActiveOperation = op;
+
+        OpenCompletion = RunOpenAsync(address, row.Name, op, cts.Token);
+    }
+
+    // The await resumes on the captured UI context (like RunDeleteAsync), so Launch/Finish run
+    // on the UI thread. A failed download dismisses the strip quietly — the app never crashes.
+    private async Task RunOpenAsync(
+        string address, string name, SimpleOperationViewModel op, CancellationToken token)
+    {
+        string? tempPath = null;
+        var failed = false;
+        try
+        {
+            await OpenScheduler(ct => tempPath = _remoteOpener.Download(address, ct), token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception e) when (e is IOException
+            or UnauthorizedAccessException
+            or InvalidOperationException
+            or SshException
+            or SocketException
+            or HostKeyChangedException)
+        {
+            failed = true;
+        }
+
+        if (failed || token.IsCancellationRequested || tempPath is null)
+        {
+            op.Dismiss();
+            return;
+        }
+
+        _remoteOpener.Launch(tempPath);
+        op.Finish($"Opened {name}");
+    }
+
     public void Activate(PaneViewModel pane)
     {
         ActivePane = pane;
@@ -649,5 +717,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ConnectionManager.Dispose();
         SmbConnectionManager.Dispose();
         S3ConnectionManager.Dispose();
+        _remoteOpener.Dispose();
     }
 }
