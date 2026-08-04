@@ -31,15 +31,40 @@ public sealed class RemoteFileOpener : IDisposable
 
         var dir = Path.Combine(_tempRoot, Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
+        RestrictToOwner(dir);
         lock (_lock)
             _created.Add(dir);
 
         var target = Path.Combine(dir, name);
         using (var src = provider.OpenRead(localPath))
         using (var dst = File.Create(target))
-            src.CopyTo(dst);
+            Copy(src, dst, ct);
 
         return target;
+    }
+
+    // Buffered copy that honors cancellation — sync Stream.CopyTo has no CancellationToken overload.
+    private static void Copy(Stream src, Stream dst, CancellationToken ct)
+    {
+        var buffer = new byte[81920];
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+            var read = src.Read(buffer, 0, buffer.Length);
+            if (read == 0)
+                break;
+            dst.Write(buffer, 0, read);
+        }
+    }
+
+    // Downloaded remote files may be sensitive; lock the per-open dir to the owner so a
+    // world-readable /tmp (mode 1777 on Linux) cannot leak them to other local users.
+    private static void RestrictToOwner(string dir)
+    {
+        if (OperatingSystem.IsWindows())
+            return; // Inherits a private-by-default ACL from the user profile.
+        File.SetUnixFileMode(dir,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); // 0700
     }
 
     public void Launch(string path) => _launch(path);

@@ -92,4 +92,39 @@ public class RemoteFileOpenerTests
 
         Assert.False(Directory.Exists(leftover));
     }
+
+    [Fact]
+    public void Cancelled_token_aborts_download_and_does_not_launch()
+    {
+        using var tmp = new TempDir();
+        var (reg, fs) = RemoteRegistry();
+        Seed(fs, "/", "note.txt", "hello remote");
+
+        var launched = false;
+        using var opener = new RemoteFileOpener(reg, _ => launched = true, tmp.Path);
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        Assert.Throws<OperationCanceledException>(
+            () => opener.Download("sftp://srv/note.txt", cts.Token));
+        Assert.False(launched);
+    }
+
+    [Fact]
+    public void Download_dir_is_owner_only_on_posix()
+    {
+        if (OperatingSystem.IsWindows())
+            return; // Unix file modes are a no-op on Windows.
+
+        using var tmp = new TempDir();
+        var (reg, fs) = RemoteRegistry();
+        Seed(fs, "/", "note.txt", "x");
+
+        using var opener = new RemoteFileOpener(reg, _ => { }, tmp.Path);
+        var path = opener.Download("sftp://srv/note.txt", CancellationToken.None);
+
+        var mode = File.GetUnixFileMode(Path.GetDirectoryName(path)!);
+        var expected = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
+        Assert.Equal(expected, mode);
+    }
 }
