@@ -1,6 +1,7 @@
 using Avalonia.Headless.XUnit;
 using Duetto.Tests.Core;
 using Duetto.ViewModels;
+using Renci.SshNet.Common;
 using Xunit;
 
 namespace Duetto.Tests.Ui;
@@ -11,6 +12,74 @@ public class DeleteOperationTests
     {
         foreach (var row in pane.Rows.Where(r => !r.IsParentNav).ToList())
             pane.ToggleMarkAt(row);
+    }
+
+    [AvaloniaFact]
+    public async Task Delete_whenAccessDenied_reportsFailure_notFalseSuccess()
+    {
+        using var tmp = new TempDir();
+        tmp.File("a.txt", "a");
+        using var vm = new MainViewModel(tmp.Path, tmp.Path);
+
+        vm.DeleteScheduler = (work, ct) => { work(ct); return Task.CompletedTask; };
+        vm.TrashFn = _ => throw new UnauthorizedAccessException("denied");
+
+        MarkAll(vm.Left);
+        vm.DeleteSelectedCommand.Execute(null);
+        await vm.DeleteCompletion;
+
+        var op = (SimpleOperationViewModel)vm.ActiveOperation!;
+        Assert.True(op.IsFinished);
+        Assert.Contains("Couldn't delete", op.Title);
+        Assert.DoesNotContain("Moved 1", op.Title);
+        Assert.DoesNotContain("Deleted 1", op.Title);
+    }
+
+    [AvaloniaFact]
+    public async Task Delete_whenRemoteThrowsSshException_isReported_withoutFaulting()
+    {
+        using var tmp = new TempDir();
+        tmp.File("a.txt", "a");
+        using var vm = new MainViewModel(tmp.Path, tmp.Path);
+
+        vm.DeleteScheduler = (work, ct) => { work(ct); return Task.CompletedTask; };
+        // SFTP permission-denied surfaces as an SshException — it must be reported, not fault the task.
+        vm.TrashFn = _ => throw new SshException("permission denied");
+
+        MarkAll(vm.Left);
+        vm.DeleteSelectedCommand.Execute(null);
+        await vm.DeleteCompletion; // must not throw
+
+        var op = (SimpleOperationViewModel)vm.ActiveOperation!;
+        Assert.True(op.IsFinished);
+        Assert.Contains("Couldn't delete", op.Title);
+    }
+
+    [AvaloniaFact]
+    public async Task Delete_whenSomeItemsFail_reportsPartialCounts()
+    {
+        using var tmp = new TempDir();
+        tmp.File("ok.txt", "a");
+        tmp.File("bad.txt", "b");
+        using var vm = new MainViewModel(tmp.Path, tmp.Path);
+
+        var trashed = new List<string>();
+        vm.DeleteScheduler = (work, ct) => { work(ct); return Task.CompletedTask; };
+        vm.TrashFn = p =>
+        {
+            if (p.EndsWith("bad.txt", StringComparison.Ordinal))
+                throw new UnauthorizedAccessException("denied");
+            trashed.Add(p);
+            return null;
+        };
+
+        MarkAll(vm.Left);
+        vm.DeleteSelectedCommand.Execute(null);
+        await vm.DeleteCompletion;
+
+        Assert.Single(trashed);
+        Assert.Contains("ok.txt", trashed[0]);
+        Assert.Contains("failed", ((SimpleOperationViewModel)vm.ActiveOperation!).Title);
     }
 
     [AvaloniaFact]

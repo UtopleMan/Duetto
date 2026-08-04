@@ -591,6 +591,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         bool hasTrash)
     {
         var trashed = new HashSet<string>();
+        var failed = 0;
         try
         {
             await DeleteScheduler(ct =>
@@ -603,11 +604,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
                         TrashFn(path);
                         trashed.Add(path);
                     }
-                    // NotSupportedException: capability belt — a provider without CanDelete
-                    // skips the item instead of faulting the batch.
+                    // Expected per-item failures are counted and reported (not swallowed), so one
+                    // bad item neither aborts the batch nor is mistaken for success. Every backend
+                    // maps permission-denied here: Local/SMB/S3 as IOException/UnauthorizedAccess,
+                    // SFTP as SshException; NotSupportedException is a provider without CanDelete.
                     catch (Exception e) when (e is IOException or UnauthorizedAccessException
-                        or FileNotFoundException or NotSupportedException)
+                        or FileNotFoundException or NotSupportedException or SshException)
                     {
+                        failed++;
                     }
                 }
             }, token);
@@ -633,15 +637,25 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         else
         {
-            // "Moved to Trash" vs "Deleted" keyed on the owning provider's HasTrash,
-            // captured at DeleteSelected time (remote deletes are permanent).
-            var n = trashed.Count;
-            var what = n == 1 ? "item" : "items";
-            var finalTitle = hasTrash
-                ? $"Moved {n} {what} to Trash"
-                : $"Deleted {n} {what}";
-            op.Finish(finalTitle);
+            // "Moved to Trash" vs "Deleted" keyed on the owning provider's HasTrash, captured at
+            // DeleteSelected time (remote deletes are permanent). Failed items are surfaced here
+            // rather than silently dropped, so a permission-denied delete reports back.
+            op.Finish(DeleteSummary(trashed.Count, failed, hasTrash));
         }
+    }
+
+    // Builds the delete strip's completion line. Zero failures keeps the plain success wording;
+    // otherwise the failure count is surfaced ("Couldn't delete N" when nothing succeeded, or a
+    // partial "…, N failed") so a permission-denied delete never reads as success.
+    private static string DeleteSummary(int ok, int failed, bool hasTrash)
+    {
+        static string Items(int n) => n == 1 ? "item" : "items";
+        if (failed == 0)
+            return hasTrash ? $"Moved {ok} {Items(ok)} to Trash" : $"Deleted {ok} {Items(ok)}";
+        if (ok == 0)
+            return $"Couldn't delete {failed} {Items(failed)}";
+        var done = hasTrash ? $"Moved {ok} to Trash" : $"Deleted {ok}";
+        return $"{done}, {failed} failed";
     }
 
     // Enter / double-click on a remote file row: download to temp behind a progress strip,
