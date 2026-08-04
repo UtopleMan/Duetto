@@ -3,6 +3,15 @@
 All notable changes to Duetto are documented here. This project adheres to
 [Semantic Versioning](https://semver.org).
 
+## 1.3.0 — 2026-08-04
+
+### Features
+- **Open remote files** — press Enter (or double-click) a file on an SFTP, SMB, or
+  S3 remote to download it to a private temp folder and open it in your OS default
+  app, behind a brief "Opening …" progress strip. The copy is view-only (never
+  uploaded back), locked to your user (`0700` on macOS/Linux), and deleted when you
+  quit Duetto; a copy left behind by a crashed session is swept on next launch.
+
 ## 1.2.1 — 2026-08-03
 
 ### Fixed
