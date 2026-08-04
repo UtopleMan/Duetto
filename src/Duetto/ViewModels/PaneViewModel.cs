@@ -90,6 +90,10 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     public Action<string> LaunchFile { get; set; } = static path =>
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
 
+    // Invoked for a remote file row on activation (Enter / double-click). MainViewModel wires
+    // this to the download-and-open orchestration; null leaves the remote branch a no-op.
+    public Action<FileRowViewModel>? OpenRemoteFile { get; set; }
+
     public string DirName => PathUtil.Leaf(CurrentPath) is { Length: > 0 } name ? name : CurrentPath;
 
     public string VolumeChipText
@@ -221,11 +225,13 @@ public partial class PaneViewModel : ObservableObject, IDisposable
             Up();
         else if (row.IsDirectory)
             NavigateTo(PathUtil.ToAddress(CurrentPath, row.Entry.FullPath));
+        else if (PathUtil.IsRemote(CurrentPath))
+        {
+            // Remote files can't be launched in place — hand off to the downloader.
+            OpenRemoteFile?.Invoke(row);
+        }
         else
         {
-            // Remote file open / download-and-open is a deferred feature — no-op until it ships.
-            if (PathUtil.IsRemote(CurrentPath))
-                return;
             LaunchFile(row.Entry.FullPath);
         }
     }

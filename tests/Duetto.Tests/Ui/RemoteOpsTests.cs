@@ -318,13 +318,10 @@ public class RemoteOpsTests
     }
 
     [AvaloniaFact]
-    public void Open_remote_file_row_is_noop_and_does_not_invoke_LaunchFile()
+    public void Open_remote_file_row_invokes_OpenRemoteFile_hook_not_LaunchFile()
     {
         var fs = MakeRemoteFs();
-        var bytes = System.Text.Encoding.UTF8.GetBytes("content");
-        var full = fs.CreateFile("/", "note.txt");
-        using var w = fs.OpenWrite(full);
-        w.Write(bytes);
+        SeedFile(fs, "/", "note.txt", "content");
 
         var reg = MakeRegistry("sftp", "id", fs);
         using var vm = new PaneViewModel("sftp://id/", reg);
@@ -332,6 +329,8 @@ public class RemoteOpsTests
 
         var launchCalled = false;
         vm.LaunchFile = _ => launchCalled = true;
+        FileRowViewModel? hooked = null;
+        vm.OpenRemoteFile = row => hooked = row;
 
         vm.SelectByName("note.txt");
         var row = vm.CursorRow!;
@@ -341,6 +340,7 @@ public class RemoteOpsTests
         vm.Open(row);
         Dispatcher.UIThread.RunJobs();
 
+        Assert.Same(row, hooked);
         Assert.False(launchCalled, "LaunchFile must not be called for a remote file row");
         Assert.Equal(pathBefore, vm.CurrentPath);
     }
