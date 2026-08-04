@@ -1,7 +1,11 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Markup.Xaml.Styling;
+using Avalonia.Platform;
 using Avalonia.Threading;
+using Duetto.Core.Remote;
+using Duetto.Core.State;
 using Duetto.Views;
 
 namespace Duetto;
@@ -9,6 +13,24 @@ namespace Duetto;
 public class App : Application
 {
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
+
+    // Restart-to-apply: resolve the saved theme (System follows the OS), set the Fluent variant,
+    // and append the matching palette dictionary so it overrides the light default merged in
+    // App.axaml. Runs before any window is created, so views bind the chosen palette at parse
+    // time. A forced --theme (screenshot runs) wins over settings.json.
+    private void ApplyTheme()
+    {
+        var setting = Program.Options.Theme
+            ?? (Program.Options.Headless
+                ? AppTheme.System
+                : new ThemeSettingStore(AppPaths.SettingsJsonPath).Load());
+
+        var os = PlatformSettings?.GetColorValues().ThemeVariant ?? PlatformThemeVariant.Light;
+        var (variant, paletteUri) = ThemeResolver.Resolve(setting, os);
+
+        RequestedThemeVariant = variant;
+        Resources.MergedDictionaries.Add(new ResourceInclude((Uri?)null) { Source = paletteUri });
+    }
 
     private void OnAboutClicked(object? sender, EventArgs e)
     {
@@ -24,6 +46,8 @@ public class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        ApplyTheme();
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var window = new MainWindow();

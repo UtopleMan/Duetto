@@ -165,28 +165,34 @@ throw `JsonException` → caught → `System`. `AppPaths.SettingsJsonPath` →
 unknown-value).
 
 ## Phase 3: Startup wiring (restart-to-apply)
-Status: Not started
+Status: Complete
 
-- [ ] Add pure resolver `ThemeResolver.Resolve(AppTheme setting, PlatformThemeVariant os)`
-      → `(ThemeVariant variant, string paletteUri)`: `Light`→Light, `Dark`→Dark,
+- [x] Add pure resolver `ThemeResolver.Resolve(AppTheme setting, PlatformThemeVariant os)`
+      → `(ThemeVariant variant, Uri paletteUri)`: `Light`→Light, `Dark`→Dark,
       `System`→follow `os`.
-- [ ] In `App` startup (before `MainWindow` is created): read the setting via
-      `ThemeSettingStore`, resolve against
-      `PlatformSettings.GetColorValues().ThemeVariant`, set
-      `RequestedThemeVariant`, and merge the resolved palette dictionary into
-      `Application.Resources.MergedDictionaries` (so `StaticResource` lookups bind
-      the chosen palette). Gate off the store in headless/screenshot/smoke runs
-      (respect `Program.Options`), matching how `SessionStore`/window store are gated.
-- [ ] Test `tests/Duetto.Tests/Ui/ThemeResolverTests.cs`: the four resolution cases
-      (Light→Light, Dark→Dark, System+osLight→Light, System+osDark→Dark) map to the
-      right variant + palette uri.
+- [x] In `App` startup (`OnFrameworkInitializationCompleted`, before `MainWindow`):
+      read the setting via `ThemeSettingStore`, resolve against
+      `PlatformSettings.GetColorValues().ThemeVariant`, set `RequestedThemeVariant`,
+      and append the resolved palette to `Resources.MergedDictionaries`. Headless
+      runs default to System (→Light without OS signal); `--theme` overrides for
+      screenshots.
+- [x] Add `--theme system|light|dark` to `AppOptions` (`AppTheme? Theme`).
+- [x] Test `tests/Duetto.Tests/Ui/ThemeResolverTests.cs`: the four resolution cases.
 
 ### Verification Plan
 - `dotnet test --filter FullyQualifiedName~ThemeResolverTests` → passes.
 - `dotnet test` (full suite) → all green, no regressions.
 
 ### Phase Summary
-_(write when phase completes)_
+Done. `ThemeResolver.Resolve` (pure) maps setting+OS → `(ThemeVariant, palette Uri)`.
+`App.ApplyTheme()` runs first in `OnFrameworkInitializationCompleted`: loads the
+setting (`--theme` override wins; headless → System), resolves against
+`PlatformSettings.GetColorValues().ThemeVariant`, sets `RequestedThemeVariant`, and
+appends the palette dictionary (overrides the light default from App.axaml).
+`--theme` added to `AppOptions`. 4 resolver tests pass; full suite **672** (was 662).
+End-to-end verified by rendering `--theme light`/`--theme dark` screenshots: light is
+unregressed, dark renders correctly (dark surfaces, lifted text, amber marks, green
+command bar, translucent-blue selection) with no leaked light surfaces.
 
 ## Phase 4: Config-file UX + docs
 Status: Not started

@@ -1,3 +1,5 @@
+using Duetto.Core.State;
+
 namespace Duetto;
 
 public enum ChromeKind
@@ -14,6 +16,9 @@ public sealed class AppOptions
 
     public string? Screenshot { get; init; }
 
+    // Forces a theme, overriding settings.json — used by screenshot runs to render a given variant.
+    public AppTheme? Theme { get; init; }
+
     // Null when absent or the path is missing / not a directory — the caller falls back to home.
     public string? Folder { get; init; }
 
@@ -24,6 +29,7 @@ public sealed class AppOptions
         var chrome = DefaultChrome();
         var smoke = false;
         string? screenshot = null;
+        AppTheme? theme = null;
         string? folder = null;
         for (var i = 0; i < args.Length; i++)
         {
@@ -44,6 +50,15 @@ public sealed class AppOptions
                 case "--screenshot" when i + 1 < args.Length:
                     screenshot = args[++i];
                     break;
+                case "--theme" when i + 1 < args.Length:
+                    theme = args[++i].ToLowerInvariant() switch
+                    {
+                        "system" => AppTheme.System,
+                        "light" => AppTheme.Light,
+                        "dark" => AppTheme.Dark,
+                        var other => throw new ArgumentException($"Unknown theme '{other}' (expected system|light|dark)"),
+                    };
+                    break;
                 // Flag values are consumed above via ++i, so this only ever sees genuine positionals.
                 default:
                     if (folder is null && !args[i].StartsWith("--", StringComparison.Ordinal))
@@ -52,7 +67,14 @@ public sealed class AppOptions
             }
         }
 
-        return new AppOptions { Chrome = chrome, Smoke = smoke, Screenshot = screenshot, Folder = folder };
+        return new AppOptions
+        {
+            Chrome = chrome,
+            Smoke = smoke,
+            Screenshot = screenshot,
+            Theme = theme,
+            Folder = folder,
+        };
     }
 
     private static string? ResolveFolder(string path)
