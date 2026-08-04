@@ -195,40 +195,72 @@ unregressed, dark renders correctly (dark surfaces, lifted text, amber marks, gr
 command bar, translucent-blue selection) with no leaked light surfaces.
 
 ## Phase 4: Config-file UX + docs
-Status: Not started
+Status: Complete
 
-- [ ] Document the setting: a short `docs/theme.md` (or a README section) — the
-      `theme` key in `settings.json`, allowed values `System|Light|Dark`, and that
-      it applies on next launch. Reference the config-dir location per OS.
-- [ ] Confirm no menu/UI code changed (macOS `NativeMenu` still only "About").
+- [x] Document the setting: `docs/theme.md` — the `theme` key in `settings.json`,
+      allowed values `System|Light|Dark`, applies on next launch, config-dir per OS.
+- [x] Confirm no menu/UI code changed (macOS `NativeMenu` still only "About").
 
 ### Verification Plan
 - `git grep -n "theme" src/Duetto/App.axaml` shows no new NativeMenuItem.
 - Manual: set `"theme":"Dark"` in `<config>/settings.json`, relaunch, dark renders.
 
 ### Phase Summary
-_(write when phase completes)_
+Done. `docs/theme.md` documents the `theme` key, values, restart-to-apply, and the
+per-OS config path. `App.axaml`'s `NativeMenu` is unchanged (only "About Duetto") —
+no theme menu item, matching the config-file-only decision.
 
 ## Phase 5: Full verification
-Status: Not started
+Status: Complete
 
-- [ ] `dotnet build` → no errors.
-- [ ] `dotnet test` → all pass (incl. new PaletteParity / ThemeSettingStore /
-      ThemeResolver tests).
-- [ ] `dotnet format --verify-no-changes` on the new/changed files (repo has known
-      pre-existing drift elsewhere — do not reformat unrelated files).
-- [ ] Screenshot check both variants: launch with `--screenshot` under `theme=Light`
-      and `theme=Dark`; confirm dark surfaces/text/selection match the design and no
-      element stays light (leaked hardcoded color).
+- [x] `dotnet build` → no errors.
+- [x] `dotnet test` → all pass (incl. new PaletteParity / ThemeSettingStore /
+      ThemeResolver tests). 672 total.
+- [x] `dotnet format --verify-no-changes` on the new/changed `.cs` files → clean
+      (repo has known pre-existing drift elsewhere — not touched).
+- [x] Screenshot check both variants: `--theme light` unregressed; `--theme dark`
+      renders dark surfaces/text/amber marks/green command bar/translucent-blue
+      selection, no leaked light surfaces.
 
 ### Verification Plan
 - Commands above; screenshots visually match the Claude design dark render.
 
 ### Phase Summary
-_(write when phase completes)_
+All green. `dotnet build` 0 errors; `dotnet test` 672 pass; scoped `dotnet format`
+clean; light + dark headless screenshots verified. Feature complete.
 
 ## Final Recap
-_(write when all phases complete)_
+Duetto now has Light / Dark / System themes sourced from the Claude design dark
+palette, chosen via the `theme` key in `settings.json` and applied on next launch
+(restart-to-apply — no menu item, per the revised brief).
+
+Implementation:
+- **Palette** split out of `App.axaml` into `Themes/Palette.Light.axaml` +
+  `Themes/Palette.Dark.axaml` (39 brushes each; `PaletteParityTests` guards drift).
+- **Setting** persisted by `ThemeSettingStore` → `AppPaths.SettingsJsonPath`
+  (`AppTheme{System,Light,Dark}`, defaults to System, never throws).
+- **Startup** `App.ApplyTheme()` resolves the setting (System follows the OS via
+  `PlatformSettings`) with the pure `ThemeResolver`, sets `RequestedThemeVariant`,
+  and appends the resolved palette over the light default.
+- **CLI** `--theme system|light|dark` forces a variant (used for screenshots).
+- **Docs** `docs/theme.md`.
+
+Tests added: PaletteParity (1), ThemeSettingStore (6), ThemeResolver (4). Suite 662→672.
+Commits: `8f3ff7a` (palette), `d3e5c68` (setting), `8fa0584` (startup), plus this
+phase's docs.
+
+Known follow-ups (out of scope here): 12 dark values are derived (not literal design
+tokens) — screenshots look right but a pixel-level reconcile against the design could
+refine chrome/toolbar/danger. Live switching (no restart) would need the 227
+`StaticResource` refs converted to `DynamicResource`.
 
 ## Deployment Plan
-_(write when all phases complete)_
+Desktop app; ships in the next version.
+1. `git push origin main` (feature commits).
+2. Bump `Directory.Build.props` `<Version>` to `1.4.0` (new feature → minor) and add
+   a CHANGELOG entry; commit `chore(release): v1.4.0 — dark mode`; tag `v1.4.0`; push
+   commit + tag (matches the repo's release convention).
+3. Rebuild + install locally: `VERSION=1.4.0 scripts/make-app-bundle.sh osx-arm64`,
+   then copy `dist/Duetto.app` to `/Applications`.
+4. Verify: set `"theme":"Dark"` in `~/Library/Application Support/Duetto/settings.json`,
+   relaunch, confirm dark; set `"Light"`/remove, relaunch, confirm light.
