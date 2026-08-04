@@ -29,6 +29,8 @@ public static class AppPaths
 
     public static string SessionJsonPath => Path.Combine(ConfigDir, "session.json");
 
+    public static string SettingsJsonPath => Path.Combine(ConfigDir, "settings.json");
+
     private static string GetConfigDir()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))

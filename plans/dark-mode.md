@@ -143,21 +143,26 @@ parse after the startup merge). Build clean; parity test green; full suite 662 p
 gradations, danger, chip, amber) are best-effort; reconcile visually in Phase 5.
 
 ## Phase 2: Theme setting persistence
-Status: Not started
+Status: Complete
 
-- [ ] Add `enum AppTheme { System, Light, Dark }` (in `Duetto.Core` or `Duetto`).
-- [ ] Add `AppPaths.SettingsJsonPath => Path.Combine(ConfigDir, "settings.json")`.
-- [ ] Add `ThemeSettingStore` (mirrors `SessionStore`): `AppTheme Load()` /
+- [x] Add `enum AppTheme { System, Light, Dark }` (in `Duetto.Core.State`).
+- [x] Add `AppPaths.SettingsJsonPath => Path.Combine(ConfigDir, "settings.json")`.
+- [x] Add `ThemeSettingStore` (mirrors `SessionStore`): `AppTheme Load()` /
       `void Save(AppTheme)`, reading/writing `{ "theme": "System|Light|Dark" }`.
       Missing/corrupt file → `System`. Never throws.
-- [ ] Test `tests/Duetto.Tests/Core/ThemeSettingStoreTests.cs`: round-trip each
+- [x] Test `tests/Duetto.Tests/Core/ThemeSettingStoreTests.cs`: round-trip each
       value; missing file → `System`; corrupt JSON → `System` (no throw).
 
 ### Verification Plan
 - `dotnet test --filter FullyQualifiedName~ThemeSettingStoreTests` → passes.
 
 ### Phase Summary
-_(write when phase completes)_
+Done. `AppTheme{System,Light,Dark}` + `ThemeSettingStore` added to
+`Duetto.Core.State` (mirrors `SessionStore`: injectable reader/writer, atomic
+temp-then-move write, `JsonStringEnumConverter`, never throws). Unknown enum strings
+throw `JsonException` → caught → `System`. `AppPaths.SettingsJsonPath` →
+`<ConfigDir>/settings.json`. 6 tests pass (3 round-trip + missing + corrupt +
+unknown-value).
 
 ## Phase 3: Startup wiring (restart-to-apply)
 Status: Not started
