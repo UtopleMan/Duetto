@@ -533,9 +533,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // pane/scope); rebuild the full scheme://id/... address so TrashFn's Registry.Resolve
         // hits the owning provider and can never touch a same-named local path.
         var fromSearch = Search.IsActive;
+        // Delete acts only on explicitly marked rows — never the file merely under the cursor.
         var paths = (fromSearch
                 ? Search.SelectedEntries.Select(e => ToAddress(Search.ScopeDir, e.FullPath))
-                : ActivePane.SelectedRows.Select(r => ToAddress(ActivePane.CurrentPath, r.Entry.FullPath)))
+                : ActivePane.MarkedRows.Select(r => ToAddress(ActivePane.CurrentPath, r.Entry.FullPath)))
             .ToList();
 
         if (paths.Count == 0 || ActiveOperation is { IsFinished: false })

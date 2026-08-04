@@ -103,6 +103,7 @@ public class TransferUiTests
         var doomed = src.File("doomed.txt", "x");
         using var vm = new MainViewModel(src.Path, dst.Path);
         vm.Left.SelectByName("doomed.txt");
+        vm.Left.ToggleMarkAt(vm.Left.CursorRow!);
 
         vm.DeleteSelected();
         await vm.DeleteCompletion;

@@ -34,6 +34,26 @@ public class DeleteOperationTests
     }
 
     [AvaloniaFact]
+    public void Delete_withNothingMarked_isNoOp()
+    {
+        using var tmp = new TempDir();
+        tmp.File("a.txt", "a");
+        tmp.File("b.txt", "b");
+        using var vm = new MainViewModel(tmp.Path, tmp.Path);
+
+        var trashed = new List<string>();
+        vm.DeleteScheduler = (work, ct) => { work(ct); return Task.CompletedTask; };
+        vm.TrashFn = p => { trashed.Add(p); return null; };
+
+        // The cursor sits on a row, but nothing is marked — delete must touch nothing.
+        vm.Left.SelectByName("b.txt");
+        vm.DeleteSelectedCommand.Execute(null);
+
+        Assert.Empty(trashed);
+        Assert.Null(vm.ActiveOperation);
+    }
+
+    [AvaloniaFact]
     public void Delete_movesCursorToNeighbor_soTheListStaysFocusable()
     {
         using var tmp = new TempDir();
@@ -45,6 +65,7 @@ public class DeleteOperationTests
         vm.TrashFn = p => { File.Delete(p); return null; };
 
         vm.Left.SelectByName("b.txt");
+        vm.Left.ToggleMarkAt(vm.Left.CursorRow!);
         vm.DeleteSelectedCommand.Execute(null);
 
         // b.txt is gone; the cursor must land on a real row (the one that took its slot),

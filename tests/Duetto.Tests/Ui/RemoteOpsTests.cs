@@ -241,6 +241,7 @@ public class RemoteOpsTests
         vm.DeleteScheduler = (work, ct) => { work(ct); return Task.CompletedTask; };
 
         vm.Left.SelectByName("file.txt");
+        vm.Left.ToggleMarkAt(vm.Left.CursorRow!);
         vm.DeleteSelectedCommand.Execute(null);
         await vm.DeleteCompletion;
 
@@ -265,6 +266,7 @@ public class RemoteOpsTests
         vm.TrashFn = _ => null;
 
         vm.Left.SelectByName("local.txt");
+        vm.Left.ToggleMarkAt(vm.Left.CursorRow!);
         vm.DeleteSelectedCommand.Execute(null);
         await vm.DeleteCompletion;
 

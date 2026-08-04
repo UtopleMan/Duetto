@@ -375,12 +375,17 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     public FileRowViewModel? CursorRow => Selection.SelectedItem;
     public bool HasMarks => Rows.Any(r => r.IsMarked);
 
+    // Explicitly marked rows only — no cursor fallback, so an unmarked pane yields nothing.
+    // Delete targets these: it must never touch the file merely under the cursor.
+    public IReadOnlyList<FileRowViewModel> MarkedRows =>
+        Rows.Where(r => r.IsMarked && !r.IsParentNav).ToList();
+
     // Operation targets: the marked rows, or the cursor row when nothing is marked.
     public IReadOnlyList<FileRowViewModel> SelectedRows
     {
         get
         {
-            var marked = Rows.Where(r => r.IsMarked && !r.IsParentNav).ToList();
+            var marked = MarkedRows;
             if (marked.Count > 0)
                 return marked;
             return CursorRow is { IsParentNav: false } cursor ? [cursor] : [];
