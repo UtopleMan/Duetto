@@ -83,6 +83,38 @@ public class DeleteOperationTests
     }
 
     [AvaloniaFact]
+    public async Task Delete_success_dismissesBriefly()
+    {
+        using var tmp = new TempDir();
+        tmp.File("a.txt", "a");
+        using var vm = new MainViewModel(tmp.Path, tmp.Path);
+        vm.DeleteScheduler = (work, ct) => { work(ct); return Task.CompletedTask; };
+        vm.TrashFn = _ => null;
+
+        MarkAll(vm.Left);
+        vm.DeleteSelectedCommand.Execute(null);
+        await vm.DeleteCompletion;
+
+        Assert.Equal(1.0, ((SimpleOperationViewModel)vm.ActiveOperation!).DismissAfterSeconds);
+    }
+
+    [AvaloniaFact]
+    public async Task Delete_failure_lingersFiveSeconds_soTheUserCanReadIt()
+    {
+        using var tmp = new TempDir();
+        tmp.File("a.txt", "a");
+        using var vm = new MainViewModel(tmp.Path, tmp.Path);
+        vm.DeleteScheduler = (work, ct) => { work(ct); return Task.CompletedTask; };
+        vm.TrashFn = _ => throw new UnauthorizedAccessException("denied");
+
+        MarkAll(vm.Left);
+        vm.DeleteSelectedCommand.Execute(null);
+        await vm.DeleteCompletion;
+
+        Assert.Equal(5.0, ((SimpleOperationViewModel)vm.ActiveOperation!).DismissAfterSeconds);
+    }
+
+    [AvaloniaFact]
     public void Delete_trashesEveryMarkedItem_thenFinishes()
     {
         using var tmp = new TempDir();

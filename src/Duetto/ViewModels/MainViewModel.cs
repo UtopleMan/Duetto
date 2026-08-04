@@ -639,8 +639,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             // "Moved to Trash" vs "Deleted" keyed on the owning provider's HasTrash, captured at
             // DeleteSelected time (remote deletes are permanent). Failed items are surfaced here
-            // rather than silently dropped, so a permission-denied delete reports back.
-            op.Finish(DeleteSummary(trashed.Count, failed, hasTrash));
+            // rather than silently dropped, so a permission-denied delete reports back — and it
+            // lingers 5s (vs the 1s success flash) so the error is readable.
+            op.Finish(
+                DeleteSummary(trashed.Count, failed, hasTrash),
+                dismissAfterSeconds: failed > 0 ? 5.0 : null);
         }
     }
 
