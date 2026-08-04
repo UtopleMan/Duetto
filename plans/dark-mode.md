@@ -108,19 +108,20 @@ against the artifact's dark render before sign-off.
 ---
 
 ## Phase 1: Palette dictionaries (Light + Dark)
-Status: Not started
+Status: Complete
 
-- [ ] Create `src/Duetto/Themes/Palette.Light.axaml` — a `ResourceDictionary`
+- [x] Create `src/Duetto/Themes/Palette.Light.axaml` — a `ResourceDictionary`
       holding all 39 brushes with today's exact light values (moved verbatim from
       `App.axaml`).
-- [ ] Create `src/Duetto/Themes/Palette.Dark.axaml` — same 39 keys, dark values
+- [x] Create `src/Duetto/Themes/Palette.Dark.axaml` — same 39 keys, dark values
       from the mapping table above.
-- [ ] Remove the 39 inline brush definitions from `App.axaml` (keep `MonoFont`,
+- [x] Remove the 39 inline brush definitions from `App.axaml` (keep `MonoFont`,
       `FluentTheme`, and the `Button.toolbtn` styles). Merge `Palette.Light.axaml`
       by default so design-time / fallback stays light.
-- [ ] Reconcile the 12 `derived` rows against the artifact's dark-turn render
-      (extract exact rendered surface/danger hexes); update `Palette.Dark.axaml`.
-- [ ] Add a parity test `tests/Duetto.Tests/Ui/PaletteParityTests.cs`: parse both
+- [~] Reconcile the 12 `derived` rows against the artifact's dark-turn render —
+      derived values set from the render-hex frequency scan; **final visual
+      reconcile deferred to Phase 5 screenshot check.**
+- [x] Add a parity test `tests/Duetto.Tests/Ui/PaletteParityTests.cs`: parse both
       `.axaml` files, assert the set of `x:Key` names is identical (Dark defines
       every key Light does, and vice versa).
 
@@ -130,7 +131,16 @@ Status: Not started
   key sets; a missing dark brush fails the test).
 
 ### Phase Summary
-_(write when phase completes)_
+Done. `Palette.Light.axaml` (verbatim light values) + `Palette.Dark.axaml` (39 dark
+values) created under `src/Duetto/Themes/`; both compile as AvaloniaResource (SDK
+auto-glob, no csproj change needed). `App.axaml` now merges `Palette.Light.axaml`
+via `ResourceInclude` instead of inline brushes; its 3 app-level style refs
+(`TextMid`, `ButtonHover`, `TextHint`) became `DynamicResource` since they parse at
+`App.Initialize()` — before the Phase 3 startup merge — so they must follow the
+active palette dynamically. View-level `StaticResource` refs are untouched (views
+parse after the startup merge). Build clean; parity test green; full suite 662 pass
+(was 661), no regressions. Derived dark values (chrome/toolbar/hover/hairline
+gradations, danger, chip, amber) are best-effort; reconcile visually in Phase 5.
 
 ## Phase 2: Theme setting persistence
 Status: Not started

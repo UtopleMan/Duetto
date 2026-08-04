@@ -1,0 +1,47 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Duetto dark palette. Source: Claude design project 9547189c-a040-4169-8fed-38dc0d79972e,
+       "Duetto File Manager.dc.html" dark-mode turn. Canonical tokens (window/pane/recessed/
+       hairline/text/text-dim/accent/selection/folder/terminal/progress) are design-specified;
+       terminal internals, danger, amber and green carry over ("drawer inverts less, progress
+       unchanged"); the remaining gradations are derived to match the dark render. -->
+  <SolidColorBrush x:Key="WindowBg">#232220</SolidColorBrush>
+  <SolidColorBrush x:Key="ChromeBg">#1c1b18</SolidColorBrush>
+  <SolidColorBrush x:Key="ToolbarBg">#211f1a</SolidColorBrush>
+  <SolidColorBrush x:Key="Hairline">#383631</SolidColorBrush>
+  <SolidColorBrush x:Key="HairlineDark">#302f2b</SolidColorBrush>
+  <SolidColorBrush x:Key="HairlineLight">#33312d</SolidColorBrush>
+  <SolidColorBrush x:Key="HairlinePale">#2b2a27</SolidColorBrush>
+  <SolidColorBrush x:Key="TextPrimary">#e6e3db</SolidColorBrush>
+  <SolidColorBrush x:Key="TextBody">#d8d5cc</SolidColorBrush>
+  <SolidColorBrush x:Key="TextMid">#b4b1a8</SolidColorBrush>
+  <SolidColorBrush x:Key="TextDim">#8f8d84</SolidColorBrush>
+  <SolidColorBrush x:Key="TextFaint">#85837a</SolidColorBrush>
+  <SolidColorBrush x:Key="TextGhost">#6f6d66</SolidColorBrush>
+  <SolidColorBrush x:Key="TextHint">#5c5a53</SolidColorBrush>
+  <SolidColorBrush x:Key="HeaderText">#8f8d84</SolidColorBrush>
+  <SolidColorBrush x:Key="Accent">#7fb0f5</SolidColorBrush>
+  <SolidColorBrush x:Key="AccentDim">#5f7290</SolidColorBrush>
+  <SolidColorBrush x:Key="SelectionBg">#5B9CF038</SolidColorBrush>
+  <SolidColorBrush x:Key="ActivePathBg">#5B9CF024</SolidColorBrush>
+  <SolidColorBrush x:Key="ChipBg">#5B9CF01F</SolidColorBrush>
+  <SolidColorBrush x:Key="ChipBorder">#3a4a60</SolidColorBrush>
+  <SolidColorBrush x:Key="FolderMark">#d9b45c</SolidColorBrush>
+  <SolidColorBrush x:Key="FileMark">#6f6d66</SolidColorBrush>
+  <SolidColorBrush x:Key="Green">#2f8f5b</SolidColorBrush>
+  <SolidColorBrush x:Key="GreenLight">#8fd0ab</SolidColorBrush>
+  <SolidColorBrush x:Key="SkipAmber">#c69a3f</SolidColorBrush>
+  <SolidColorBrush x:Key="DangerRed">#e5645c</SolidColorBrush>
+  <SolidColorBrush x:Key="DangerText">#e58079</SolidColorBrush>
+  <SolidColorBrush x:Key="DangerBg">#3a2422</SolidColorBrush>
+  <SolidColorBrush x:Key="TermBg">#161511</SolidColorBrush>
+  <SolidColorBrush x:Key="TermInputBg">#100f0c</SolidColorBrush>
+  <SolidColorBrush x:Key="TermPrompt">#7fd6a0</SolidColorBrush>
+  <SolidColorBrush x:Key="TermPath">#8ca8d8</SolidColorBrush>
+  <SolidColorBrush x:Key="TermText">#f0eeea</SolidColorBrush>
+  <SolidColorBrush x:Key="TermDim">#6b695f</SolidColorBrush>
+  <SolidColorBrush x:Key="RowHover">#2f2e28</SolidColorBrush>
+  <SolidColorBrush x:Key="ButtonHover">#32302a</SolidColorBrush>
+  <SolidColorBrush x:Key="PaneBg">#2b2a27</SolidColorBrush>
+  <SolidColorBrush x:Key="InputBorder">#383631</SolidColorBrush>
+</ResourceDictionary>
