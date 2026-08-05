@@ -22,9 +22,10 @@
   <SolidColorBrush x:Key="HeaderText">#8f8d84</SolidColorBrush>
   <SolidColorBrush x:Key="Accent">#7fb0f5</SolidColorBrush>
   <SolidColorBrush x:Key="AccentDim">#5f7290</SolidColorBrush>
-  <SolidColorBrush x:Key="SelectionBg">#5B9CF038</SolidColorBrush>
-  <SolidColorBrush x:Key="ActivePathBg">#5B9CF024</SolidColorBrush>
-  <SolidColorBrush x:Key="ChipBg">#5B9CF01F</SolidColorBrush>
+  <!-- #AARRGGBB: translucent blue (#5B9CF0) over dark surfaces, not #RRGGBBAA. -->
+  <SolidColorBrush x:Key="SelectionBg">#385B9CF0</SolidColorBrush>
+  <SolidColorBrush x:Key="ActivePathBg">#245B9CF0</SolidColorBrush>
+  <SolidColorBrush x:Key="ChipBg">#1F5B9CF0</SolidColorBrush>
   <SolidColorBrush x:Key="ChipBorder">#3a4a60</SolidColorBrush>
   <SolidColorBrush x:Key="FolderMark">#d9b45c</SolidColorBrush>
   <SolidColorBrush x:Key="FileMark">#6f6d66</SolidColorBrush>
@@ -47,4 +48,8 @@
   <SolidColorBrush x:Key="SuccessBg">#1c2b22</SolidColorBrush>
   <SolidColorBrush x:Key="SuccessBorder">#2c4636</SolidColorBrush>
   <SolidColorBrush x:Key="DangerBorder">#4a302c</SolidColorBrush>
+  <!-- macOS desk behind the floating pane cards (chrome 1b). -->
+  <SolidColorBrush x:Key="DeskBg">#232220</SolidColorBrush>
+  <!-- Pin the Fluent accent to Duetto's blue so a green/other OS accent never bleeds in. -->
+  <Color x:Key="SystemAccentColor">#7fb0f5</Color>
 </ResourceDictionary>

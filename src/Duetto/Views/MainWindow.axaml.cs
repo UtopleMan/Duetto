@@ -78,14 +78,15 @@ public partial class MainWindow : Window
 
             case ChromeKind.Mac:
                 // Native title bar; panes float as cards on a recessed desk (design 1b).
-                Desk.Background = Brush.Parse("#e8e6e1");
+                // Theme-aware brushes (fall back to the light values headless / without the palette).
+                Desk.Background = PaletteLookup.Brush("DeskBg", "#e8e6e1");
                 Desk.Padding = new Thickness(14, 12);
                 PanesGrid.ColumnDefinitions[1].Width = new GridLength(12);
                 PaneDivider.Background = Brushes.Transparent;
                 foreach (var card in new[] { LeftCard, RightCard })
                 {
                     card.CornerRadius = new CornerRadius(9);
-                    card.BorderBrush = Brush.Parse("#dad7d0");
+                    card.BorderBrush = PaletteLookup.Brush("Hairline", "#dad7d0");
                     card.BorderThickness = new Thickness(1);
                     card.BoxShadow = BoxShadows.Parse("0 1 3 0 #0d000000");
                 }
