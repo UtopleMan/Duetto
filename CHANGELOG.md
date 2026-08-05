@@ -3,6 +3,21 @@
 All notable changes to Duetto are documented here. This project adheres to
 [Semantic Versioning](https://semver.org).
 
+## 1.4.0 — 2026-08-05
+
+### Features
+- **Dark mode** — a Dark theme alongside the existing Light one, selectable in
+  settings and persisted to `settings.json`. The saved theme is applied at startup
+  (restart to switch). The palette is split into parity-checked Light/Dark
+  dictionaries, and view/view-model colors are themed throughout so every chrome —
+  marks, popovers, transfer strips, the desk background, and selection — follows
+  the active theme.
+
+### Fixed
+- **Search bar polish** — removed the dead "Names" filter chip (it did nothing),
+  and gave the scoped search field symmetric inner spacing so the query text no
+  longer touches the `⌘F` hint and both edges match.
+
 ## 1.3.0 — 2026-08-04
 
 ### Features
