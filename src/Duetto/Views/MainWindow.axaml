@@ -86,9 +86,6 @@
         <!-- Filter chips (visible while searching) -->
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" Margin="10,0,0,0"
                     IsVisible="{Binding Search.IsActive}">
-          <Border Classes="chip active">
-            <TextBlock Text="Names" />
-          </Border>
           <Button Classes="chipbtn" Classes.active="{Binding Search.IncludeContents}"
                   Content="{Binding Search.ContentsChipLabel}"
                   Command="{Binding Search.ToggleContentsCommand}" />
@@ -118,7 +115,7 @@
         <Border x:Name="SearchShell" Height="30" Background="{StaticResource PaneBg}"
                 BorderBrush="{StaticResource InputBorder}" BorderThickness="1" CornerRadius="7">
           <DockPanel Margin="10,0">
-            <TextBlock DockPanel.Dock="Left" Text="⌕" FontSize="12"
+            <TextBlock DockPanel.Dock="Left" Text="⌕" FontSize="12" Margin="4,0,0,0"
                        Foreground="{StaticResource TextGhost}" VerticalAlignment="Center" />
             <Border DockPanel.Dock="Left" Background="{StaticResource ChipBg}"
                     BorderBrush="{StaticResource ChipBorder}" BorderThickness="1"
@@ -130,12 +127,12 @@
               </TextBlock>
             </Border>
             <TextBlock DockPanel.Dock="Right" Text="{Binding SearchHint}" FontFamily="{StaticResource MonoFont}"
-                       FontSize="10.5" Foreground="{StaticResource TextHint}" VerticalAlignment="Center" />
+                       FontSize="10.5" Margin="10,0,4,0" Foreground="{StaticResource TextHint}" VerticalAlignment="Center" />
             <TextBox x:Name="SearchBox" Text="{Binding Search.Query}"
                      Watermark="{Binding Search.SearchWatermark}"
                      IsEnabled="{Binding Search.IsSearchSupported}"
                      FontSize="12.5" Foreground="{StaticResource TextBody}"
-                     Background="Transparent" BorderThickness="0" MinHeight="0" Padding="0"
+                     Background="Transparent" BorderThickness="0" MinHeight="0" Padding="8,0,8,0"
                      VerticalContentAlignment="Center"
                      KeyDown="OnSearchBoxKeyDown" />
           </DockPanel>
