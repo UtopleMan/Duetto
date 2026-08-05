@@ -229,6 +229,34 @@ Status: Complete
 All green. `dotnet build` 0 errors; `dotnet test` 672 pass; scoped `dotnet format`
 clean; light + dark headless screenshots verified. Feature complete.
 
+## Phase 6: Coverage — theme the leaked colors
+Status: Complete
+
+Screenshotting only the mac main window missed surfaces that don't flip: hardcoded
+hex in views (Win/GNOME chrome, strips, pane chip, popover card) and hardcoded hex
+in view models (marked-row fill, drive popover, transfer status, folder/file marks).
+
+- [x] Replace literal colors in `MainWindow/CommandBar/PaneView/ProgressStrip/
+      SimpleOperationStrip/SearchResultsView` axaml with palette brushes (White glyph
+      on the red close-hover stays literal). Verified dark across mac/gnome/win chromes.
+- [x] Add `PaletteLookup.Hex/Brush(key, lightFallback)` (resolves a palette key against
+      the active theme; falls back to the light hex so light mode + headless tests are
+      byte-identical) and route VM colors through it (`FileRow/Search.MarkColor`,
+      `TransferViewModel` status, `DrivePopoverViewModel`, `BoolBrushConverters`).
+- [x] Add `SuccessBg`/`SuccessBorder`/`DangerBorder` tokens (exit-code pill). Terminal
+      output + saturated usage-bar colors stay literal (correct on dark already).
+
+### Verification Plan
+- `git grep -nE '="#[0-9A-Fa-f]{6}"' src/Duetto/Views` shows only the 2 `White` glyphs.
+- `dotnet test` green (incl. `SharesPopoverTests.DotColor` exact-hex + parity at 42 keys).
+
+### Phase Summary
+Two leak layers fixed: 27 axaml literals → palette brushes (all 3 chromes verified
+dark by screenshot), and 6 view-model color sites → `PaletteLookup`. Light values are
+preserved byte-for-byte (most VM hexes already equalled a token; `PaletteLookup` falls
+back to the light hex otherwise), so `SharesPopoverTests` and light rendering are
+unchanged. Parity now 42 keys. Commits `8407856` (axaml), `cc135e0` (VM colors).
+
 ## Final Recap
 Duetto now has Light / Dark / System themes sourced from the Claude design dark
 palette, chosen via the `theme` key in `settings.json` and applied on next launch
