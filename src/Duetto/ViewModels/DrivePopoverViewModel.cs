@@ -13,7 +13,10 @@ public sealed class VolumeRowViewModel(VolumeInfo volume, bool isCurrent)
     public string Name => Volume.Name;
     public string MountPath => Volume.MountPath;
     public string FreeText => $"{FormatUtil.HumanSize(Volume.FreeBytes)} free";
-    public string SwatchColor => IsCurrent ? "#2f6fd0" : Volume.IsEjectable ? "#c8992f" : "#5b5950";
+    public string SwatchColor => IsCurrent
+        ? PaletteLookup.Hex("Accent", "#2f6fd0")
+        : Volume.IsEjectable ? PaletteLookup.Hex("FolderMark", "#c8992f") : PaletteLookup.Hex("TextMid", "#5b5950");
+    // Saturated usage-bar colors read on both light and dark backgrounds, so they stay literal.
     public string BarColor => Volume.UsedPercent switch
     {
         > 90 => "#b8443c",
@@ -21,7 +24,7 @@ public sealed class VolumeRowViewModel(VolumeInfo volume, bool isCurrent)
         _ => "#2f8f5b",
     };
     public double BarWidth => Volume.UsedPercent * 1.7; // track is 170px wide
-    public string RowBg => IsCurrent ? "#eef1f7" : "Transparent";
+    public string RowBg => IsCurrent ? PaletteLookup.Hex("ChipBg", "#eef1f7") : "Transparent";
 }
 
 // One row in the popover's "Connected Shares" list. Scheme-tagged so a single list can merge
@@ -84,11 +87,13 @@ public sealed class ShareRowViewModel
 
     public string SchemeLabel => Scheme switch { "smb" => "SMB", "s3" => "S3", _ => "SFTP" };
 
-    public string DotColor => IsConnected ? "#2f8f5b" : "#c2bfb5";
+    public string DotColor => IsConnected
+        ? PaletteLookup.Hex("Green", "#2f8f5b")
+        : PaletteLookup.Hex("TextHint", "#c2bfb5");
 
     public string StatusText => IsConnected ? "" : "Offline";
 
-    public string StatusTextColor => "#b08020";
+    public string StatusTextColor => PaletteLookup.Hex("SkipAmber", "#b08020");
 
     public bool StatusTextVisible => !IsConnected;
 }

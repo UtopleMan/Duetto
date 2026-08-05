@@ -33,7 +33,9 @@ public partial class SearchResultRowViewModel(SearchHit hit) : ObservableObject
     public string Folder { get; } = hit.RelativeFolder.Length == 0 ? "." : hit.RelativeFolder;
     public string SizeText => FormatUtil.HumanSize(Entry.SizeBytes, Entry.IsDirectory);
     public string ModifiedText => FormatUtil.DateShort(Entry.ModifiedUtc);
-    public string MarkColor => Entry.IsDirectory ? "#c8992f" : "#b6b3a8";
+    public string MarkColor => Entry.IsDirectory
+        ? PaletteLookup.Hex("FolderMark", "#c8992f")
+        : PaletteLookup.Hex("FileMark", "#b6b3a8");
 }
 
 public partial class SearchViewModel : ObservableObject

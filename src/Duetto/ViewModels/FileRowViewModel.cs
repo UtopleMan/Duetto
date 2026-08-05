@@ -79,6 +79,8 @@ public partial class FileRowViewModel : ObservableObject
 
     // Last column: "RW" summary on Windows, rwx string on Unix (design 1a vs 1b/1c).
     public string AccessColText => OperatingSystem.IsWindows() ? AccessText : PermsText;
-    public string MarkColor => Entry.IsDirectory ? "#c8992f" : "#b6b3a8";
+    public string MarkColor => Entry.IsDirectory
+        ? PaletteLookup.Hex("FolderMark", "#c8992f")
+        : PaletteLookup.Hex("FileMark", "#b6b3a8");
     public string NameWeight => Entry.IsDirectory ? "Medium" : "Normal";
 }

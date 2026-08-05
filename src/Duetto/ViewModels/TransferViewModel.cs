@@ -134,10 +134,10 @@ public partial class TransferViewModel : ObservableObject, IStripOperation
                 continue;
             (row.TransferStatus, row.TransferStatusColor) = state.Status switch
             {
-                TransferFileStatus.Done => ("done", "#2f8f5b"),
-                TransferFileStatus.InProgress => ($"{(int)state.Percent}%", "#2f6fd0"),
-                TransferFileStatus.Skipped => ("skipped", "#b08020"),
-                _ => ("queued", "#a8a69c"),
+                TransferFileStatus.Done => ("done", PaletteLookup.Hex("Green", "#2f8f5b")),
+                TransferFileStatus.InProgress => ($"{(int)state.Percent}%", PaletteLookup.Hex("Accent", "#2f6fd0")),
+                TransferFileStatus.Skipped => ("skipped", PaletteLookup.Hex("SkipAmber", "#b08020")),
+                _ => ("queued", PaletteLookup.Hex("TextGhost", "#a8a69c")),
             };
         }
 

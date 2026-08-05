@@ -44,4 +44,7 @@
   <SolidColorBrush x:Key="ButtonHover">#32302a</SolidColorBrush>
   <SolidColorBrush x:Key="PaneBg">#2b2a27</SolidColorBrush>
   <SolidColorBrush x:Key="InputBorder">#383631</SolidColorBrush>
+  <SolidColorBrush x:Key="SuccessBg">#1c2b22</SolidColorBrush>
+  <SolidColorBrush x:Key="SuccessBorder">#2c4636</SolidColorBrush>
+  <SolidColorBrush x:Key="DangerBorder">#4a302c</SolidColorBrush>
 </ResourceDictionary>
