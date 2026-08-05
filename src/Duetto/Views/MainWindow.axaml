@@ -18,7 +18,7 @@
       <DockPanel>
         <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="9" Margin="12,0,0,0">
           <Image Width="16" Height="16" Source="/Assets/AppIcon.png" VerticalAlignment="Center" />
-          <TextBlock Text="Duetto" FontSize="12" FontWeight="Medium" Foreground="#3d3b34" VerticalAlignment="Center" />
+          <TextBlock Text="Duetto" FontSize="12" FontWeight="Medium" Foreground="{StaticResource TextBody}" VerticalAlignment="Center" />
           <TextBlock Text="{Binding ActiveDirName}" FontFamily="{StaticResource MonoFont}" FontSize="11"
                      Foreground="{StaticResource TextFaint}" VerticalAlignment="Center" />
         </StackPanel>
@@ -32,7 +32,7 @@
     </Border>
 
     <!-- 1c GNOME: 46px header bar with round buttons and title stack -->
-    <Border DockPanel.Dock="Top" x:Name="GnomeHeader" Height="46" Background="#f3f1ed"
+    <Border DockPanel.Dock="Top" x:Name="GnomeHeader" Height="46" Background="{StaticResource ChromeBg}"
             BorderBrush="{StaticResource InputBorder}" BorderThickness="0,0,0,1"
             IsVisible="{Binding IsGnomeChrome}"
             PointerPressed="OnTitleBarPressed">
@@ -49,7 +49,7 @@
         </StackPanel>
         <StackPanel VerticalAlignment="Center">
           <TextBlock Text="{Binding ActiveDirName}" FontSize="13" FontWeight="Bold"
-                     Foreground="#2f2e28" HorizontalAlignment="Center" />
+                     Foreground="{StaticResource TextBody}" HorizontalAlignment="Center" />
           <TextBlock Text="{Binding ActivePane.CurrentPath}" FontFamily="{StaticResource MonoFont}"
                      FontSize="10.5" Foreground="{StaticResource TextFaint}" HorizontalAlignment="Center"
                      TextTrimming="CharacterEllipsis" />
@@ -164,7 +164,7 @@
     <!-- Rail + panes; the right pane is overlaid by search results while a search is active -->
     <Grid ColumnDefinitions="Auto,*">
       <!-- 1c GNOME Places rail -->
-      <Border Grid.Column="0" x:Name="PlacesRail" Width="186" Background="#f3f1ed"
+      <Border Grid.Column="0" x:Name="PlacesRail" Width="186" Background="{StaticResource ChromeBg}"
               BorderBrush="{StaticResource Hairline}" BorderThickness="0,0,1,0"
               IsVisible="{Binding IsGnomeChrome}">
         <StackPanel Margin="8,10">
@@ -177,7 +177,7 @@
                   <StackPanel Orientation="Horizontal" Spacing="9">
                     <Border Width="10" Height="10" CornerRadius="2.5" Background="{Binding Color}"
                             VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding Name}" FontSize="12.5" Foreground="#3d3b34"
+                    <TextBlock Text="{Binding Name}" FontSize="12.5" Foreground="{StaticResource TextBody}"
                                TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                   </StackPanel>
                 </Button>
@@ -193,9 +193,9 @@
                 <DataTemplate x:DataType="vm:RemotePlace">
                   <Button Classes="placeitem" Click="OnRemotePlaceClicked">
                     <StackPanel Orientation="Horizontal" Spacing="9">
-                      <Border Width="10" Height="10" CornerRadius="2.5" Background="#2f6fd0"
+                      <Border Width="10" Height="10" CornerRadius="2.5" Background="{StaticResource Accent}"
                               VerticalAlignment="Center" />
-                      <TextBlock Text="{Binding Name}" FontSize="12.5" Foreground="#3d3b34"
+                      <TextBlock Text="{Binding Name}" FontSize="12.5" Foreground="{StaticResource TextBody}"
                                  TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                     </StackPanel>
                   </Button>
@@ -274,12 +274,12 @@
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="CornerRadius" Value="0" />
       <Setter Property="FontSize" Value="11" />
-      <Setter Property="Foreground" Value="#5b5950" />
+      <Setter Property="Foreground" Value="{StaticResource TextMid}" />
       <Setter Property="HorizontalContentAlignment" Value="Center" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
     <Style Selector="Button.caption:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="#e2dfd8" />
+      <Setter Property="Background" Value="{StaticResource ButtonHover}" />
     </Style>
     <Style Selector="Button.caption.close:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="{StaticResource DangerRed}" />
@@ -301,7 +301,7 @@
       <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
     <Style Selector="Button.roundbtn:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="#d8d4cb" />
+      <Setter Property="Background" Value="{StaticResource ButtonHover}" />
     </Style>
     <Style Selector="Button.roundbtn.close:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="{StaticResource DangerRed}" />

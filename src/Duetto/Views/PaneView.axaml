@@ -32,18 +32,18 @@
       <Setter Property="Background" Value="{StaticResource ButtonHover}" />
     </Style>
     <Style Selector="Border#PathBar.active Button.volumechip">
-      <Setter Property="Background" Value="#ffffff" />
-      <Setter Property="BorderBrush" Value="#b9cbea" />
+      <Setter Property="Background" Value="{StaticResource PaneBg}" />
+      <Setter Property="BorderBrush" Value="{StaticResource ChipBorder}" />
       <Setter Property="Foreground" Value="{StaticResource Accent}" />
     </Style>
     <!-- Fluent's pseudo-class styles set Background on the template presenter,
          bypassing the Button's own Background; mirror the active fill there
          (same reason Button.toolbtn targets the presenter). -->
     <Style Selector="Border#PathBar.active Button.volumechip /template/ ContentPresenter">
-      <Setter Property="Background" Value="#ffffff" />
+      <Setter Property="Background" Value="{StaticResource PaneBg}" />
     </Style>
     <Style Selector="Border#PathBar.active Button.volumechip:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="#f2f6fd" />
+      <Setter Property="Background" Value="{StaticResource SelectionBg}" />
     </Style>
 
     <Style Selector="Button.colheader">
@@ -77,7 +77,7 @@
           </StackPanel>
           <Button.Flyout>
             <Flyout Placement="BottomEdgeAlignedLeft" ShowMode="Transient">
-              <Border Width="392" Background="#fdfcfa" CornerRadius="10"
+              <Border Width="392" Background="{StaticResource PaneBg}" CornerRadius="10"
                       BorderBrush="{StaticResource HairlineDark}" BorderThickness="1"
                       DataContext="{Binding Drives}">
                 <StackPanel>

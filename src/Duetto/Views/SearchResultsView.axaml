@@ -99,9 +99,9 @@
             BorderBrush="{StaticResource HairlineLight}" BorderThickness="0,1,0,0">
       <StackPanel Orientation="Horizontal" Spacing="10" Margin="12,0">
         <TextBlock Text="{Binding MatchText}" FontSize="11" Foreground="{StaticResource TextDim}" VerticalAlignment="Center" />
-        <TextBlock Text="·" FontSize="11" Foreground="#d2cfc7" VerticalAlignment="Center" />
+        <TextBlock Text="·" FontSize="11" Foreground="{StaticResource TextHint}" VerticalAlignment="Center" />
         <TextBlock Text="Enter reveals in left pane" FontSize="11" Foreground="{StaticResource Accent}" VerticalAlignment="Center" />
-        <TextBlock Text="·" FontSize="11" Foreground="#d2cfc7" VerticalAlignment="Center" />
+        <TextBlock Text="·" FontSize="11" Foreground="{StaticResource TextHint}" VerticalAlignment="Center" />
         <TextBlock Text="Esc clear" FontSize="11" Foreground="{StaticResource TextGhost}" VerticalAlignment="Center" />
       </StackPanel>
     </Border>
