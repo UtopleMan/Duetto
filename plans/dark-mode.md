@@ -251,11 +251,14 @@ in view models (marked-row fill, drive popover, transfer status, folder/file mar
 - `dotnet test` green (incl. `SharesPopoverTests.DotColor` exact-hex + parity at 42 keys).
 
 ### Phase Summary
-Two leak layers fixed: 27 axaml literals → palette brushes (all 3 chromes verified
-dark by screenshot), and 6 view-model color sites → `PaletteLookup`. Light values are
-preserved byte-for-byte (most VM hexes already equalled a token; `PaletteLookup` falls
-back to the light hex otherwise), so `SharesPopoverTests` and light rendering are
-unchanged. Parity now 42 keys. Commits `8407856` (axaml), `cc135e0` (VM colors).
+Leak layers fixed: 27 axaml literals → palette brushes (all 3 chromes verified dark by
+screenshot); 6 view-model color sites → `PaletteLookup`; and two more found on the
+running mac app — the code-behind mac desk/card border (`#e8e6e1`/`#dad7d0`, now
+`DeskBg`/`Hairline`) and a **hex alpha-order bug**: dark selection/active/chip were
+written `#RRGGBBAA` but Avalonia parses `#AARRGGBB`, so `#5B9CF038` rendered yellow-green
+— corrected to `#385B9CF0` etc. Pinned `SystemAccentColor` to Duetto blue so no OS accent
+bleeds in. Light values preserved byte-for-byte (`SharesPopoverTests` green). Parity now
+44 keys. Commits `8407856` (axaml), `cc135e0` (VM colors), `8c5e288` (desk + alpha).
 
 ## Final Recap
 Duetto now has Light / Dark / System themes sourced from the Claude design dark
