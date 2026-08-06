@@ -170,7 +170,7 @@ sites (2 prod + 4 tests) updated.
 - Scheme string is `"azure"` everywhere (registry, path prefix, disconnect/remove branches).
 
 ## Phase 4: Azurite harness + integration tests
-Status: Not started
+Status: Complete
 
 - [ ] `docker-compose.yml` — add `azurite` service (`mcr.microsoft.com/azure-storage/azurite`,
       `command: azurite-blob --blobHost 0.0.0.0`, ports `10000:10000`).
@@ -189,7 +189,21 @@ Status: Not started
 - `scripts/smoke.sh` → "Smoke test passed" (all backends incl. Azure).
 
 ### Phase Summary
-_(write when phase completes)_
+Done — and the live run against Azurite caught **two real issues** the fakes couldn't:
+1. **API-version mismatch:** the SDK (12.29.1) negotiates REST API `2026-06-06`, newer than
+   the pulled Azurite validates; added `--skipApiVersionCheck` to the Azurite compose command
+   (emulator-only; real Azure supports the current version).
+2. **Trailing-slash marker:** Azurite stores a `prefix/` blob as `prefix` (strips the slash),
+   breaking empty-folder detection. Switched `AzureFileSystemProvider` empty-folder markers to a
+   **keep blob** `prefix/.duettokeep` (constant `KeepMarker`), hidden from `List`/`EnumerateRecursive`.
+   This is portable (works on real Azure too — a keep file is a normal child blob).
+
+**Verified:** 52 Azure unit tests green after the keep-file change; **4 AzureIntegrationTests pass
+against live Azurite** (list containers, full lifecycle create/write/read/stat/rename/enumerate/delete,
+server-side copy of a 2 MB blob, anonymous public read). `docker compose config` valid. Env for the
+gated run: `DUETTO_AZURE_TEST=1`, endpoint `http://127.0.0.1:10000/devstoreaccount1`, account
+`devstoreaccount1`, well-known key, container `duetto`. `docker-compose.yml` gained an `azurite`
+service; `scripts/smoke.sh` waits on port 10000 and sets the `DUETTO_AZURE_TEST_*` env.
 
 ## Phase 5: Docs + README + CHANGELOG
 Status: Not started

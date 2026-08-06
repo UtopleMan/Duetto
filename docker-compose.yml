@@ -68,3 +68,16 @@ services:
       mc mb --ignore-existing local/duetto &&
       mc anonymous set download local/duetto
       "
+
+  # Azurite: the Azure Storage emulator, for AzureIntegrationTests (gated on DUETTO_AZURE_TEST).
+  # Blob service on 10000; account `devstoreaccount1` + the well-known emulator key. The tests
+  # create their `duetto` container on first run, so no setup step is needed here.
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    container_name: duetto-azurite-it
+    ports:
+      - "10000:10000"
+    # --skipApiVersionCheck: the Azure SDK negotiates a newer REST API version than this
+    # emulator build validates against; the flag lets the emulator accept it. Emulator-only —
+    # real Azure supports the current API version.
+    command: "azurite-blob --blobHost 0.0.0.0 --blobPort 10000 --skipApiVersionCheck"

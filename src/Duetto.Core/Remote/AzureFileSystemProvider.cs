@@ -11,6 +11,11 @@ public sealed class AzureFileSystemProvider : IFileSystemProvider, IBackendIdent
     private readonly AzureConnection conn;
     private readonly Lock gate = new();
 
+    // An empty folder is represented by a zero-byte keep blob at "prefix/.duettokeep". A bare
+    // "prefix/" marker is not portable — Azurite strips the trailing slash and stores it as a file —
+    // so a real child blob under the prefix is the reliable marker. Keep blobs are hidden from listings.
+    private const string KeepMarker = ".duettokeep";
+
     // CanRename = false: blob stores have no rename, so the transfer engine routes moves through copy
     // + delete — and, when both panes share this connection, through the server-side Copy Blob offload
     // (IServerSideCopy) with no bytes crossing the client. AtomicRename = false: an upload only becomes
@@ -115,7 +120,9 @@ public sealed class AzureFileSystemProvider : IFileSystemProvider, IBackendIdent
             return Exec(a => Containers(a).Select(c => DirEntry(c, "/" + c)).ToList());
 
         var (container, key) = Split(path);
-        return Exec(a => a.ListBlobs(container, PrefixFor(key)).Select(MapEntry).ToList());
+        return Exec(a => a.ListBlobs(container, PrefixFor(key))
+            .Where(e => e.Name != KeepMarker)
+            .Select(MapEntry).ToList());
     }
 
     public bool DirectoryExists(string path)
@@ -166,7 +173,7 @@ public sealed class AzureFileSystemProvider : IFileSystemProvider, IBackendIdent
         var (container, key) = Split(target);
         if (key.Length == 0)
             throw new IOException("Cannot create a container here; create it in the Azure portal.");
-        Exec(a => a.PutEmptyBlob(container, PrefixFor(key)));
+        Exec(a => a.PutEmptyBlob(container, PrefixFor(key) + KeepMarker));
         return target;
     }
 
@@ -301,6 +308,8 @@ public sealed class AzureFileSystemProvider : IFileSystemProvider, IBackendIdent
         var children = Exec(a => a.ListBlobs(c, PrefixFor(key)));
         foreach (var child in children)
         {
+            if (child.Name == KeepMarker)
+                continue;
             yield return MapEntry(child);
             if (child.IsDirectory)
                 foreach (var descendant in EnumerateRecursive(child.FullName))
