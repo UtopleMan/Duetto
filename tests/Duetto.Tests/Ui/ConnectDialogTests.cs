@@ -32,7 +32,7 @@ public sealed class ConnectDialogTests
         var s3Store = new S3ConnectionStore(":mem:", _ => null, (_, _) => { });
         var s3Manager = new S3ConnectionManager(registry);
 
-        var vm = new ConnectDialogViewModel(manager, store, hks, codec, smbManager, smbStore, s3Manager, s3Store);
+        var vm = new ConnectDialogViewModel(manager, store, hks, codec, smbManager, smbStore, s3Manager, s3Store, new AzureConnectionManager(registry), new AzureConnectionStore(":mem:", _ => null, (_, _) => { }));
         vm.ConnectAction = connectOverride ?? ((i, s) => connects.Add((i, s)));
         vm.SaveAction = s => saved.Add(s);
         vm.ForgetKeyAction = k => forgot.Add(k);

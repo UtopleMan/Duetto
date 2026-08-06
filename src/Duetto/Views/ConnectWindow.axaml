@@ -21,6 +21,7 @@
       <ComboBoxItem Content="SFTP" />
       <ComboBoxItem Content="SMB / Samba" />
       <ComboBoxItem Content="S3 / S3-compatible" />
+      <ComboBoxItem Content="Azure Blob Storage" />
     </ComboBox>
 
     <!-- Name -->
@@ -100,6 +101,64 @@
       <TextBlock Text="BUCKET (blank = list all buckets)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
       <TextBox Text="{Binding Bucket}" Watermark="my-bucket"/>
+    </StackPanel>
+
+    <!-- Azure endpoint -->
+    <StackPanel IsVisible="{Binding AzureFieldsVisible}" Spacing="4" Margin="0,0,0,14">
+      <TextBlock Text="ENDPOINT (blank = {account}.blob.core.windows.net)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
+                 Foreground="{StaticResource HeaderText}"/>
+      <TextBox Text="{Binding Endpoint}" Watermark="http://127.0.0.1:10000/devstoreaccount1"/>
+    </StackPanel>
+
+    <!-- Azure account name -->
+    <StackPanel IsVisible="{Binding AzureAccountVisible}" Spacing="4" Margin="0,0,0,14">
+      <TextBlock Text="STORAGE ACCOUNT" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
+                 Foreground="{StaticResource HeaderText}"/>
+      <TextBox Text="{Binding AzureAccount}" Watermark="mystorageaccount"/>
+    </StackPanel>
+
+    <!-- Azure auth mode selector -->
+    <StackPanel IsVisible="{Binding AzureFieldsVisible}" Spacing="0">
+      <TextBlock Text="CREDENTIALS" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
+                 Foreground="{StaticResource HeaderText}" Margin="0,0,0,6"/>
+      <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,0,0,10">
+        <RadioButton Content="Account key" IsChecked="{Binding IsAzureSharedKeyMode, Mode=OneWay}"
+                     GroupName="AzureAuth" Click="OnAzureSharedKeyModeClicked"/>
+        <RadioButton Content="Connection string" IsChecked="{Binding IsAzureConnStringMode, Mode=OneWay}"
+                     GroupName="AzureAuth" Click="OnAzureConnStringModeClicked"/>
+        <RadioButton Content="SAS" IsChecked="{Binding IsAzureSasMode, Mode=OneWay}"
+                     GroupName="AzureAuth" Click="OnAzureSasModeClicked"/>
+        <RadioButton Content="Anonymous" IsChecked="{Binding IsAzureAnonymousMode, Mode=OneWay}"
+                     GroupName="AzureAuth" Click="OnAzureAnonymousModeClicked"/>
+      </StackPanel>
+    </StackPanel>
+
+    <!-- Azure account key (SharedKey mode) -->
+    <StackPanel IsVisible="{Binding AzureKeyVisible}" Spacing="4" Margin="0,0,0,14">
+      <TextBlock Text="ACCOUNT KEY" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
+                 Foreground="{StaticResource HeaderText}"/>
+      <TextBox Text="{Binding AzureAccountKey}" PasswordChar="•" Watermark="(not stored unless checked below)"/>
+    </StackPanel>
+
+    <!-- Azure connection string (ConnectionString mode) -->
+    <StackPanel IsVisible="{Binding AzureConnStringVisible}" Spacing="4" Margin="0,0,0,14">
+      <TextBlock Text="CONNECTION STRING" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
+                 Foreground="{StaticResource HeaderText}"/>
+      <TextBox Text="{Binding AzureConnectionString}" PasswordChar="•" Watermark="DefaultEndpointsProtocol=…;AccountName=…;AccountKey=…"/>
+    </StackPanel>
+
+    <!-- Azure SAS token (Sas mode) -->
+    <StackPanel IsVisible="{Binding AzureSasVisible}" Spacing="4" Margin="0,0,0,14">
+      <TextBlock Text="SAS TOKEN OR URL" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
+                 Foreground="{StaticResource HeaderText}"/>
+      <TextBox Text="{Binding AzureSasToken}" PasswordChar="•" Watermark="?sv=…&amp;sig=…  or  https://…?sv=…"/>
+    </StackPanel>
+
+    <!-- Azure container (optional; required for anonymous) -->
+    <StackPanel IsVisible="{Binding AzureContainerVisible}" Spacing="4" Margin="0,0,0,14">
+      <TextBlock Text="CONTAINER (blank = list all containers)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
+                 Foreground="{StaticResource HeaderText}"/>
+      <TextBox Text="{Binding AzureContainer}" Watermark="my-container"/>
     </StackPanel>
 
     <!-- Guest toggle (SMB only) -->

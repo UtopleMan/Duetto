@@ -42,6 +42,10 @@ public partial class PaneView : UserControl
                     OpenS3ConnectDialog(newVm, stored));
                 newVm.Drives.RemoveS3ShareRequested += id => Dispatcher.UIThread.Post(() =>
                     RemoveS3Connection(id));
+                newVm.Drives.EditAzureShareRequested += stored => Dispatcher.UIThread.Post(() =>
+                    OpenAzureConnectDialog(newVm, stored));
+                newVm.Drives.RemoveAzureShareRequested += id => Dispatcher.UIThread.Post(() =>
+                    RemoveAzureConnection(id));
                 newVm.Drives.ShareActivated += share => Dispatcher.UIThread.Post(() =>
                     ActivateShare(newVm, share));
                 newVm.Drives.DisconnectRequested += () => Dispatcher.UIThread.Post(() =>
@@ -277,7 +281,9 @@ public partial class PaneView : UserControl
             mainVm.SmbConnectionManager,
             mainVm.SmbConnectionStore,
             mainVm.S3ConnectionManager,
-            mainVm.S3ConnectionStore);
+            mainVm.S3ConnectionStore,
+            mainVm.AzureConnectionManager,
+            mainVm.AzureConnectionStore);
 
         dialogVm.Connected += info =>
         {
@@ -294,6 +300,12 @@ public partial class PaneView : UserControl
         dialogVm.S3Connected += info =>
         {
             paneVm.NavigateTo($"s3://{info.Id}{info.InitialPath}");
+            mainVm.RebuildRemotePlaces();
+        };
+
+        dialogVm.AzureConnected += info =>
+        {
+            paneVm.NavigateTo($"azure://{info.Id}{info.InitialPath}");
             mainVm.RebuildRemotePlaces();
         };
 
@@ -360,6 +372,20 @@ public partial class PaneView : UserControl
             return;
         }
 
+        if (share.IsAzure)
+        {
+            var azureStored = mainVm.AzureConnectionStore.Load()
+                                  .FirstOrDefault(c => string.Equals(c.Id, share.Id, StringComparison.OrdinalIgnoreCase))
+                              ?? share.AzureStored;
+            if (azureStored is null)
+                return;
+
+            mainVm.OpenAzureConnectDialog = (forEdit, targetPane) =>
+                OpenAzureConnectDialogCore(mainVm, targetPane, forEdit, owner);
+            mainVm.ConnectToAzureShare(azureStored, paneVm);
+            return;
+        }
+
         var stored = mainVm.ConnectionStore.Load()
                          .FirstOrDefault(c => string.Equals(c.Id, share.Id, StringComparison.OrdinalIgnoreCase))
                      ?? share.Stored;
@@ -387,6 +413,8 @@ public partial class PaneView : UserControl
             mainVm.SmbConnectionManager.Disconnect(remote.Id);
         else if (string.Equals(remote.Scheme, "s3", StringComparison.OrdinalIgnoreCase))
             mainVm.S3ConnectionManager.Disconnect(remote.Id);
+        else if (string.Equals(remote.Scheme, "azure", StringComparison.OrdinalIgnoreCase))
+            mainVm.AzureConnectionManager.Disconnect(remote.Id);
         else
             mainVm.ConnectionManager.Disconnect(remote.Id);
 
@@ -476,6 +504,49 @@ public partial class PaneView : UserControl
         var all = mainVm.S3ConnectionStore.Load()
             .Where(c => !string.Equals(c.Id, id, StringComparison.OrdinalIgnoreCase)).ToArray();
         mainVm.S3ConnectionStore.Save(all);
+        mainVm.RebuildRemotePlaces();
+    }
+
+    private void OpenAzureConnectDialog(PaneViewModel paneVm, StoredAzureConnection? forEdit)
+    {
+        HideDriveFlyout();
+        if (TopLevel.GetTopLevel(this) is not Window owner ||
+            owner.DataContext is not MainViewModel mainVm)
+            return;
+
+        OpenAzureConnectDialogCore(mainVm, paneVm, forEdit, owner);
+    }
+
+    private static void OpenAzureConnectDialogCore(MainViewModel mainVm, PaneViewModel paneVm, StoredAzureConnection? forEdit, Window owner)
+    {
+        var dialogVm = BuildConnectDialog(mainVm, paneVm);
+        if (forEdit is not null)
+            dialogVm.ForEdit(forEdit);
+        else
+            dialogVm.Protocol = ConnectProtocol.AzureBlob;
+        new ConnectWindow(dialogVm).ShowDialog(owner);
+    }
+
+    private void RemoveAzureConnection(string id)
+    {
+        HideDriveFlyout();
+        if (TopLevel.GetTopLevel(this) is not Window owner ||
+            owner.DataContext is not MainViewModel mainVm)
+            return;
+
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        foreach (var pane in new[] { mainVm.Left, mainVm.Right })
+        {
+            if (PathUtil.ParseRemote(pane.CurrentPath) is { } remote
+                && string.Equals(remote.Scheme, "azure", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(remote.Id, id, StringComparison.OrdinalIgnoreCase))
+                pane.NavigateTo(home);
+        }
+
+        mainVm.AzureConnectionManager.Disconnect(id);
+        var all = mainVm.AzureConnectionStore.Load()
+            .Where(c => !string.Equals(c.Id, id, StringComparison.OrdinalIgnoreCase)).ToArray();
+        mainVm.AzureConnectionStore.Save(all);
         mainVm.RebuildRemotePlaces();
     }
 

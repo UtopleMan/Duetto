@@ -40,6 +40,8 @@ public sealed class ShareRowViewModel
 
     public StoredS3Connection? S3Stored { get; }
 
+    public StoredAzureConnection? AzureStored { get; }
+
     public bool IsConnected { get; }
 
     public ShareRowViewModel(StoredConnection stored, bool isConnected)
@@ -76,6 +78,19 @@ public sealed class ShareRowViewModel
         InitialRemotePath = stored.InitialPath;
     }
 
+    public ShareRowViewModel(StoredAzureConnection stored, bool isConnected)
+    {
+        Scheme = "azure";
+        AzureStored = stored;
+        IsConnected = isConnected;
+        Id = stored.Id;
+        Name = stored.Name;
+        // Show the account (or custom endpoint) so the row still has a subtitle.
+        Host = !string.IsNullOrEmpty(stored.AccountName) ? stored.AccountName
+            : (string.IsNullOrEmpty(stored.Endpoint) ? "Azure" : stored.Endpoint);
+        InitialRemotePath = stored.InitialPath;
+    }
+
     public string Id { get; }
     public string Name { get; }
     public string Host { get; }
@@ -85,7 +100,9 @@ public sealed class ShareRowViewModel
 
     public bool IsS3 => Scheme == "s3";
 
-    public string SchemeLabel => Scheme switch { "smb" => "SMB", "s3" => "S3", _ => "SFTP" };
+    public bool IsAzure => Scheme == "azure";
+
+    public string SchemeLabel => Scheme switch { "smb" => "SMB", "s3" => "S3", "azure" => "Azure", _ => "SFTP" };
 
     public string DotColor => IsConnected
         ? PaletteLookup.Hex("Green", "#2f8f5b")
@@ -127,6 +144,11 @@ public partial class DrivePopoverViewModel : ObservableObject
     public Func<StoredS3Connection[]> ListS3Connections { get; set; } = () => [];
 
     public Func<string, bool> IsS3Connected { get; set; } = _ => false;
+
+    // Azure counterparts; merged into the same Shares list.
+    public Func<StoredAzureConnection[]> ListAzureConnections { get; set; } = () => [];
+
+    public Func<string, bool> IsAzureConnected { get; set; } = _ => false;
 
     public string PaneSide { get; set; } = "left";
     public string HeaderText => $"Open in {PaneSide} pane";
@@ -189,11 +211,15 @@ public partial class DrivePopoverViewModel : ObservableObject
 
     public event Action<StoredS3Connection>? EditS3ShareRequested;
 
+    public event Action<StoredAzureConnection>? EditAzureShareRequested;
+
     public event Action<string>? RemoveShareRequested;
 
     public event Action<string>? RemoveSmbShareRequested;
 
     public event Action<string>? RemoveS3ShareRequested;
+
+    public event Action<string>? RemoveAzureShareRequested;
 
     public event Action<ShareRowViewModel>? ShareActivated;
 
@@ -254,6 +280,8 @@ public partial class DrivePopoverViewModel : ObservableObject
             EditSmbShareRequested?.Invoke(share.SmbStored!);
         else if (share.IsS3)
             EditS3ShareRequested?.Invoke(share.S3Stored!);
+        else if (share.IsAzure)
+            EditAzureShareRequested?.Invoke(share.AzureStored!);
         else
             EditShareRequested?.Invoke(share.Stored!);
     }
@@ -264,6 +292,8 @@ public partial class DrivePopoverViewModel : ObservableObject
             RemoveSmbShareRequested?.Invoke(share.Id);
         else if (share.IsS3)
             RemoveS3ShareRequested?.Invoke(share.Id);
+        else if (share.IsAzure)
+            RemoveAzureShareRequested?.Invoke(share.Id);
         else
             RemoveShareRequested?.Invoke(share.Id);
     }
@@ -309,6 +339,8 @@ public partial class DrivePopoverViewModel : ObservableObject
             Shares.Add(new ShareRowViewModel(stored, IsSmbConnected(stored.Id)));
         foreach (var stored in ListS3Connections())
             Shares.Add(new ShareRowViewModel(stored, IsS3Connected(stored.Id)));
+        foreach (var stored in ListAzureConnections())
+            Shares.Add(new ShareRowViewModel(stored, IsAzureConnected(stored.Id)));
         OnPropertyChanged(nameof(SharesSectionVisible));
         OnPropertyChanged(nameof(DisconnectLabel));
     }

@@ -3,6 +3,16 @@
 All notable changes to Duetto are documented here. This project adheres to
 [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Features
+- **Remote over Azure Blob Storage** — connect to Azure Blob Storage and
+  Blob-compatible services (the Azurite emulator) with the `Azure.Storage.Blobs`
+  SDK, no OS mount. Account-key, connection-string, SAS, or anonymous auth, with
+  an optional custom endpoint for emulators/on-prem; the connection root lists
+  your containers (or a single configured container). Same-account moves are
+  offloaded server-side (Copy Blob). ([setup & security →](docs/remote-azure.md))
+
 ## 1.4.0 — 2026-08-05
 
 ### Features

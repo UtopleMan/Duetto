@@ -26,7 +26,7 @@ public sealed class S3ConnectDialogTests
         var smbManager = new SmbConnectionManager(registry);
         var s3Manager = new S3ConnectionManager(registry);
 
-        var vm = new ConnectDialogViewModel(manager, store, hks, codec, smbManager, smbStore, s3Manager, s3Store)
+        var vm = new ConnectDialogViewModel(manager, store, hks, codec, smbManager, smbStore, s3Manager, s3Store, new AzureConnectionManager(registry), new AzureConnectionStore(":mem:", _ => null, (_, _) => { }))
         {
             Protocol = ConnectProtocol.S3,
         };
