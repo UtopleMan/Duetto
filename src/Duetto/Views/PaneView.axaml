@@ -101,7 +101,7 @@
                              Padding="10,7" FontSize="12.5" CaretBrush="{StaticResource Accent}"
                              KeyDown="OnDriveFilterKeyDown" />
                     <TextBlock Text="THIS MACHINE" FontSize="10.5" LetterSpacing="0.6"
-                               Foreground="{StaticResource HeaderText}" Margin="10,0,10,6" />
+                               Foreground="{StaticResource HeaderText}" Margin="10,8,10,6" />
                     <ListBox x:Name="DriveList" ItemsSource="{Binding Volumes}"
                              Background="Transparent" Padding="0" MaxHeight="320"
                              DoubleTapped="OnDriveRowActivated" Tapped="OnDriveRowActivated">
@@ -238,9 +238,9 @@
                                    Foreground="{StaticResource AccentDim}" VerticalAlignment="Center" />
                         <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                           <TextBlock Text="Connect…" FontSize="12.5" FontWeight="Medium"
-                                     Foreground="{StaticResource Accent}" />
-                          <TextBlock Text="SFTP or SMB" FontSize="11"
-                                     Foreground="{StaticResource AccentDim}" />
+                                     Foreground="{StaticResource Accent}" VerticalAlignment="Center" />
+                          <TextBlock Text="SFTP, AZ Blob, S3 or SMB" FontSize="11"
+                                     Foreground="{StaticResource AccentDim}" VerticalAlignment="Center" />
                         </StackPanel>
                       </DockPanel>
                     </Button>

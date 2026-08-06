@@ -121,16 +121,16 @@
     <StackPanel IsVisible="{Binding AzureFieldsVisible}" Spacing="0">
       <TextBlock Text="CREDENTIALS" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}" Margin="0,0,0,6"/>
-      <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,0,0,10">
+      <WrapPanel Margin="0,0,0,4">
         <RadioButton Content="Account key" IsChecked="{Binding IsAzureSharedKeyMode, Mode=OneWay}"
-                     GroupName="AzureAuth" Click="OnAzureSharedKeyModeClicked"/>
+                     GroupName="AzureAuth" Click="OnAzureSharedKeyModeClicked" Margin="0,0,16,6"/>
         <RadioButton Content="Connection string" IsChecked="{Binding IsAzureConnStringMode, Mode=OneWay}"
-                     GroupName="AzureAuth" Click="OnAzureConnStringModeClicked"/>
+                     GroupName="AzureAuth" Click="OnAzureConnStringModeClicked" Margin="0,0,16,6"/>
         <RadioButton Content="SAS" IsChecked="{Binding IsAzureSasMode, Mode=OneWay}"
-                     GroupName="AzureAuth" Click="OnAzureSasModeClicked"/>
+                     GroupName="AzureAuth" Click="OnAzureSasModeClicked" Margin="0,0,16,6"/>
         <RadioButton Content="Anonymous" IsChecked="{Binding IsAzureAnonymousMode, Mode=OneWay}"
-                     GroupName="AzureAuth" Click="OnAzureAnonymousModeClicked"/>
-      </StackPanel>
+                     GroupName="AzureAuth" Click="OnAzureAnonymousModeClicked" Margin="0,0,16,6"/>
+      </WrapPanel>
     </StackPanel>
 
     <!-- Azure account key (SharedKey mode) -->
