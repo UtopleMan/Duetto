@@ -21,7 +21,7 @@ public sealed class ConnectWindowTests
         var smbManager = new SmbConnectionManager(registry, new FakeSmbFactory(new FakeSmbClientAdapter()));
         var s3Store = new S3ConnectionStore(":mem:", _ => null, (_, _) => { });
         var s3Manager = new S3ConnectionManager(registry);
-        return new ConnectDialogViewModel(manager, store, hks, new SecretCodec(), smbManager, smbStore, s3Manager, s3Store);
+        return new ConnectDialogViewModel(manager, store, hks, new SecretCodec(), smbManager, smbStore, s3Manager, s3Store, new AzureConnectionManager(registry), new AzureConnectionStore(":mem:", _ => null, (_, _) => { }));
     }
 
     [AvaloniaFact]

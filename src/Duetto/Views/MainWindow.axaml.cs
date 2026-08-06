@@ -162,7 +162,9 @@ public partial class MainWindow : Window
             Vm.SmbConnectionManager,
             Vm.SmbConnectionStore,
             Vm.S3ConnectionManager,
-            Vm.S3ConnectionStore);
+            Vm.S3ConnectionStore,
+            Vm.AzureConnectionManager,
+            Vm.AzureConnectionStore);
         if (stored is not null)
             dialogVm.ForEdit(stored);
 
@@ -179,6 +181,11 @@ public partial class MainWindow : Window
         dialogVm.S3Connected += info =>
         {
             pane.NavigateTo($"s3://{info.Id}{info.InitialPath}");
+            Vm.RebuildRemotePlaces();
+        };
+        dialogVm.AzureConnected += info =>
+        {
+            pane.NavigateTo($"azure://{info.Id}{info.InitialPath}");
             Vm.RebuildRemotePlaces();
         };
         new ConnectWindow(dialogVm).ShowDialog(owner);

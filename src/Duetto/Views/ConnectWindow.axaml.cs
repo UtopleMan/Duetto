@@ -30,12 +30,14 @@ public partial class ConnectWindow : Window
         {
             ConnectProtocol.Smb => 1,
             ConnectProtocol.S3 => 2,
+            ConnectProtocol.AzureBlob => 3,
             _ => 0,
         };
 
         vm.Connected += _ => Close();
         vm.SmbConnected += _ => Close();
         vm.S3Connected += _ => Close();
+        vm.AzureConnected += _ => Close();
         vm.Cancelled += Close;
     }
 
@@ -57,6 +59,7 @@ public partial class ConnectWindow : Window
             {
                 1 => ConnectProtocol.Smb,
                 2 => ConnectProtocol.S3,
+                3 => ConnectProtocol.AzureBlob,
                 _ => ConnectProtocol.Sftp,
             };
     }
@@ -83,6 +86,18 @@ public partial class ConnectWindow : Window
 
     private void OnS3AnonymousModeClicked(object? sender, RoutedEventArgs e) =>
         Vm.S3Auth = Core.Remote.S3AuthMode.Anonymous;
+
+    private void OnAzureSharedKeyModeClicked(object? sender, RoutedEventArgs e) =>
+        Vm.AzureAuth = Core.Remote.AzureAuthMode.SharedKey;
+
+    private void OnAzureConnStringModeClicked(object? sender, RoutedEventArgs e) =>
+        Vm.AzureAuth = Core.Remote.AzureAuthMode.ConnectionString;
+
+    private void OnAzureSasModeClicked(object? sender, RoutedEventArgs e) =>
+        Vm.AzureAuth = Core.Remote.AzureAuthMode.Sas;
+
+    private void OnAzureAnonymousModeClicked(object? sender, RoutedEventArgs e) =>
+        Vm.AzureAuth = Core.Remote.AzureAuthMode.Anonymous;
 
     private async void OnBrowseKeyFile(object? sender, RoutedEventArgs e)
     {

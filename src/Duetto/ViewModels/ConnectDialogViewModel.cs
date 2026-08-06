@@ -11,6 +11,7 @@ public enum ConnectProtocol
     Sftp,
     Smb,
     S3,
+    AzureBlob,
 }
 
 // One protocol-aware connect dialog (per the drive-popover design spec: a single "Connect…"
@@ -25,20 +26,26 @@ public partial class ConnectDialogViewModel : ObservableObject
 
     public Action<S3ConnectionInfo, ConnectSecret> S3ConnectAction { get; set; }
 
+    public Action<AzureConnectionInfo, ConnectSecret> AzureConnectAction { get; set; }
+
     public Action<StoredConnection> SaveAction { get; set; }
 
     public Action<StoredSmbConnection> SmbSaveAction { get; set; }
 
     public Action<StoredS3Connection> S3SaveAction { get; set; }
 
+    public Action<StoredAzureConnection> AzureSaveAction { get; set; }
+
     // Removes a stale host-key pin so the next connect attempt re-pins (SFTP only).
     public Action<string> ForgetKeyAction { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsSftp), nameof(IsSmb), nameof(IsS3), nameof(SftpAuthVisible),
-        nameof(SmbFieldsVisible), nameof(KeySectionVisible), nameof(PasswordVisible),
+    [NotifyPropertyChangedFor(nameof(IsSftp), nameof(IsSmb), nameof(IsS3), nameof(IsAzure),
+        nameof(SftpAuthVisible), nameof(SmbFieldsVisible), nameof(KeySectionVisible), nameof(PasswordVisible),
         nameof(UsernameVisible), nameof(HostKeyWarningVisible), nameof(HostPortVisible),
         nameof(S3FieldsVisible), nameof(S3KeysVisible), nameof(S3ProfileVisible),
+        nameof(AzureFieldsVisible), nameof(AzureAccountVisible), nameof(AzureKeyVisible),
+        nameof(AzureConnStringVisible), nameof(AzureSasVisible), nameof(AzureContainerVisible),
         nameof(SaveSecretVisible))]
     private ConnectProtocol _protocol = ConnectProtocol.Sftp;
 
@@ -111,6 +118,29 @@ public partial class ConnectDialogViewModel : ObservableObject
     [ObservableProperty]
     private string _bucket = "";
 
+    // Azure Blob only. Endpoint (reused from S3) is the optional custom service URL.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AzureAccountVisible), nameof(AzureKeyVisible),
+        nameof(AzureConnStringVisible), nameof(AzureSasVisible),
+        nameof(IsAzureSharedKeyMode), nameof(IsAzureConnStringMode), nameof(IsAzureSasMode),
+        nameof(IsAzureAnonymousMode), nameof(SaveSecretVisible))]
+    private AzureAuthMode _azureAuth = AzureAuthMode.SharedKey;
+
+    [ObservableProperty]
+    private string _azureAccount = "";
+
+    [ObservableProperty]
+    private string _azureAccountKey = "";
+
+    [ObservableProperty]
+    private string _azureSasToken = "";
+
+    [ObservableProperty]
+    private string _azureConnectionString = "";
+
+    [ObservableProperty]
+    private string _azureContainer = "";
+
     [ObservableProperty]
     private bool _savePassword;
 
@@ -136,6 +166,7 @@ public partial class ConnectDialogViewModel : ObservableObject
     public bool IsSftp => Protocol == ConnectProtocol.Sftp;
     public bool IsSmb => Protocol == ConnectProtocol.Smb;
     public bool IsS3 => Protocol == ConnectProtocol.S3;
+    public bool IsAzure => Protocol == ConnectProtocol.AzureBlob;
 
     public bool IsPasswordMode => AuthMode == AuthMode.Password;
     public bool IsKeyMode => AuthMode == AuthMode.Key;
@@ -143,6 +174,11 @@ public partial class ConnectDialogViewModel : ObservableObject
     public bool IsS3KeysMode => S3Auth == S3AuthMode.Keys;
     public bool IsS3ProfileMode => S3Auth == S3AuthMode.Profile;
     public bool IsS3AnonymousMode => S3Auth == S3AuthMode.Anonymous;
+
+    public bool IsAzureSharedKeyMode => AzureAuth == AzureAuthMode.SharedKey;
+    public bool IsAzureConnStringMode => AzureAuth == AzureAuthMode.ConnectionString;
+    public bool IsAzureSasMode => AzureAuth == AzureAuthMode.Sas;
+    public bool IsAzureAnonymousMode => AzureAuth == AzureAuthMode.Anonymous;
 
     // SSH auth section (password/key radios + key file) is SFTP-only.
     public bool SftpAuthVisible => IsSftp;
@@ -152,8 +188,8 @@ public partial class ConnectDialogViewModel : ObservableObject
 
     public bool KeySectionVisible => IsSftp && IsKeyMode;
 
-    // Host + port apply to SFTP/SMB; S3 uses an endpoint URL instead.
-    public bool HostPortVisible => !IsS3;
+    // Host + port apply to SFTP/SMB; S3 and Azure use an endpoint URL instead.
+    public bool HostPortVisible => IsSftp || IsSmb;
 
     // Endpoint / region / path-style / bucket / auth selector are S3-only.
     public bool S3FieldsVisible => IsS3;
@@ -164,13 +200,35 @@ public partial class ConnectDialogViewModel : ObservableObject
     // Profile name shows only for S3 Profile auth.
     public bool S3ProfileVisible => IsS3 && S3Auth == S3AuthMode.Profile;
 
+    // Endpoint / container / auth selector are Azure-only.
+    public bool AzureFieldsVisible => IsAzure;
+
+    // Account name shows for the modes that need it (SharedKey; also useful for SAS/Anonymous to
+    // build the default endpoint). Hidden for ConnectionString (the string carries the account).
+    public bool AzureAccountVisible => IsAzure && AzureAuth != AzureAuthMode.ConnectionString;
+
+    // Account key shows only for Azure SharedKey auth.
+    public bool AzureKeyVisible => IsAzure && AzureAuth == AzureAuthMode.SharedKey;
+
+    // Connection string shows only for Azure ConnectionString auth.
+    public bool AzureConnStringVisible => IsAzure && AzureAuth == AzureAuthMode.ConnectionString;
+
+    // SAS token shows only for Azure SAS auth.
+    public bool AzureSasVisible => IsAzure && AzureAuth == AzureAuthMode.Sas;
+
+    // Container field is shown for every Azure mode (required for Anonymous).
+    public bool AzureContainerVisible => IsAzure;
+
     // The password box is shown for SFTP password auth and for non-guest SMB.
     public bool PasswordVisible => (IsSftp && IsPasswordMode) || (IsSmb && !Guest);
 
-    // The "save secret" checkbox covers SFTP/SMB passwords and the S3 secret key.
-    public bool SaveSecretVisible => PasswordVisible || S3KeysVisible;
+    // Any Azure mode except Anonymous carries a persistable secret.
+    public bool AzureSecretVisible => IsAzure && AzureAuth != AzureAuthMode.Anonymous;
 
-    // Username is hidden only for SMB guest connections and for S3 (which uses an access key).
+    // The "save secret" checkbox covers SFTP/SMB passwords, the S3 secret key, and Azure secrets.
+    public bool SaveSecretVisible => PasswordVisible || S3KeysVisible || AzureSecretVisible;
+
+    // Username is hidden for SMB guest connections and for S3/Azure (which use keys).
     public bool UsernameVisible => IsSftp || (IsSmb && !Guest);
 
     public bool HostKeyWarningVisible => IsSftp && IsHostKeyChanged;
@@ -184,6 +242,7 @@ public partial class ConnectDialogViewModel : ObservableObject
     public event Action<ConnectionInfo>? Connected;
     public event Action<SmbConnectionInfo>? SmbConnected;
     public event Action<S3ConnectionInfo>? S3Connected;
+    public event Action<AzureConnectionInfo>? AzureConnected;
     public event Action? Cancelled;
 
     // Null for a new connection, set when editing an existing one.
@@ -199,11 +258,14 @@ public partial class ConnectDialogViewModel : ObservableObject
         SmbConnectionManager smbManager,
         SmbConnectionStore smbStore,
         S3ConnectionManager s3Manager,
-        S3ConnectionStore s3Store)
+        S3ConnectionStore s3Store,
+        AzureConnectionManager azureManager,
+        AzureConnectionStore azureStore)
     {
         ConnectAction = (info, secret) => manager.Connect(info, secret);
         SmbConnectAction = (info, secret) => smbManager.Connect(info, secret);
         S3ConnectAction = (info, secret) => s3Manager.Connect(info, secret);
+        AzureConnectAction = (info, secret) => azureManager.Connect(info, secret);
 
         SaveAction = stored =>
         {
@@ -236,6 +298,17 @@ public partial class ConnectDialogViewModel : ObservableObject
             else
                 all.Add(stored);
             s3Store.Save(all.ToArray());
+        };
+
+        AzureSaveAction = stored =>
+        {
+            var all = azureStore.Load().ToList();
+            var idx = all.FindIndex(c => c.Id == stored.Id);
+            if (idx >= 0)
+                all[idx] = stored;
+            else
+                all.Add(stored);
+            azureStore.Save(all.ToArray());
         };
 
         ForgetKeyAction = storeKey => hostKeyStore.Forget(storeKey);
@@ -325,10 +398,47 @@ public partial class ConnectDialogViewModel : ObservableObject
         }
     }
 
+    public void ForEdit(StoredAzureConnection stored)
+    {
+        Protocol = ConnectProtocol.AzureBlob;
+        _editingId = stored.Id;
+        Name = stored.Name;
+        Endpoint = stored.Endpoint;
+        AzureAccount = stored.AccountName;
+        AzureAuth = stored.AuthMode;
+        AzureContainer = stored.Container;
+        InitialRemotePath = stored.InitialPath;
+        SavePassword = stored.SavePassword;
+
+        if (stored.AuthMode != AzureAuthMode.Anonymous && stored.SavePassword
+            && !string.IsNullOrEmpty(stored.ObfuscatedSecret))
+        {
+            var secret = AzureConnectionStore.ResolveSecret(stored, _codec);
+            if (secret?.Password is { } value)
+            {
+                switch (stored.AuthMode)
+                {
+                    case AzureAuthMode.SharedKey:
+                        AzureAccountKey = value;
+                        break;
+                    case AzureAuthMode.ConnectionString:
+                        AzureConnectionString = value;
+                        break;
+                    case AzureAuthMode.Sas:
+                        AzureSasToken = value;
+                        break;
+                }
+            }
+        }
+    }
+
     private string? Validate()
     {
         if (IsS3)
             return ValidateS3();
+
+        if (IsAzure)
+            return ValidateAzure();
 
         if (string.IsNullOrWhiteSpace(Host))
             return "Host is required";
@@ -360,6 +470,19 @@ public partial class ConnectDialogViewModel : ObservableObject
         S3AuthMode.Profile when string.IsNullOrWhiteSpace(Profile) => "Profile name is required",
         // Anonymous cannot list buckets, so a specific bucket is mandatory.
         S3AuthMode.Anonymous when string.IsNullOrWhiteSpace(Bucket) => "Bucket is required for anonymous access",
+        _ => null,
+    };
+
+    private string? ValidateAzure() => AzureAuth switch
+    {
+        AzureAuthMode.SharedKey when string.IsNullOrWhiteSpace(AzureAccount) => "Storage account name is required",
+        AzureAuthMode.SharedKey when string.IsNullOrWhiteSpace(AzureAccountKey) => "Account key is required",
+        AzureAuthMode.ConnectionString when string.IsNullOrWhiteSpace(AzureConnectionString) => "Connection string is required",
+        AzureAuthMode.Sas when string.IsNullOrWhiteSpace(AzureSasToken) => "SAS token is required",
+        AzureAuthMode.Sas when string.IsNullOrWhiteSpace(AzureAccount) && string.IsNullOrWhiteSpace(Endpoint) => "Account name or endpoint is required",
+        // Anonymous cannot list containers, so a specific container is mandatory.
+        AzureAuthMode.Anonymous when string.IsNullOrWhiteSpace(AzureContainer) => "Container is required for anonymous access",
+        AzureAuthMode.Anonymous when string.IsNullOrWhiteSpace(AzureAccount) && string.IsNullOrWhiteSpace(Endpoint) => "Account name or endpoint is required",
         _ => null,
     };
 
@@ -409,6 +532,25 @@ public partial class ConnectDialogViewModel : ObservableObject
             ? ConnectSecret.FromKeys(SecretKey, string.IsNullOrEmpty(SessionToken) ? null : SessionToken)
             : new ConnectSecret();
 
+    private AzureConnectionInfo BuildAzureInfo() => new(
+        Id: _editingId ?? Guid.NewGuid().ToString("N"),
+        Name: string.IsNullOrWhiteSpace(Name)
+            ? (AzureAccount.Trim() is { Length: > 0 } acct ? acct : "Azure")
+            : Name.Trim(),
+        Endpoint: Endpoint.Trim(),
+        AccountName: AzureAccount.Trim(),
+        AuthMode: AzureAuth,
+        Container: AzureContainer.Trim(),
+        InitialPath: string.IsNullOrWhiteSpace(InitialRemotePath) ? "/" : InitialRemotePath.Trim());
+
+    private ConnectSecret BuildAzureSecret() => AzureAuth switch
+    {
+        AzureAuthMode.SharedKey => ConnectSecret.FromPassword(AzureAccountKey),
+        AzureAuthMode.ConnectionString => ConnectSecret.FromPassword(AzureConnectionString.Trim()),
+        AzureAuthMode.Sas => ConnectSecret.FromPassword(AzureSasToken.Trim()),
+        _ => new ConnectSecret(),
+    };
+
     [RelayCommand]
     public async Task ConnectAsync()
     {
@@ -431,6 +573,12 @@ public partial class ConnectDialogViewModel : ObservableObject
         if (IsS3)
         {
             await ConnectS3Async();
+            return;
+        }
+
+        if (IsAzure)
+        {
+            await ConnectAzureAsync();
             return;
         }
 
@@ -579,6 +727,50 @@ public partial class ConnectDialogViewModel : ObservableObject
         OnS3ConnectSuccess(info, secret);
     }
 
+    private async Task ConnectAzureAsync()
+    {
+        var info = BuildAzureInfo();
+        _editingId = info.Id;
+        var secret = BuildAzureSecret();
+
+        IsConnecting = true;
+        try
+        {
+            await Task.Run(() => AzureConnectAction(info, secret));
+        }
+        catch (AzureAuthenticationException)
+        {
+            ErrorText = "Authentication failed. Check your account key, SAS token, or connection string.";
+            return;
+        }
+        catch (AzureConnectionException ex)
+        {
+            ErrorText = $"Connection failed: {ex.Message}";
+            return;
+        }
+        catch (SocketException ex)
+        {
+            ErrorText = $"Connection failed: {ex.Message}";
+            return;
+        }
+        catch (ObjectDisposedException)
+        {
+            ErrorText = "The connection manager was disposed. Restart the application.";
+            return;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            ErrorText = ex.Message;
+            return;
+        }
+        finally
+        {
+            IsConnecting = false;
+        }
+
+        OnAzureConnectSuccess(info, secret);
+    }
+
     [RelayCommand]
     public async Task AcceptNewKeyAsync()
     {
@@ -668,5 +860,12 @@ public partial class ConnectDialogViewModel : ObservableObject
         var stored = S3ConnectionStore.Pack(info, secret, SavePassword, _codec);
         S3SaveAction(stored);
         S3Connected?.Invoke(info);
+    }
+
+    private void OnAzureConnectSuccess(AzureConnectionInfo info, ConnectSecret secret)
+    {
+        var stored = AzureConnectionStore.Pack(info, secret, SavePassword, _codec);
+        AzureSaveAction(stored);
+        AzureConnected?.Invoke(info);
     }
 }

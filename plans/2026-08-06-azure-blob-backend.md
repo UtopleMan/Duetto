@@ -121,7 +121,7 @@ manager 4, backend identity 4, file stream 2, endpoint 6). Files created:
   only when no scheme, mirroring S3.
 
 ## Phase 3: UI wiring (Connect dialog + saved-share popover + panes)
-Status: Not started
+Status: Complete
 
 - [ ] `ConnectDialogViewModel.cs` — add `AzureBlob` to `ConnectProtocol`; `IsAzure`,
       `AzureFieldsVisible`, per-auth visibility (`AzureSharedKeyVisible`,
@@ -152,7 +152,22 @@ Status: Not started
 - `dotnet run --project src/Duetto -- --smoke` → exits 0 (headless app boots with new VM wiring).
 
 ### Phase Summary
-_(write when phase completes)_
+Done. Full non-integration suite **713 passed / 0 failed**; app `--smoke` exits 0; 52
+Azure tests total (39 core + 13 UI: `AzureConnectDialogTests` 7, `AzureConnectToShareTests`
++ `AzureSharesPopoverMergeTests` 7). Shared files touched: `ConnectDialogViewModel`
+(enum `AzureBlob`, 4-mode auth, visibility props, ForEdit/Validate/Build/Connect),
+`ConnectWindow.axaml`(+`.cs`) (combo item index 3, Azure fields + 4 auth radios),
+`DrivePopoverViewModel` (azure ShareRow + seams + edit/remove branches),
+`MainViewModel` (managers/stores + `ConnectToAzureShare` + `OpenAzureConnectDialog`
+seam + popover wiring + Dispose), `PaneView.axaml.cs` (activate/disconnect/open/remove),
+`MainWindow.axaml.cs`. The `ConnectDialogViewModel` ctor gained two params — all 6 call
+sites (2 prod + 4 tests) updated.
+
+**Notes for future agents:**
+- `ConnectSecret.Password` carries the single Azure secret; the mode decides which
+  UI field feeds it (`AzureAccountKey`/`AzureConnectionString`/`AzureSasToken`).
+- `HostPortVisible` changed from `!IsS3` to `IsSftp || IsSmb` (also hides host/port for Azure).
+- Scheme string is `"azure"` everywhere (registry, path prefix, disconnect/remove branches).
 
 ## Phase 4: Azurite harness + integration tests
 Status: Not started

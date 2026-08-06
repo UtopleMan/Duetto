@@ -51,6 +51,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public S3ConnectionStore S3ConnectionStore { get; }
 
+    public AzureConnectionManager AzureConnectionManager { get; }
+
+    public AzureConnectionStore AzureConnectionStore { get; }
+
     public HostKeyStore HostKeyStore { get; }
 
     public SecretCodec Codec { get; }
@@ -100,6 +104,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         SmbConnectionStore? smbConnectionStore = null,
         S3ConnectionManager? s3ConnectionManager = null,
         S3ConnectionStore? s3ConnectionStore = null,
+        AzureConnectionManager? azureConnectionManager = null,
+        AzureConnectionStore? azureConnectionStore = null,
         string? remoteOpenTempRoot = null)
     {
         _sessionStore = sessionStore;
@@ -111,6 +117,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         SmbConnectionStore = smbConnectionStore ?? new SmbConnectionStore(":memory:", _ => null, (_, _) => { });
         S3ConnectionManager = s3ConnectionManager ?? new S3ConnectionManager(Registry);
         S3ConnectionStore = s3ConnectionStore ?? new S3ConnectionStore(":memory:", _ => null, (_, _) => { });
+        AzureConnectionManager = azureConnectionManager ?? new AzureConnectionManager(Registry);
+        AzureConnectionStore = azureConnectionStore ?? new AzureConnectionStore(":memory:", _ => null, (_, _) => { });
         Codec = codec ?? new SecretCodec();
 
         TrashFn = TrashViaProvider;
@@ -215,7 +223,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             hostKeyStore: BuildProductionHostKeyStore(),
             sessionStore: startup.Store,
             smbConnectionStore: new SmbConnectionStore(AppPaths.SmbConnectionsJsonPath),
-            s3ConnectionStore: new S3ConnectionStore(AppPaths.S3ConnectionsJsonPath))
+            s3ConnectionStore: new S3ConnectionStore(AppPaths.S3ConnectionsJsonPath),
+            azureConnectionStore: new AzureConnectionStore(AppPaths.AzureConnectionsJsonPath))
     {
         // Production only: run listing and rename off the UI thread. Tests use the
         // explicit ctor above and keep the default inline schedulers for deterministic asserts.
@@ -368,6 +377,51 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OpenS3ConnectDialog(stored, pane);
     }
 
+    // Seam: replace in tests to capture Azure dialog-open calls without instantiating a window.
+    public Action<StoredAzureConnection?, PaneViewModel> OpenAzureConnectDialog { get; set; } = (_, _) => { };
+
+    // Azure counterpart of ConnectToShare. Connection/auth failures reopen the dialog prefilled;
+    // any other exception surfaces as an unobserved task fault (a genuine bug).
+    public void ConnectToAzureShare(StoredAzureConnection stored, PaneViewModel pane)
+    {
+        if (AzureConnectionManager.IsConnected(stored.Id))
+        {
+            pane.NavigateTo($"azure://{stored.Id}{stored.InitialPath}");
+            return;
+        }
+
+        var secret = AzureConnectionStore.ResolveSecret(stored, Codec);
+        if (secret is not null)
+        {
+            var info = AzureConnectionStore.ResolveInfo(stored);
+            var capturedPath = $"azure://{info.Id}{info.InitialPath}";
+            var openDialog = OpenAzureConnectDialog;
+            _ = ConnectScheduler(() =>
+            {
+                try
+                {
+                    AzureConnectionManager.Connect(info, secret);
+                }
+                // AzureConnectionException / AzureAuthenticationException are surfaced from the
+                // adapter; SocketException/IOException cover transport faults. Listed for documentation.
+                catch (Exception ex) when (ex is AzureAuthenticationException
+                    or AzureConnectionException
+                    or SocketException
+                    or ObjectDisposedException
+                    or IOException
+                    or InvalidOperationException)
+                {
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() => openDialog(stored, pane));
+                    return;
+                }
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => pane.NavigateTo(capturedPath));
+            });
+            return;
+        }
+
+        OpenAzureConnectDialog(stored, pane);
+    }
+
     // Call after Left/Right panes are constructed.
     private void WirePopoverSeams(DrivePopoverViewModel drives)
     {
@@ -377,6 +431,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         drives.IsSmbConnected = id => SmbConnectionManager.IsConnected(id);
         drives.ListS3Connections = () => S3ConnectionStore.Load();
         drives.IsS3Connected = id => S3ConnectionManager.IsConnected(id);
+        drives.ListAzureConnections = () => AzureConnectionStore.Load();
+        drives.IsAzureConnected = id => AzureConnectionManager.IsConnected(id);
     }
 
     public void RebuildRemotePlaces()
@@ -734,6 +790,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ConnectionManager.Dispose();
         SmbConnectionManager.Dispose();
         S3ConnectionManager.Dispose();
+        AzureConnectionManager.Dispose();
         _remoteOpener.Dispose();
     }
 }
