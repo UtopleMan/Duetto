@@ -17,6 +17,21 @@ Two panes, everything on the keyboard, and a window that feels native on every
 desktop. Copy and move between panes, browse remote servers over SFTP, search in
 an instant, and delete straight to the system trash.
 
+## Quick install
+
+**macOS** — via [Homebrew](https://brew.sh):
+
+```sh
+brew install --cask utopleman/duetto/duetto
+```
+
+**Windows / Linux** — grab the latest build from the
+[**Releases**](https://github.com/UtopleMan/duetto/releases/latest) page.
+
+Duetto is unsigned, so macOS blocks it on first launch: right-click the app and
+choose **Open**, or run `xattr -dr com.apple.quarantine "/Applications/Duetto.app"`.
+See [Install](#install) below for all download options.
+
 <div align="center">
 
 ### macOS

@@ -47,6 +47,22 @@ Releases are automated: pushing a `v*` tag (e.g. `v1.1.0`) builds the
 self-contained artifacts for all platforms and publishes a GitHub Release. The
 version is derived from the tag. Update `CHANGELOG.md` in the same change.
 
+### Homebrew cask
+
+macOS ships via a Homebrew cask in the [`UtopleMan/homebrew-duetto`](https://github.com/UtopleMan/homebrew-duetto)
+tap (`brew install --cask utopleman/duetto/duetto`). After the release's `.dmg`
+files exist in `dist/` (`scripts/make-dmg.sh osx-arm64` and `osx-x64`), regenerate
+and push the cask:
+
+```sh
+scripts/update-cask.sh <version>              # e.g. 1.4.0 — commits + pushes the tap
+scripts/update-cask.sh <version> --dry-run    # preview the rendered cask, push nothing
+```
+
+The script reads the dmg hashes from `dist/`, so build the dmgs first. Override the
+tap checkout location with `TAP_DIR=…` (defaults to `../homebrew-duetto`, cloned via
+`gh` if absent).
+
 ## License
 
 By contributing, you agree that your contributions are licensed under the
