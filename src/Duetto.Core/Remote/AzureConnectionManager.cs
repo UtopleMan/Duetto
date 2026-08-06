@@ -1,0 +1,166 @@
+using Duetto.Core.FileSystem;
+
+namespace Duetto.Core.Remote;
+
+// Azure analogue of S3ConnectionManager: owns live Azure connections, registers each provider under
+// scheme "azure", and mirrors the same lock / evict-outside-lock discipline so state queries stay
+// responsive during a slow connect (the credential/endpoint validation in AzureConnection.Connect can
+// take seconds or hang).
+public sealed class AzureConnectionManager : IDisposable
+{
+    private readonly FileSystemRegistry registry;
+    private readonly IAzureClientFactory? factory;
+    private readonly Lock gate = new();
+
+    private readonly Dictionary<string, Entry> entries = new(StringComparer.OrdinalIgnoreCase);
+
+    private bool disposed;
+
+    private sealed class Entry(string id, AzureConnection connection, AzureFileSystemProvider provider) : IDisposable
+    {
+        public string Id { get; } = id;
+        public AzureConnection Connection { get; } = connection;
+        public AzureFileSystemProvider Provider { get; } = provider;
+
+        public void Dispose() => Provider.Dispose();
+    }
+
+    public AzureConnectionManager(FileSystemRegistry registry, IAzureClientFactory? factory = null)
+    {
+        this.registry = registry;
+        this.factory = factory;
+    }
+
+    public IReadOnlyCollection<string> ConnectedIds
+    {
+        get
+        {
+            lock (gate)
+                return entries.Keys.ToList().AsReadOnly();
+        }
+    }
+
+    public bool IsConnected(string id)
+    {
+        lock (gate)
+            return entries.TryGetValue(id, out var e) && e.Connection.IsConnected;
+    }
+
+    // The validation handshake can take seconds or hang, so it runs OUTSIDE the manager lock —
+    // concurrent IsConnected / ConnectedIds / Disconnect / Dispose calls stay responsive. Races
+    // during the unlocked window resolve last-writer-wins.
+    public void Connect(AzureConnectionInfo info, ConnectSecret secret)
+    {
+        AzureConnection conn;
+        Entry? evicted;
+        lock (gate)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+
+            if (entries.TryGetValue(info.Id, out var old))
+            {
+                registry.Unregister("azure", old.Id);
+                entries.Remove(info.Id);
+                evicted = old;
+            }
+            else
+            {
+                evicted = null;
+            }
+
+            conn = new AzureConnection(info, secret, factory);
+        }
+
+        evicted?.Dispose();
+
+        try
+        {
+            conn.Connect();
+        }
+        catch (Exception)
+        {
+            conn.Dispose();
+            throw;
+        }
+
+        Entry? raced;
+        lock (gate)
+        {
+            if (disposed)
+            {
+                conn.Dispose();
+                throw new ObjectDisposedException(nameof(AzureConnectionManager));
+            }
+
+            if (entries.TryGetValue(info.Id, out var existing))
+            {
+                registry.Unregister("azure", existing.Id);
+                entries.Remove(info.Id);
+                raced = existing;
+            }
+            else
+            {
+                raced = null;
+            }
+
+            var provider = new AzureFileSystemProvider(conn);
+            entries[info.Id] = new Entry(info.Id, conn, provider);
+            registry.Register("azure", info.Id, provider);
+        }
+
+        raced?.Dispose();
+    }
+
+    public void Disconnect(string id)
+    {
+        Entry? entry;
+        lock (gate)
+        {
+            if (!entries.TryGetValue(id, out entry))
+                return;
+
+            registry.Unregister("azure", entry.Id);
+            entries.Remove(id);
+        }
+
+        entry.Dispose();
+    }
+
+    public void DisposeAll()
+    {
+        List<Entry> toDispose;
+        lock (gate)
+            toDispose = CollectAndClearLocked();
+
+        foreach (var e in toDispose)
+            e.Dispose();
+    }
+
+    public void Dispose()
+    {
+        List<Entry> toDispose;
+        lock (gate)
+        {
+            if (disposed)
+                return;
+            disposed = true;
+            toDispose = CollectAndClearLocked();
+        }
+
+        foreach (var e in toDispose)
+            e.Dispose();
+    }
+
+    private List<Entry> CollectAndClearLocked()
+    {
+        var collected = new List<Entry>(entries.Count);
+        foreach (var entry in entries.Values)
+        {
+            registry.Unregister("azure", entry.Id);
+            collected.Add(entry);
+        }
+
+        entries.Clear();
+        return collected;
+    }
+}
