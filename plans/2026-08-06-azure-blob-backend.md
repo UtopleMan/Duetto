@@ -206,7 +206,7 @@ gated run: `DUETTO_AZURE_TEST=1`, endpoint `http://127.0.0.1:10000/devstoreaccou
 service; `scripts/smoke.sh` waits on port 10000 and sets the `DUETTO_AZURE_TEST_*` env.
 
 ## Phase 5: Docs + README + CHANGELOG
-Status: Not started
+Status: Complete
 
 - [ ] `docs/remote-azure.md` — mirror `docs/remote-s3.md` (intro, adding a connection,
       config location + `azure-connections.json`, security caveat, blob semantics:
@@ -219,10 +219,43 @@ Status: Not started
 - `test -f docs/remote-azure.md` and README links resolve (`grep -o "docs/remote-azure.md" README.md`).
 
 ### Phase Summary
-_(write when phase completes)_
+Done. Added `docs/remote-azure.md` (mirrors `remote-s3.md`: intro, add-a-connection
+table for all 4 auth modes, config location + `azure-connections.json`, security
+caveat, blob semantics incl. the `.duettokeep` marker + SAS-based server-side copy,
+integration-test instructions). README gained a "Remote over Azure Blob" feature
+bullet linking the doc; `CHANGELOG.md` has an Unreleased entry. All grep checks pass.
 
 ## Final Recap
-_(write when all phases complete)_
+Azure Blob Storage is now a first-class remote backend in Duetto, mirroring the S3
+backend end-to-end. Users pick **Azure Blob Storage** in the Connect dialog and
+authenticate with an **account key**, **connection string**, **SAS**, or
+**anonymous** (with an optional custom endpoint for Azurite/on-prem); the connection
+root lists containers (or a single configured one), browse/transfer/search work like
+any pane, same-account moves are offloaded server-side (Copy Blob via a short-lived
+read SAS), and saved connections live in the drive popover tagged **Azure**.
+
+Implementation (all committed on `feature/azure-blob-backend`): a full Core stack
+(`AzureAuthMode`, `AzureConnectionInfo`, `AzureConnectionException`, `AzureEntry`,
+`AzureConnectionStore`, `IAzureClientAdapter`/`RealAzureClientAdapter`,
+`AzureFileStream`, `AzureConnection`, `AzureFileSystemProvider`,
+`AzureConnectionManager`) on `Azure.Storage.Blobs` 12.29.1, wired into the shared
+Connect dialog / popover / panes / `MainViewModel`, persisted to
+`azure-connections.json`, documented, and tested. Scheme is `azure`; empty folders
+use a hidden `prefix/.duettokeep` keep blob (portable across real Azure + Azurite).
+
+**Test coverage:** 52 Azure unit tests (fakes) + 4 integration tests verified against
+live Azurite; full suite **713 passing / 0 failing**; app `--smoke` exits 0. The live
+run caught and fixed two emulator-only issues (SDK API-version skip, trailing-slash
+marker). No changes to existing SFTP/SMB/S3 behavior.
 
 ## Deployment Plan
-_(write when all phases complete)_
+1. Review + merge `feature/azure-blob-backend` → `main` (standard PR).
+2. No config/migration needed: `azure-connections.json` is created on first save;
+   absent file = no Azure connections. Existing users are unaffected.
+3. Ship in the next tagged release (it's already a `## Unreleased` CHANGELOG entry —
+   fold into the version section at release time and bump `Directory.Build.props`).
+   The release + Homebrew flow in `plans/2026-08-06-homebrew-tap-and-quick-install.md`
+   applies unchanged.
+4. CI/maintainers: `scripts/smoke.sh` now also exercises Azurite (needs Docker +
+   free host port 10000). No new secrets — the Azurite key is the public well-known
+   emulator key.
