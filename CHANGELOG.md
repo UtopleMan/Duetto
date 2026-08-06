@@ -3,7 +3,7 @@
 All notable changes to Duetto are documented here. This project adheres to
 [Semantic Versioning](https://semver.org).
 
-## Unreleased
+## 1.5.0 — 2026-08-06
 
 ### Features
 - **Remote over Azure Blob Storage** — connect to Azure Blob Storage and
@@ -12,6 +12,13 @@ All notable changes to Duetto are documented here. This project adheres to
   an optional custom endpoint for emulators/on-prem; the connection root lists
   your containers (or a single configured container). Same-account moves are
   offloaded server-side (Copy Blob). ([setup & security →](docs/remote-azure.md))
+
+### Fixed
+- **Drive popover spacing** — added a gap between the "Filter drives" box and the
+  "THIS MACHINE" heading, and vertically centred the "Connect…" row labels (now
+  "SFTP, AZ Blob, S3 or SMB").
+- **Connect dialog** — the Azure auth-mode radios (Account key / Connection string
+  / SAS / Anonymous) now wrap instead of overflowing the window edge.
 
 ## 1.4.0 — 2026-08-05
 
