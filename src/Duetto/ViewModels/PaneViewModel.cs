@@ -314,22 +314,30 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         Task<IReadOnlyList<FileEntry>> task, CancellationTokenSource cts,
         HashSet<string> markedNames, string? cursorName, int cursorIndex, string? selectAfter, bool selectFirst)
     {
-        IReadOnlyList<FileEntry> entries;
         try
         {
-            entries = await task;
+            var entries = await task;
+
+            // A newer load superseded this one while it was in flight — discard the result and
+            // leave the loading state to that newer load.
+            if (!ReferenceEquals(cts, _loadCts))
+                return;
+
+            ApplyRows(entries, markedNames, cursorName, cursorIndex, selectAfter, selectFirst);
         }
         catch (OperationCanceledException)
         {
-            return;
+            // Cancelled (superseded or disposed) — the finally clears the spinner if we are still
+            // the current load.
         }
-
-        // A newer load superseded this one while it was in flight — discard the result.
-        if (!ReferenceEquals(cts, _loadCts))
-            return;
-
-        ApplyRows(entries, markedNames, cursorName, cursorIndex, selectAfter, selectFirst);
-        IsLoading = false;
+        finally
+        {
+            // Only the current load clears the spinner; a superseded one must not, or it would
+            // hide the newer load that is still in flight. The cancellation path used to skip this
+            // and leak IsLoading = true.
+            if (ReferenceEquals(cts, _loadCts))
+                IsLoading = false;
+        }
     }
 
     private void ApplyRows(

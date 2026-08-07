@@ -394,7 +394,9 @@
     <Border Grid.Row="2" Background="{StaticResource WindowBg}" IsVisible="{Binding IsLoading}">
       <StackPanel Orientation="Horizontal" Spacing="10"
                   HorizontalAlignment="Center" VerticalAlignment="Center">
-        <ProgressBar IsIndeterminate="True" Width="90" Height="5" />
+        <!-- Bind IsIndeterminate to IsLoading, not True: an indeterminate ProgressBar keeps
+             animating (spinning the render loop at full frame rate) even while IsVisible=false. -->
+        <ProgressBar IsIndeterminate="{Binding IsLoading}" Width="90" Height="5" />
         <TextBlock Text="Loading…" FontSize="12" Foreground="{StaticResource TextDim}"
                    VerticalAlignment="Center" />
       </StackPanel>
