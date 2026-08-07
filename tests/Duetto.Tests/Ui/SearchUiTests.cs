@@ -1,11 +1,112 @@
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
+using Avalonia.Threading;
 using Duetto.Tests.Core;
 using Duetto.ViewModels;
+using Duetto.Views;
 
 namespace Duetto.Tests.Ui;
 
 public class SearchUiTests
 {
+    [AvaloniaFact]
+    public async Task Tab_from_search_box_moves_cursor_into_results()
+    {
+        using var tmp = new TempDir();
+        tmp.File("aaa-match.txt", "x");
+        tmp.File("bbb-match.txt", "x");
+        using var vm = new MainViewModel(tmp.Path, tmp.Path);
+        var window = new MainWindow(vm);
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        vm.Search.Query = "match";
+        await vm.Search.StartSearchAsync();
+        Assert.True(vm.Search.IsActive);
+        Assert.Null(vm.Search.Selection.SelectedItem);
+
+        window.KeyPressQwerty(PhysicalKey.F, RawInputModifiers.Control);
+        Dispatcher.UIThread.RunJobs();
+        window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(0, vm.Search.Selection.SelectedIndex);
+
+        // Focus is now off the search box, so arrows drive the results.
+        window.KeyPressQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(1, vm.Search.Selection.SelectedIndex);
+
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Tab_cycles_left_pane_and_results_repeatedly()
+    {
+        using var tmp = new TempDir();
+        tmp.File("aaa-match.txt", "x");
+        tmp.File("bbb-match.txt", "x");
+        tmp.File("ccc-match.txt", "x");
+        using var vm = new MainViewModel(tmp.Path, tmp.Path);
+        var window = new MainWindow(vm);
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        vm.Search.Query = "match";
+        await vm.Search.StartSearchAsync();
+        Assert.True(vm.Search.IsActive);
+
+        // Search box -> results.
+        window.KeyPressQwerty(PhysicalKey.F, RawInputModifiers.Control);
+        Dispatcher.UIThread.RunJobs();
+        window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+
+        // Results -> left pane.
+        window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(vm.Left.IsActive);
+
+        // Left pane -> results again: arrows must drive the results, not a hidden pane.
+        window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        window.KeyPressQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(1, vm.Search.Selection.SelectedIndex);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Arrows_drive_focused_pane_not_active_search()
+    {
+        using var tmp = new TempDir();
+        tmp.File("aaa-match.txt", "x");
+        tmp.File("bbb-match.txt", "x");
+        tmp.File("ccc-match.txt", "x");
+        using var vm = new MainViewModel(tmp.Path, tmp.Path);
+        var window = new MainWindow(vm);
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        // Search stays active (pinned overlay), but focus is on the left pane — arrows must
+        // move the pane cursor, not the hidden results behind the overlay.
+        vm.Search.Query = "match";
+        await vm.Search.StartSearchAsync();
+        Assert.True(vm.Search.IsActive);
+        vm.Left.Selection.Clear();
+        vm.Left.Selection.Select(0);
+        Dispatcher.UIThread.RunJobs();
+
+        window.KeyPressQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(1, vm.Left.Selection.SelectedIndex);
+        Assert.Null(vm.Search.Selection.SelectedItem);
+
+        window.Close();
+    }
+
     [AvaloniaFact]
     public async Task Search_finds_nested_files_and_reports_counts()
     {

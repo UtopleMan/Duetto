@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform;
+using Avalonia.VisualTree;
 using Duetto.Core.Remote;
 using Duetto.Core.State;
 using Duetto.ViewModels;
@@ -315,6 +316,10 @@ public partial class MainWindow : Window
                 Vm.Search.RevealSelected();
                 e.Handled = true;
                 return;
+            case Key.Tab when e.KeyModifiers == KeyModifiers.None && Vm.Search.IsActive:
+                ToggleSearchFocus();
+                e.Handled = true;
+                return;
             case Key.Tab when e.KeyModifiers == KeyModifiers.None:
                 Vm.SwitchPane();
                 if (Vm.ActivePane.Rows.Count > 0 && Vm.ActivePane.Selection.SelectedItem is null)
@@ -413,6 +418,28 @@ public partial class MainWindow : Window
 
     public PaneView ActivePaneView() => Vm.ActivePane == Vm.Left ? LeftPane : RightPane;
 
+    // While the results overlay is up it covers the right pane, so the only visible file pane is
+    // the left one — Tab toggles focus between it and the results. Which way we go is decided by
+    // where focus actually is, so the cycle survives entering the results from the search box.
+    private void ToggleSearchFocus()
+    {
+        if (ResultsHaveFocus())
+        {
+            Vm.Activate(Vm.Left);
+            if (Vm.Left.Rows.Count > 0 && Vm.Left.Selection.SelectedItem is null)
+                Vm.Left.Selection.Select(0);
+            LeftPane.FocusList();
+            return;
+        }
+
+        if (Vm.Search.Selection.SelectedItem is null && Vm.Search.Results.Count > 0)
+            Vm.Search.Selection.Select(0);
+        ResultsView.FocusList();
+    }
+
+    private bool ResultsHaveFocus() =>
+        FocusManager?.GetFocusedElement() is Visual focused && ResultsView.IsVisualAncestorOf(focused);
+
     // Navigation reloads replace the row containers; the focused item detaches
     // asynchronously and would drop focus, so refocus after that cleanup runs.
     private void RefocusActiveList(Avalonia.Threading.DispatcherPriority? priority = null) =>
@@ -445,6 +472,12 @@ public partial class MainWindow : Window
     {
         switch (e.Key)
         {
+            case Key.Tab when e.KeyModifiers == KeyModifiers.None && Vm.Search.Results.Count > 0:
+                if (Vm.Search.Selection.SelectedItem is null)
+                    Vm.Search.Selection.Select(0);
+                ResultsView.FocusList();
+                e.Handled = true;
+                break;
             case Key.Escape:
                 Vm.Search.Clear();
                 ActivePaneView().List.Focus();
