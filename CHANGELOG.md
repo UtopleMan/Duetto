@@ -3,6 +3,17 @@
 All notable changes to Duetto are documented here. This project adheres to
 [Semantic Versioning](https://semver.org).
 
+## 1.5.1 — 2026-08-07
+
+### Fixed
+- **Search results keyboard navigation** — Tab now drops the cursor into the
+  search results, and while results are open Tab cycles between the left pane and
+  the results; arrow keys drive whichever list holds focus. Previously the results
+  pane could not be reached or navigated from the keyboard.
+- **Idle CPU** — the pane loading spinner (an indeterminate progress bar) kept
+  animating even while hidden, redrawing the whole window every frame and pinning
+  idle CPU near 17%. It now animates only while a directory is actually loading.
+
 ## 1.5.0 — 2026-08-06
 
 ### Features
