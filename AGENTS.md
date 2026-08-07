@@ -1,7 +1,39 @@
 
 # Coding conventions #
 
-Don't put comments in any code you write, unless it documents a real edge case. Only document the "why"!
+## Naming
+
+- **Intention-revealing names.** The name should answer why it exists, what it does, how it's used. `elapsedTimeInDays` beats `d`.
+- **No disinformation.** Don't call it `accountList` unless it's a `List`. Avoid names that vary in small, hard-to-spot ways.
+- **Pronounceable and searchable.** `generationTimestamp` not `genymdhms`. Single letters only for tiny local scopes.
+- **Classes are nouns, methods are verbs.** `Customer`, `Account` — `postPayment`, `deletePage`.
+- **One word per concept.** Don't mix `fetch`, `retrieve`, `get` for the same idea across the codebase.
+
+## Functions
+
+- **Small. Then smaller.** A function should be a handful of lines. If it's long, it's doing too much.
+- **Do one thing.** A function does one thing, does it well, does it only. If you can extract a meaningful sub-function, it was doing more than one thing.
+- **One level of abstraction per function.** Don't mix high-level policy with low-level string formatting in the same body.
+- **No flag arguments.** A boolean parameter announces the function does two things. Split it.
+- **No side effects.** A function named `checkPassword` must not also initialize the session. Hidden effects are lies.
+- **Command/Query Separation.** A function either does something or answers something — never both.
+- **Prefer exceptions to error codes.** Extract try/catch bodies into their own functions; error handling is one thing.
+
+## Comments
+
+- **Comments are a failure to express yourself in code.** Don't comment bad code — rewrite it.
+- **Good comments:** legal notices, intent, warnings of consequences, TODOs, amplifying importance, public-API docs.
+- **Bad comments:** redundant, mandated noise, commented-out code (delete it — version control remembers), journal comments, position markers.
+- **Never leave commented-out code.** It rots and no one dares delete it.
+
+## Boundaries & Structure
+
+- **Wrap third-party APIs.** Keep external interfaces at the edges; don't let them leak through your system.
+- **DRY.** Duplication is the root of most maintenance evil. Every piece of knowledge has one authoritative place.
+
+## The Boy Scout Rule
+
+> Leave the code cleaner than you found it.
 
 ## Patterns We Use
 - Primary constructors for DI
