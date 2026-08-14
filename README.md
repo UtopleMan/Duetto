@@ -19,13 +19,13 @@ an instant, and delete straight to the system trash.
 
 ## Quick install
 
-**macOS** — via [Homebrew](https://brew.sh):
+**macOS** - via [Homebrew](https://brew.sh):
 
 ```sh
 brew install --cask utopleman/duetto/duetto
 ```
 
-**Windows / Linux** — grab the latest build from the
+**Windows / Linux** - grab the latest build from the
 [**Releases**](https://github.com/UtopleMan/duetto/releases/latest) page.
 
 Duetto is unsigned, so macOS blocks it on first launch: right-click the app and
@@ -47,29 +47,29 @@ See [Install](#install) below for all download options.
 
 ## Features
 
-- **Dual-pane, keyboard-first** — copy (`F5`), move (`F6`), delete (`F8`), rename
+- **Dual-pane, keyboard-first** - copy (`F5`), move (`F6`), delete (`F8`), rename
   (`F2`), new file/folder (`F7`); `Tab` switches panes, `Enter` opens, `Backspace`
   goes up.
-- **Native on every OS** — the window chrome adapts to Windows, macOS, and GNOME.
-- **Remote over SFTP** — save connections and browse or transfer files over SSH,
+- **Native on every OS** - the window chrome adapts to Windows, macOS, and GNOME.
+- **Remote over SFTP** - save connections and browse or transfer files over SSH,
   with trust-on-first-use host-key verification.
-  ([setup & security →](docs/remote-sftp.md))
-- **Remote over SMB / Samba** — connect to Windows shares and NAS boxes (SMB 2/3)
+  ([setup & security](docs/remote-sftp.md))
+- **Remote over SMB / Samba** - connect to Windows shares and NAS boxes (SMB 2/3)
   with a pure-managed client; user/password/domain or guest, share browsing.
-  ([setup & security →](docs/remote-smb.md))
-- **Remote over S3** — connect to Amazon S3 and S3-compatible stores (MinIO, R2,
+  ([setup & security](docs/remote-smb.md))
+- **Remote over S3** - connect to Amazon S3 and S3-compatible stores (MinIO, R2,
   Wasabi, B2); access keys, AWS profile, or anonymous; the root lists your buckets.
-  ([setup & security →](docs/remote-s3.md))
-- **Remote over Azure Blob** — connect to Azure Blob Storage and Blob-compatible
+  ([setup & security](docs/remote-s3.md))
+- **Remote over Azure Blob** - connect to Azure Blob Storage and Blob-compatible
   services (Azurite); account key, connection string, SAS, or anonymous; the root
-  lists your containers. ([setup & security →](docs/remote-azure.md))
-- **Instant search** — recursive, scoped to the current folder or a remote share.
-- **Safe deletes** — everything goes to the system trash: the Recycle Bin on
+  lists your containers. ([setup & security](docs/remote-azure.md))
+- **Instant search** - recursive, scoped to the current folder or a remote share.
+- **Safe deletes** - everything goes to the system trash: the Recycle Bin on
   Windows, the FreeDesktop trash on Linux, and the native macOS trash (with
   *Put Back* and correct handling of other volumes).
-- **Remembers your workspace** — window position, size, and maximized state, plus
+- **Remembers your workspace** - window position, size, and maximized state, plus
   each pane's last folder, restored on the next launch.
-- **Command line** — `duetto [folder]` opens a folder in the left pane; a `duetto`
+- **Command line** - `duetto [folder]` opens a folder in the left pane; a `duetto`
   launcher installs itself on your `PATH` the first time you run the app.
 
 ## Install
@@ -80,11 +80,11 @@ Download the latest build for your platform from the
 | Platform | Download |
 | --- | --- |
 | Windows (x64) | `duetto-<version>-win-x64.zip` |
-| macOS (Apple Silicon) | `Duetto-<version>-arm64.dmg` · `duetto-<version>-osx-arm64.zip` |
-| macOS (Intel) | `Duetto-<version>-x64.dmg` · `duetto-<version>-osx-x64.zip` |
+| macOS (Apple Silicon) | `Duetto-<version>-arm64.dmg`, `duetto-<version>-osx-arm64.zip` |
+| macOS (Intel) | `Duetto-<version>-x64.dmg`, `duetto-<version>-osx-x64.zip` |
 | Linux (x64) | `duetto-<version>-linux-x64.zip` |
 
-Builds are self-contained — no runtime to install.
+Builds are self-contained - no runtime to install.
 
 **macOS** builds are unsigned. On first launch, right-click the app and choose
 **Open**, or clear the quarantine flag:
