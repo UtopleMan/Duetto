@@ -589,6 +589,41 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ActiveOperation = transfer;
     }
 
+    // Drag from one pane, drop on the other: Copy by default, Move when Shift is held. A drop on
+    // the originating pane is a no-op. StartTransfer guards empty selection and an in-flight op.
+    public void DropBetweenPanes(PaneViewModel source, PaneViewModel target, bool moveRequested)
+    {
+        if (ReferenceEquals(source, target))
+            return;
+
+        var mode = moveRequested ? TransferMode.Move : TransferMode.Copy;
+        var paths = source.SelectedRows.Select(r => r.Entry.FullPath).ToList();
+        StartTransfer(paths, target.CurrentPath, mode, source, sourceScope: source.CurrentPath);
+    }
+
+    // Files dropped from the OS (Finder/Explorer) land in the target pane's current dir: Copy by
+    // default, Move on Shift. localPaths are absolute local OS paths; a local sourceScope resolves
+    // the local provider. A remote target reuses the existing local→remote upload path.
+    public void DropFromOs(PaneViewModel target, IReadOnlyList<string> localPaths, bool moveRequested)
+    {
+        if (localPaths.Count == 0)
+            return;
+
+        var mode = moveRequested ? TransferMode.Move : TransferMode.Copy;
+        StartTransfer(localPaths, target.CurrentPath, mode, sourcePane: null, sourceScope: localPaths[0]);
+    }
+
+    // Absolute local paths of the current selection for OS drag-out — only for a local pane. A
+    // remote pane returns null (drag-out disabled; remote-via-temp-staging is deferred Phase 4).
+    public IReadOnlyList<string>? LocalDragPayload(PaneViewModel source)
+    {
+        if (PathUtil.IsRemote(source.CurrentPath))
+            return null;
+
+        var paths = source.SelectedRows.Select(r => r.Entry.FullPath).ToList();
+        return paths.Count > 0 ? paths : null;
+    }
+
     [RelayCommand]
     public void DeleteSelected()
     {

@@ -79,6 +79,10 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _isLoading;
 
+    // True while a valid drag is hovering this pane; the view draws an accent border.
+    [ObservableProperty]
+    private bool _isDropTarget;
+
     public ObservableCollection<FileRowViewModel> Rows { get; } = [];
 
     // The cursor is exactly one row; multi-selection marks live on FileRowViewModel.IsMarked.

@@ -2,7 +2,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Duetto.Core.FileSystem;
 using Duetto.Core.Remote;
 using Duetto.ViewModels;
@@ -15,6 +17,16 @@ public partial class PaneView : UserControl
     private DateTime _typeAheadAt = DateTime.MinValue;
 
     private PaneViewModel? _subscribedVm;
+
+    // Internal pane→pane drags carry the source side as an in-process string; the drop handler
+    // maps it back to the owning MainViewModel pane. OS drag-out rides DataFormat.File on the
+    // same DataTransfer (Phase 3).
+    private static readonly DataFormat<string> PaneDragFormat =
+        DataFormat.CreateStringApplicationFormat("duetto.pane-source");
+
+    private const double DragThreshold = 4;
+
+    private Point? _dragOrigin;
 
     public PaneView()
     {
@@ -56,7 +68,17 @@ public partial class PaneView : UserControl
         // ⌘/Ctrl-click toggles a mark, Shift-click marks a range — before the
         // ListBox turns the click into a plain cursor move.
         RowList.AddHandler(PointerPressedEvent, OnRowPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        RowList.AddHandler(PointerMovedEvent, OnRowPointerMoved, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        RowList.AddHandler(PointerReleasedEvent, OnRowPointerReleased, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+
+        AddHandler(DragDrop.DragEnterEvent, OnDragEnter);
+        AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
+        AddHandler(DragDrop.DropEvent, OnDrop);
     }
+
+    private MainViewModel? MainVm =>
+        TopLevel.GetTopLevel(this) is Window { DataContext: MainViewModel mainVm } ? mainVm : null;
 
     private void OnRowPointerPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -73,6 +95,140 @@ public partial class PaneView : UserControl
             vm.MarkRangeTo(row);
             e.Handled = true;
         }
+        else if (!row.IsParentNav && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            // Arm a potential drag; a plain click still falls through to ListBox selection.
+            _dragOrigin = e.GetPosition(this);
+        }
+    }
+
+    // A press-and-move past the threshold on a real row starts the drag. The payload carries the
+    // source pane (internal DnD) and, for a local pane, the selected files (OS drag-out, Phase 3).
+    private void OnRowPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_dragOrigin is not { } origin)
+            return;
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            _dragOrigin = null;
+            return;
+        }
+
+        var moved = e.GetPosition(this) - origin;
+        if (Math.Abs(moved.X) < DragThreshold && Math.Abs(moved.Y) < DragThreshold)
+            return;
+
+        _dragOrigin = null;
+        _ = StartPaneDragAsync(e);
+    }
+
+    private void OnRowPointerReleased(object? sender, PointerReleasedEventArgs e) => _dragOrigin = null;
+
+    private async Task StartPaneDragAsync(PointerEventArgs e)
+    {
+        if (Vm is not { } vm || MainVm is not { } mainVm)
+            return;
+
+        var side = ReferenceEquals(vm, mainVm.Left) ? "left" : "right";
+        var data = new DataTransfer();
+        data.Add(DataTransferItem.Create(PaneDragFormat, side));
+
+        // Local pane: ride the OS file format on the same drag so it can drop into Finder/Explorer.
+        // Export/copy only — Duetto never deletes the source on drag-out. Remote panes opt out.
+        if (mainVm.LocalDragPayload(vm) is { } localPaths &&
+            TopLevel.GetTopLevel(this)?.StorageProvider is { } storage)
+        {
+            foreach (var path in localPaths)
+            {
+                if (await ToStorageItem(storage, path) is { } item)
+                    data.Add(DataTransferItem.CreateFile(item));
+            }
+        }
+
+        await DragDrop.DoDragDropAsync(e, data, DragDropEffects.Copy | DragDropEffects.Move);
+    }
+
+    private static async Task<IStorageItem?> ToStorageItem(IStorageProvider storage, string path) =>
+        Directory.Exists(path)
+            ? await storage.TryGetFolderFromPathAsync(path)
+            : await storage.TryGetFileFromPathAsync(path);
+
+    private void OnDragEnter(object? sender, DragEventArgs e) => UpdateDropFeedback(e);
+
+    private void OnDragOver(object? sender, DragEventArgs e) => UpdateDropFeedback(e);
+
+    private void OnDragLeave(object? sender, DragEventArgs e)
+    {
+        if (Vm is { } vm)
+            vm.IsDropTarget = false;
+    }
+
+    private void UpdateDropFeedback(DragEventArgs e)
+    {
+        var effect = ResolveDropEffect(e);
+        e.DragEffects = effect;
+        if (Vm is { } vm)
+            vm.IsDropTarget = effect != DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    // Whole-pane target: Copy by default, Move on Shift. Rejects a drop while an operation is in
+    // flight, and rejects an internal drag back onto its own source pane.
+    private DragDropEffects ResolveDropEffect(DragEventArgs e)
+    {
+        if (Vm is not { } targetVm || MainVm is not { } mainVm)
+            return DragDropEffects.None;
+        if (mainVm.ActiveOperation is { IsFinished: false })
+            return DragDropEffects.None;
+
+        var move = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+
+        if (e.DataTransfer.TryGetValue(PaneDragFormat) is { } side)
+        {
+            var sourcePane = side == "left" ? mainVm.Left : mainVm.Right;
+            if (ReferenceEquals(sourcePane, targetVm))
+                return DragDropEffects.None;
+            return move ? DragDropEffects.Move : DragDropEffects.Copy;
+        }
+
+        if (e.DataTransfer.TryGetFiles() is { Length: > 0 })
+            return move ? DragDropEffects.Move : DragDropEffects.Copy;
+
+        return DragDropEffects.None;
+    }
+
+    private void OnDrop(object? sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        if (Vm is not { } targetVm)
+            return;
+        targetVm.IsDropTarget = false;
+        if (MainVm is not { } mainVm)
+            return;
+
+        var move = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+
+        if (e.DataTransfer.TryGetValue(PaneDragFormat) is { } side)
+        {
+            var sourcePane = side == "left" ? mainVm.Left : mainVm.Right;
+            mainVm.DropBetweenPanes(sourcePane, targetVm, move);
+            return;
+        }
+
+        var osPaths = OsFilePaths(e);
+        if (osPaths.Count > 0)
+            mainVm.DropFromOs(targetVm, osPaths, move);
+    }
+
+    private static List<string> OsFilePaths(DragEventArgs e)
+    {
+        if (e.DataTransfer.TryGetFiles() is not { } files)
+            return [];
+        return files
+            .Select(file => file.TryGetLocalPath())
+            .Where(path => !string.IsNullOrEmpty(path))
+            .Select(path => path!)
+            .ToList();
     }
 
     // Reload replaces every row container; if the focused one died with it, keyboard focus
@@ -169,6 +325,27 @@ public partial class PaneView : UserControl
     {
         if (sender is TextBox { DataContext: FileRowViewModel { IsEditing: true } row } && Vm is { } vm)
             vm.CommitRenameFromBlur(row);
+    }
+
+    // Double-click the path bar to copy the pane's current path to the clipboard. Double-taps on
+    // the volume chip are ignored — the chip owns its own single-click action (the drives flyout).
+    private async void OnPathBarDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (Vm is not { } vm || IsWithinVolumeChip(e.Source as Visual))
+            return;
+        if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+            await clipboard.SetTextAsync(vm.CurrentPath);
+    }
+
+    private bool IsWithinVolumeChip(Visual? source)
+    {
+        for (var visual = source; visual is not null; visual = visual.GetVisualParent())
+        {
+            if (ReferenceEquals(visual, VolumeChip))
+                return true;
+        }
+
+        return false;
     }
 
     private void OnVolumeChipClicked(object? sender, RoutedEventArgs e)
