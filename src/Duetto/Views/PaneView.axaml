@@ -3,7 +3,8 @@
              xmlns:vm="using:Duetto.ViewModels"
              x:Class="Duetto.Views.PaneView"
              x:DataType="vm:PaneViewModel"
-             x:Name="Root">
+             x:Name="Root"
+             DragDrop.AllowDrop="True">
   <UserControl.Styles>
     <!-- Path bar: tinted when the pane is active -->
     <Style Selector="Border#PathBar">
@@ -59,7 +60,9 @@
     <!-- Path bar -->
     <Border Grid.Row="0" x:Name="PathBar"
             BorderBrush="{StaticResource Hairline}" BorderThickness="0,0,0,1"
-            Classes.active="{Binding IsActive}">
+            Classes.active="{Binding IsActive}"
+            DoubleTapped="OnPathBarDoubleTapped"
+            ToolTip.Tip="Double-click to copy this path">
       <DockPanel Margin="9,0,12,0" VerticalAlignment="Center">
         <TextBlock DockPanel.Dock="Right" Text="ACTIVE"
                    IsVisible="{Binding IsActive}"
@@ -401,6 +404,10 @@
                    VerticalAlignment="Center" />
       </StackPanel>
     </Border>
+
+    <!-- Drop-target highlight: accent border over the rows while a valid drag hovers this pane -->
+    <Border Grid.Row="2" IsHitTestVisible="False" IsVisible="{Binding IsDropTarget}"
+            BorderBrush="{StaticResource Accent}" BorderThickness="2" />
 
     <!-- Status bar -->
     <Border Grid.Row="3" Background="{StaticResource ToolbarBg}"
