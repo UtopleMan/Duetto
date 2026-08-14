@@ -1,10 +1,5 @@
 namespace Duetto.Core.Remote;
 
-// Write stream for an S3 object. S3 has no append/seek and a single PUT must know its length, so
-// writes spool to a temp file; on close the rewound temp stream is handed to `upload` (which runs
-// a multipart-capable PUT). The object only becomes visible once the upload completes, so a failed
-// transfer never exposes a partial object — this is why the S3 provider needs no ".part" staging.
-// Backed by a delegate so it can be unit-tested without a network.
 internal sealed class S3FileStream : Stream
 {
     private readonly FileStream temp;
@@ -73,7 +68,6 @@ internal sealed class S3FileStream : Stream
                 }
                 catch (IOException)
                 {
-                    // Best-effort temp cleanup; a leaked temp file must not fail the transfer.
                 }
             }
         }

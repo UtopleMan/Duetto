@@ -25,9 +25,6 @@ public sealed class SftpFileSystemProviderContractTests : FileSystemProviderCont
 
     protected override IFileSystemProvider Provider => _provider;
 
-    // Using a sub-directory instead of "/" avoids the contract's Stat(Root) call hitting
-    // the virtual root, and matches what a real SFTP session would provide (the server's
-    // InitialRemotePath rather than the filesystem root).
     protected override string Root => "/test";
 
     public void Dispose()
@@ -42,7 +39,6 @@ public sealed class SftpFileSystemProviderContractTests : FileSystemProviderCont
         var file = _provider.CreateFile(Root, "perm.txt");
         var entry = _provider.Stat(file);
         Assert.NotNull(entry);
-        // Fake default node: owner rw, group r, others r → rw-r--r--
         Assert.Equal("rw-r--r--", entry.UnixPermissions);
         Assert.Equal("RW", entry.AccessSummary);
     }
@@ -58,8 +54,6 @@ public sealed class SftpFileSystemProviderContractTests : FileSystemProviderCont
         Assert.Equal(t, entry.ModifiedUtc);
     }
 
-    // List and EnumerateRecursive must never expose the "." or ".." synthetic entries
-    // that a real SFTP server always emits.
     [Fact]
     public void Dot_and_dotdot_entries_are_filtered_from_List_and_EnumerateRecursive()
     {
@@ -89,8 +83,6 @@ public sealed class SftpFileSystemProviderContractTests : FileSystemProviderCont
         Assert.False(_provider.FileExists(inner + "/file.txt"));
     }
 
-    // Exercises WithReconnect's !IsConnected branch: after an explicit Disconnect the
-    // next provider call auto-connects and succeeds.
     [Fact]
     public void List_auto_connects_after_explicit_disconnect()
     {
@@ -101,14 +93,9 @@ public sealed class SftpFileSystemProviderContractTests : FileSystemProviderCont
         Assert.Contains(entries, e => e.Name == "ping.txt");
     }
 
-    // Exercises WithReconnect's SshConnectionException-catch branch: the fake adapter
-    // throws SshConnectionException from ListDirectory exactly once (simulating a
-    // mid-operation connection drop).  WithReconnect must reconnect exactly once and
-    // retry; the retried op's result must reach the caller.
     [Fact]
     public void Reconnect_once_on_SshConnectionException_then_retries()
     {
-        // Priming the tree lazily connects: ConnectCount becomes 1.
         _provider.CreateFile(Root, "ping.txt");
         Assert.Equal(1, _adapter.ConnectCount);
 
@@ -120,9 +107,6 @@ public sealed class SftpFileSystemProviderContractTests : FileSystemProviderCont
         Assert.Equal(2, _adapter.ConnectCount);
     }
 
-    // A per-directory low-level SshException (not a connection drop) must not abort the
-    // whole recursive walk: the failing directory's contents are skipped and the rest of
-    // the tree is still yielded.
     [Fact]
     public void EnumerateRecursive_skips_directory_that_throws_SshException_and_continues()
     {
@@ -137,12 +121,10 @@ public sealed class SftpFileSystemProviderContractTests : FileSystemProviderCont
 
         Assert.Contains("ok", names);
         Assert.Contains("visible.txt", names);
-        Assert.Contains("bad", names);            // the entry itself comes from listing Root
-        Assert.DoesNotContain("hidden.txt", names); // but its contents are skipped
+        Assert.Contains("bad", names);
+        Assert.DoesNotContain("hidden.txt", names);
     }
 
-    // Swallowing this would silently truncate search results when a mid-walk reconnect
-    // fails auth; the walk must propagate it rather than skipping the directory.
     [Fact]
     public void EnumerateRecursive_propagates_SshAuthenticationException_from_subdirectory()
     {

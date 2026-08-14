@@ -23,7 +23,6 @@ public sealed class SmbFileStreamTests
         }
 
         Assert.True(closed);
-        // 10 bytes, chunk 4 -> flushes at (0,4), (4,4), then remainder (8,2) on dispose.
         Assert.Equal(new long[] { 0, 4, 8 }, writes.Select(w => w.Offset).ToArray());
         Assert.All(writes, w => Assert.True(w.Data.Length <= 4));
         Assert.Equal(payload, writes.SelectMany(w => w.Data).ToArray());

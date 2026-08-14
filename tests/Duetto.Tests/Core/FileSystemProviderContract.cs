@@ -4,9 +4,6 @@ using Duetto.Tests.Support;
 
 namespace Duetto.Tests.Core;
 
-// Shared contract every IFileSystemProvider must satisfy: subclasses supply a provider and
-// an empty Root so the same behaviour can be exercised against local, in-memory, and SFTP
-// backends.
 public abstract class FileSystemProviderContract
 {
     protected abstract IFileSystemProvider Provider { get; }

@@ -28,7 +28,6 @@ public class VolumeCatalogTests
     [Fact]
     public void Build_mac_root_ignores_mount_path_echoed_as_label()
     {
-        // Unix DriveInfo.VolumeLabel returns the mount path itself; it is not a real label.
         var volumes = VolumeCatalog.Build([Src("/", label: "/")], VolumePlatform.Mac);
         Assert.Equal("Macintosh HD", Assert.Single(volumes).Name);
     }
@@ -82,13 +81,13 @@ public class VolumeCatalogTests
     }
 
     [Theory]
-    [InlineData("/", VolumePlatform.Mac, DriveType.Fixed, false)]           // root never ejectable
+    [InlineData("/", VolumePlatform.Mac, DriveType.Fixed, false)]
     [InlineData("/Volumes/Backups", VolumePlatform.Mac, DriveType.Fixed, true)]
     [InlineData("/media/usb", VolumePlatform.Linux, DriveType.Fixed, true)]
     [InlineData("/run/media/anna/usb", VolumePlatform.Linux, DriveType.Fixed, true)]
     [InlineData("/mnt/data", VolumePlatform.Linux, DriveType.Fixed, true)]
     [InlineData("/home", VolumePlatform.Linux, DriveType.Fixed, false)]
-    [InlineData(@"D:\", VolumePlatform.Windows, DriveType.Removable, true)] // removable always
+    [InlineData(@"D:\", VolumePlatform.Windows, DriveType.Removable, true)]
     [InlineData(@"C:\", VolumePlatform.Windows, DriveType.Fixed, false)]
     public void Build_ejectable_rules(string mount, VolumePlatform platform, DriveType type, bool expected)
     {
@@ -113,7 +112,6 @@ public class VolumeCatalogTests
         Assert.Equal("Backups", VolumeCatalog.FindByPath(volumes, "/Volumes/Backups/2026-07")?.Name);
         Assert.Equal("Macintosh HD", VolumeCatalog.FindByPath(volumes, "/Users/anna")?.Name);
         Assert.Equal("Backups", VolumeCatalog.FindByPath(volumes, "/Volumes/Backups")?.Name);
-        // "/Volumes/BackupsOld" must NOT match the "/Volumes/Backups" mount
         Assert.Equal("Macintosh HD", VolumeCatalog.FindByPath(volumes, "/Volumes/BackupsOld/x")?.Name);
         Assert.Null(VolumeCatalog.FindByPath([], "/anything"));
     }

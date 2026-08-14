@@ -9,14 +9,11 @@ public partial class FileRowViewModel : ObservableObject
 
     public bool IsParentNav { get; }
 
-    // Synthetic row shown in edit mode before the entry exists on disk; commit creates the
-    // real entry, cancel discards this row.
     public bool IsNewPlaceholder { get; }
 
     [ObservableProperty]
     private bool _isEditing;
 
-    // Marked for operations (Insert/⌘-click). Independent of the cursor.
     [ObservableProperty]
     private bool _isMarked;
 
@@ -77,7 +74,6 @@ public partial class FileRowViewModel : ObservableObject
     public string PermsText => Entry.UnixPermissions;
     public string AccessText => Entry.AccessSummary;
 
-    // Last column: "RW" summary on Windows, rwx string on Unix (design 1a vs 1b/1c).
     public string AccessColText => OperatingSystem.IsWindows() ? AccessText : PermsText;
     public string MarkColor => Entry.IsDirectory
         ? PaletteLookup.Hex("FolderMark", "#c8992f")

@@ -2,15 +2,12 @@ using Duetto.Core.Remote;
 
 namespace Duetto.Tests.Core.Remote;
 
-// In-memory IS3ClientAdapter for provider/manager/stream unit tests — no network, no AWSSDK.
-// Mirrors S3 delimiter listing: keys with a '/' after the prefix collapse into folder entries.
 internal sealed class FakeS3ClientAdapter : IS3ClientAdapter
 {
     private readonly Dictionary<string, Dictionary<string, (byte[] Data, DateTime Mtime)>> buckets = new();
 
     public bool Connected { get; private set; }
 
-    // Counters let tests prove a move went server-side (CopyObject, no client read).
     public int CopyCount { get; private set; }
     public int ReadCount { get; private set; }
 
@@ -27,7 +24,6 @@ internal sealed class FakeS3ClientAdapter : IS3ClientAdapter
 
     public bool IsConnected => Connected;
 
-    // Set to make the next Connect() throw (simulates auth/endpoint failure).
     public Exception? NextConnectThrow { get; set; }
 
     public void Connect()

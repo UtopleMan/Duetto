@@ -2,17 +2,11 @@ using Duetto.Core.FileSystem;
 
 namespace Duetto.Core.Remote;
 
-// The provider-local root "/" maps to the server's share list; "/share/..." operates inside a
-// share's tree. This provider serialises concurrent calls with a lock (SmbConnection is not
-// thread-safe) so UI panes and search threads are safe.
 public sealed class SmbFileSystemProvider : IFileSystemProvider, IBackendIdentity, IServerSideCopy, IDisposable
 {
     private readonly SmbConnection conn;
     private readonly Lock gate = new();
 
-    // HasPermissions = false: SMB exposes DOS attributes / ACLs, not a POSIX mode.
-    // AtomicRename = true: SMB2 rename-with-ReplaceIfExists finishes a ".part" with no gap.
-    // HasTrash = false: remote delete is always permanent.
     public static readonly FileSystemCapabilities SmbCapabilities = new()
     {
         CanRename = true,
@@ -138,7 +132,6 @@ public sealed class SmbFileSystemProvider : IFileSystemProvider, IBackendIdentit
         return target;
     }
 
-    // SMB rename does not overwrite when ReplaceIfExists is false, so guard the destination.
     public void Move(string fromPath, string toPath)
     {
         Exec(a =>
@@ -157,8 +150,6 @@ public sealed class SmbFileSystemProvider : IFileSystemProvider, IBackendIdentit
             {
                 a.RenameFile(from, to, replaceExisting: true);
             }
-            // A server that rejects atomic replace falls back to delete-then-rename; a real
-            // connection/auth drop is not swallowed so WithReconnect can react.
             catch (IOException ex) when (ex is not SmbConnectionException and not SmbAuthenticationException)
             {
                 if (a.Exists(to))
@@ -179,8 +170,6 @@ public sealed class SmbFileSystemProvider : IFileSystemProvider, IBackendIdentit
 
         if (entry.IsDirectory)
         {
-            // Materialise the listing before deleting children so a reconnect mid-delete
-            // does not re-enumerate from the top.
             var children = a.ListDirectory(path)
                             .Where(e => e.Name is not ("." or ".."))
                             .ToList();
@@ -195,9 +184,6 @@ public sealed class SmbFileSystemProvider : IFileSystemProvider, IBackendIdentit
         }
     }
 
-    // Stream lifetime mirrors SFTP: the returned stream is bound to the connection live at open
-    // time; a reconnect does not migrate it. Callers must treat stream failures as fatal for the
-    // operation and re-open, not retry the individual read/write.
     public Stream OpenRead(string path) => Exec(a => a.OpenRead(path));
 
     public Stream OpenWrite(string path) => Exec(a => a.OpenWrite(path));
@@ -205,10 +191,6 @@ public sealed class SmbFileSystemProvider : IFileSystemProvider, IBackendIdentit
     public void SetLastWriteTimeUtc(string path, DateTime utc) =>
         Exec(a => a.SetLastWriteTimeUtc(path, utc));
 
-    // Per-directory low-level failures are swallowed so the walk continues past bad directories
-    // (matching SftpFileSystemProvider). A SmbConnectionException / SmbAuthenticationException
-    // means the single reconnect retry already failed (or auth is broken), so it propagates
-    // rather than silently truncating results.
     public IEnumerable<FileEntry> EnumerateRecursive(string path)
     {
         if (IsRoot(path))
@@ -261,10 +243,6 @@ public sealed class SmbFileSystemProvider : IFileSystemProvider, IBackendIdentit
 
     public VolumeInfo? VolumeFor(string path) => null;
 
-    // Server-side rename/copy domain: same host + same share. The share is the first path
-    // segment; the share-list root has no domain. Host and share are compared case-insensitively
-    // (SMB is case-insensitive), so two panes on the same host+share yield equal keys even as
-    // separate connections/provider instances.
     public string? BackendKey(string path)
     {
         if (IsRoot(path))
@@ -277,9 +255,6 @@ public sealed class SmbFileSystemProvider : IFileSystemProvider, IBackendIdentit
         return $"smb://{conn.Host.ToLowerInvariant()}/{share.ToLowerInvariant()}";
     }
 
-    // Server-side copy via the adapter (SMB copychunk). The engine gates this on BackendKey
-    // equality (same host+share), so `dest` is reachable within this connection's tree. Returns
-    // false when the server lacks copychunk, so the engine streams instead.
     public bool TryServerSideCopy(string source, string dest, Action<long> onBytesCopied, CancellationToken token)
         => Exec(a => a.ServerSideCopy(source, dest, onBytesCopied, token));
 

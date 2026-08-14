@@ -7,9 +7,6 @@ using Azure.Storage.Sas;
 
 namespace Duetto.Core.Remote;
 
-// Wraps Azure.Storage.Blobs behind IAzureClientAdapter. The SDK's synchronous surface is used
-// directly (the provider is synchronous and already runs transfers off the UI thread). All blob
-// names are '/'-separated; FullName on returned entries is the provider-local "/container/blob" form.
 internal sealed class RealAzureClientAdapter(AzureConnectionInfo info, ConnectSecret secret) : IAzureClientAdapter
 {
     private BlobServiceClient? client;
@@ -21,17 +18,11 @@ internal sealed class RealAzureClientAdapter(AzureConnectionInfo info, ConnectSe
     public void Connect()
     {
         client = null;
-        // Wrap construction too: a malformed connection string / endpoint makes the SDK throw here,
-        // which must surface as a dialog error, not a crash.
         client = Run(BuildServiceClient);
 
-        // Anonymous access (public container) usually cannot list containers — there is no cheap call
-        // to validate, so skip eager validation and let per-blob reads authorize themselves.
         if (info.AuthMode == AzureAuthMode.Anonymous)
             return;
 
-        // Validate credentials + endpoint eagerly so failures surface in the connect dialog. A scoped
-        // container cannot list the account, so probe that container instead.
         if (string.IsNullOrEmpty(info.Container))
             ListContainers();
         else
@@ -51,21 +42,16 @@ internal sealed class RealAzureClientAdapter(AzureConnectionInfo info, ConnectSe
     private BlobServiceClient BuildSasClient()
     {
         var sas = secret.Password ?? string.Empty;
-        // A full SAS URL carries its own endpoint; a bare token pairs with the account endpoint.
         return sas.Contains("://", StringComparison.Ordinal)
             ? new BlobServiceClient(new Uri(sas))
             : new BlobServiceClient(ServiceUri(), new AzureSasCredential(sas));
     }
 
-    // Blank endpoint targets real Azure (https://{account}.blob.core.windows.net); a custom endpoint
-    // (emulator / on-prem) carries the account in its path, e.g. http://127.0.0.1:10000/devstoreaccount1.
     private Uri ServiceUri() =>
         string.IsNullOrWhiteSpace(info.Endpoint)
             ? new Uri($"https://{info.AccountName}.blob.core.windows.net")
             : new Uri(NormalizeEndpoint(info.Endpoint));
 
-    // Users commonly enter just a host; default to https so it forms a valid URL. A user who needs
-    // http (or a non-default port) types the full URL, which passes through unchanged.
     internal static string NormalizeEndpoint(string endpoint)
     {
         var trimmed = endpoint.Trim();
@@ -96,7 +82,6 @@ internal sealed class RealAzureClientAdapter(AzureConnectionInfo info, ConnectSe
             else
             {
                 var b = item.Blob;
-                // Skip the folder's own marker (name == prefix) and any "…/" placeholder.
                 if (b.Name == prefix || b.Name.EndsWith('/'))
                     continue;
                 entries.Add(new AzureEntry(LeafOfKey(b.Name), ObjectPath(container, b.Name), IsDirectory: false, IsReadOnly: false, b.Properties.ContentLength ?? 0, b.Properties.LastModified?.UtcDateTime ?? default));
@@ -147,8 +132,6 @@ internal sealed class RealAzureClientAdapter(AzureConnectionInfo info, ConnectSe
         var src = Blob(srcContainer, srcKey);
         var dst = Blob(dstContainer, dstKey);
 
-        // Copy Blob reads the source by URL; without a shared key we cannot mint a readable SAS, so
-        // fall back to client-side streaming (the provider handles that).
         if (!src.CanGenerateSasUri)
             return false;
 
@@ -185,7 +168,6 @@ internal sealed class RealAzureClientAdapter(AzureConnectionInfo info, ConnectSe
         return slash < 0 ? trimmed : trimmed[(slash + 1)..];
     }
 
-    // Translates SDK faults into the exception contract the connection/provider expect.
     private static T Run<T>(Func<T> op)
     {
         try
@@ -202,7 +184,6 @@ internal sealed class RealAzureClientAdapter(AzureConnectionInfo info, ConnectSe
         }
         catch (Exception ex) when (ex is UriFormatException or ArgumentException or FormatException)
         {
-            // Malformed endpoint / connection string — a configuration fault, not a crash.
             throw new AzureConnectionException(ex.Message, ex);
         }
     }
@@ -211,7 +192,6 @@ internal sealed class RealAzureClientAdapter(AzureConnectionInfo info, ConnectSe
 
     private static Exception Translate(RequestFailedException ex)
     {
-        // Status 0 means no HTTP response reached us (DNS/connect failure) — recoverable.
         if (ex.Status == 0)
             return new AzureConnectionException(ex.Message, ex);
 

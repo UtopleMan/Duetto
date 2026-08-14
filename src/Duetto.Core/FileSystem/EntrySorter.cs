@@ -10,7 +10,6 @@ public enum SortColumn
 
 public static class EntrySorter
 {
-    // Directories always group before files; the column orders within each group.
     public static List<FileEntry> Sort(IEnumerable<FileEntry> entries, SortColumn column, bool ascending)
     {
         var grouped = entries.OrderByDescending(e => e.IsDirectory);

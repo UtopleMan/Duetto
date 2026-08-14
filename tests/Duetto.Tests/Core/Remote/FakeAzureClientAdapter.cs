@@ -2,15 +2,12 @@ using Duetto.Core.Remote;
 
 namespace Duetto.Tests.Core.Remote;
 
-// In-memory IAzureClientAdapter for provider/manager/stream unit tests — no network, no SDK.
-// Mirrors blob delimiter listing: names with a '/' after the prefix collapse into folder entries.
 internal sealed class FakeAzureClientAdapter : IAzureClientAdapter
 {
     private readonly Dictionary<string, Dictionary<string, (byte[] Data, DateTime Mtime)>> containers = new();
 
     public bool Connected { get; private set; }
 
-    // Counters let tests prove a move went server-side (CopyBlob, no client read).
     public int CopyCount { get; private set; }
     public int ReadCount { get; private set; }
 
@@ -27,7 +24,6 @@ internal sealed class FakeAzureClientAdapter : IAzureClientAdapter
 
     public bool IsConnected => Connected;
 
-    // Set to make the next Connect() throw (simulates auth/endpoint failure).
     public Exception? NextConnectThrow { get; set; }
 
     public void Connect()

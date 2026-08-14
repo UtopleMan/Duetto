@@ -2,17 +2,12 @@ using Duetto.Core.FileSystem;
 
 namespace Duetto.Core.Remote;
 
-// SMB analogue of ConnectionManager: owns live SMB connections, registers each provider under
-// scheme "smb", and mirrors the same lock / evict-outside-lock discipline so state queries stay
-// responsive during a slow connect. No HostKeyStore — SMB has no host-key pinning.
 public sealed class SmbConnectionManager : IDisposable
 {
     private readonly FileSystemRegistry registry;
     private readonly ISmbClientFactory? factory;
     private readonly Lock gate = new();
 
-    // Lookups are case-insensitive; Entry.Id preserves the exact casing used when registering
-    // with the (case-sensitive) registry, so unregistering uses the stored casing.
     private readonly Dictionary<string, Entry> entries = new(StringComparer.OrdinalIgnoreCase);
 
     private bool disposed;
@@ -47,9 +42,6 @@ public sealed class SmbConnectionManager : IDisposable
             return entries.TryGetValue(id, out var e) && e.Connection.IsConnected;
     }
 
-    // The handshake can take seconds or hang, so it runs OUTSIDE the manager lock — concurrent
-    // IsConnected / ConnectedIds / Disconnect / Dispose calls stay responsive during a slow
-    // connect. Races during the unlocked window resolve last-writer-wins.
     public void Connect(SmbConnectionInfo info, ConnectSecret secret)
     {
         SmbConnection conn;

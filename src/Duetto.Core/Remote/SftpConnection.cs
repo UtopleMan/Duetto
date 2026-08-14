@@ -4,9 +4,6 @@ using Renci.SshNet.Sftp;
 
 namespace Duetto.Core.Remote;
 
-// Design rationale: ISftpClient has ~90 members and ISftpFile has ~30; exposing only these ops
-// — and returning the thin SftpEntry record instead of SSH.NET types — keeps the test fake small
-// and avoids implementing large SSH.NET interfaces in tests.
 public interface ISftpClientAdapter : IDisposable
 {
     bool IsConnected { get; }
@@ -17,10 +14,8 @@ public interface ISftpClientAdapter : IDisposable
 
     void SetHostKeyReceived(EventHandler<HostKeyEventArgs> handler);
 
-    // Includes "." and ".." entries (the provider filters them out).
     IEnumerable<SftpEntry> ListDirectory(string path);
 
-    // Null when the path does not exist.
     SftpEntry? Get(string path);
 
     bool IsDirectory(string path);
@@ -31,7 +26,6 @@ public interface ISftpClientAdapter : IDisposable
 
     void CreateFile(string path);
 
-    // When isPosix is true the rename is atomic and replaces an existing target (POSIX-rename extension).
     void RenameFile(string oldPath, string newPath, bool isPosix = false);
 
     void DeleteFile(string path);
@@ -47,10 +41,8 @@ public interface ISftpClientAdapter : IDisposable
     void SetLastWriteTimeUtc(string path, DateTime utc);
 }
 
-// Inject a fake in tests to avoid real socket opens.
 public interface ISftpClientFactory
 {
-    // Creates but does NOT connect the adapter.
     ISftpClientAdapter Create(ConnectionInfo info, ConnectSecret secret);
 }
 
@@ -126,7 +118,7 @@ internal sealed class RealSftpClientAdapter : ISftpClientAdapter
         _client.CreateDirectory(path);
 
     public void CreateFile(string path) =>
-        _client.Create(path).Dispose();   // Create() returns an open SftpFileStream; close it immediately
+        _client.Create(path).Dispose();
 
     public void RenameFile(string oldPath, string newPath, bool isPosix = false) =>
         _client.RenameFile(oldPath, newPath, isPosix);
@@ -169,11 +161,6 @@ internal sealed class RealSftpClientAdapter : ISftpClientAdapter
     public void Dispose() => _client.Dispose();
 }
 
-// Reconnect contract: on a SshConnectionException or a pre-call !IsConnected, WithReconnect performs
-// exactly one reconnect attempt and retries the operation once; a failure on the retry propagates
-// unchanged — no further retry.
-// Thread safety: Connect/Disconnect/WithReconnect are NOT thread-safe with respect to each other;
-// the provider must serialise concurrent calls if needed.
 public sealed class SftpConnection : IDisposable
 {
     private readonly ConnectionInfo _info;
@@ -206,9 +193,6 @@ public sealed class SftpConnection : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        // Dispose any stale adapter before creating a fresh one; null it out so a failed
-        // Connect below leaves the connection observably disconnected instead of pointing
-        // at a disposed adapter.
         _adapter?.Dispose();
         _adapter = null;
 
@@ -222,8 +206,6 @@ public sealed class SftpConnection : IDisposable
         }
         catch (Exception)
         {
-            // Failed handshake / bad credentials / HostKeyChangedException: the fresh
-            // adapter was never published to _adapter, so dispose it here and rethrow.
             adapter.Dispose();
             throw;
         }
@@ -250,7 +232,6 @@ public sealed class SftpConnection : IDisposable
         }
         catch (SshConnectionException)
         {
-            // Single reconnect attempt — exceptions here propagate directly.
             Connect();
             return op();
         }

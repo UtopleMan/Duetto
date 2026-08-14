@@ -63,8 +63,6 @@ public static class VolumeEjector
             using var process = new Process { StartInfo = psi };
             if (!process.Start())
                 return (127, $"{fileName} failed to start");
-            // Drain both pipes concurrently; reading only stderr while stdout fills
-            // its pipe buffer would block the child process forever.
             var stdOutTask = process.StandardOutput.ReadToEndAsync();
             var stdErr = await process.StandardError.ReadToEndAsync().ConfigureAwait(false);
             await stdOutTask.ConfigureAwait(false);
@@ -73,11 +71,11 @@ public static class VolumeEjector
         }
         catch (Win32Exception e)
         {
-            return (127, e.Message); // tool not installed — caller falls through to the next command
+            return (127, e.Message);
         }
         catch (IOException e)
         {
-            return (127, e.Message); // missing tool can surface as IOException on Linux/macOS
+            return (127, e.Message);
         }
     }
 }

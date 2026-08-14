@@ -1,7 +1,5 @@
 namespace Duetto.Core.FileSystem;
 
-// Register/Unregister/Resolve are all guarded by an internal lock so UI panes and search
-// threads may call Resolve concurrently with connection management writing the registry.
 public sealed class FileSystemRegistry
 {
     private readonly IFileSystemProvider _local = new LocalFileSystemProvider();

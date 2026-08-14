@@ -2,9 +2,6 @@ using System.Text.RegularExpressions;
 
 namespace Duetto.Tests.Ui;
 
-// Guards the Light/Dark palette dictionaries against drift: a dark theme with a
-// missing brush would fall back to nothing (or crash a StaticResource lookup), so
-// both dictionaries must define exactly the same set of x:Key brushes.
 public class PaletteParityTests
 {
     private static string RepoRoot()

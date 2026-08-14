@@ -127,8 +127,6 @@ public class DrivePopoverTests
     [AvaloniaFact]
     public void Tail_is_empty_at_mount_root_with_trailing_separator()
     {
-        // Simulates a Windows drive root: DriveInfo mounts keep the trailing
-        // separator ("D:\") and the pane path at the root carries it too.
         using var tmp = new TempDir();
         var mount = tmp.Dir("stick");
         var inside = tmp.Dir("stick/photos");
@@ -195,8 +193,6 @@ public class DrivePopoverTests
     [AvaloniaFact]
     public async Task Eject_row_stays_visible_but_disabled_while_ejecting()
     {
-        // Spec: the eject row must be *disabled* (not hidden) during an in-progress eject
-        // so the popover layout does not reflow.
         using var tmp = new TempDir();
         using var pane = new PaneViewModel(tmp.Path);
         var current = new VolumeInfo("Stick", tmp.Path, 1000, 500, "x · 1000 B", true);

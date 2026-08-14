@@ -19,8 +19,6 @@ public partial class SimpleOperationViewModel : ObservableObject, IStripOperatio
 
     public bool IsIndeterminate => true;
 
-    // How long the finished strip stays before auto-dismissing. Failures pass a longer linger
-    // so an error (e.g. a permission-denied delete) is readable, not a 1-second flash.
     public double DismissAfterSeconds { get; private set; } = 1.0;
 
     public event Action? Dismissed;
@@ -54,7 +52,6 @@ public partial class SimpleOperationViewModel : ObservableObject, IStripOperatio
 
     public void Dispose()
     {
-        // Cancel first so a still-running worker stops before we drop the source.
         _cts.Cancel();
         _cts.Dispose();
     }

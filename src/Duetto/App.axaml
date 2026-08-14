@@ -11,9 +11,7 @@
   <Application.Resources>
     <ResourceDictionary>
       <FontFamily x:Key="MonoFont">avares://Duetto/Assets/Fonts#IBM Plex Mono</FontFamily>
-      <!-- Palette lives in Themes/Palette.{Light,Dark}.axaml. Light is merged here as the
-           default (design-time preview + fallback); App startup appends the resolved palette
-           (Light or Dark, from settings.json) before any window loads. -->
+
       <ResourceDictionary.MergedDictionaries>
         <ResourceInclude Source="avares://Duetto/Themes/Palette.Light.axaml" />
       </ResourceDictionary.MergedDictionaries>

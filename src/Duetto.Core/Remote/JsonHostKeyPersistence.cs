@@ -2,8 +2,6 @@ using System.Text.Json;
 
 namespace Duetto.Core.Remote;
 
-// A missing or corrupt file loads as an empty dictionary — never throws. Saves write a
-// .tmp sibling first, then File.Move over the target, to prevent torn files.
 public sealed class JsonHostKeyPersistence : IHostKeyPersistence
 {
     private readonly string _path;

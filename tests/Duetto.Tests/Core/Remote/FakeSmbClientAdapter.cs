@@ -2,10 +2,6 @@ using Duetto.Core.Remote;
 
 namespace Duetto.Tests.Core.Remote;
 
-// In-memory SMB tree keyed by provider-local paths ("/share", "/share/dir/file"). Top-level
-// directories are the "shares" returned by ListShares. ListDirectory emits "." and ".." to
-// mirror a real SMB server; the provider filters them. OpenWrite writes back to the node on
-// Dispose.
 internal sealed class FakeSmbClientAdapter : ISmbClientAdapter
 {
     internal sealed class Node
@@ -51,24 +47,17 @@ internal sealed class FakeSmbClientAdapter : ISmbClientAdapter
     private bool connected;
     public bool IsConnected => connected;
 
-    // One-shot: the next Connect throws this then clears it. Used by reconnect tests.
     public Exception? NextConnectThrow { get; set; }
 
     public int ConnectCount { get; private set; }
 
-    // One-shot: the next ListDirectory enumeration throws this then clears it.
     public Exception? NextListThrow { get; set; }
 
-    // Persistent: every enumeration of a listed path throws the mapped exception.
     public Dictionary<string, Exception> ListThrowsByPath { get; } = new();
 
-    // Lock-scope tests: signalled on Connect entry; Connect blocks on the gate to simulate a
-    // slow handshake.
     public ManualResetEventSlim? ConnectEntered { get; set; }
     public ManualResetEventSlim? ConnectGate { get; set; }
 
-    // Lock-scope tests: signalled on Disconnect/Dispose entry; blocks on the gate to simulate a
-    // stalled graceful close.
     public ManualResetEventSlim? DisconnectEntered { get; set; }
     public ManualResetEventSlim? DisconnectGate { get; set; }
 
@@ -233,8 +222,6 @@ internal sealed class FakeSmbClientAdapter : ISmbClientAdapter
         node.LastWriteTimeUtc = DateTime.SpecifyKind(utc, DateTimeKind.Utc);
     }
 
-    // Toggle for engine + provider fallback tests: when false, ServerSideCopy returns false so
-    // the caller streams instead.
     public bool ServerSideCopySupported { get; set; } = true;
 
     public bool ServerSideCopy(string source, string dest, Action<long> onBytesCopied, CancellationToken token)
@@ -253,7 +240,6 @@ internal sealed class FakeSmbClientAdapter : ISmbClientAdapter
         return true;
     }
 
-    // Test hook: flip the read-only DOS attribute so provider mapping can be exercised.
     public void MarkReadOnly(string path, bool readOnly)
     {
         var n = Norm(path);

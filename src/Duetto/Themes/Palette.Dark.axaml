@@ -1,10 +1,6 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <!-- Duetto dark palette. Source: Claude design project 9547189c-a040-4169-8fed-38dc0d79972e,
-       "Duetto File Manager.dc.html" dark-mode turn. Canonical tokens (window/pane/recessed/
-       hairline/text/text-dim/accent/selection/folder/terminal/progress) are design-specified;
-       terminal internals, danger, amber and green carry over ("drawer inverts less, progress
-       unchanged"); the remaining gradations are derived to match the dark render. -->
+
   <SolidColorBrush x:Key="WindowBg">#232220</SolidColorBrush>
   <SolidColorBrush x:Key="ChromeBg">#1c1b18</SolidColorBrush>
   <SolidColorBrush x:Key="ToolbarBg">#211f1a</SolidColorBrush>
@@ -22,7 +18,7 @@
   <SolidColorBrush x:Key="HeaderText">#8f8d84</SolidColorBrush>
   <SolidColorBrush x:Key="Accent">#7fb0f5</SolidColorBrush>
   <SolidColorBrush x:Key="AccentDim">#5f7290</SolidColorBrush>
-  <!-- #AARRGGBB: translucent blue (#5B9CF0) over dark surfaces, not #RRGGBBAA. -->
+
   <SolidColorBrush x:Key="SelectionBg">#385B9CF0</SolidColorBrush>
   <SolidColorBrush x:Key="ActivePathBg">#245B9CF0</SolidColorBrush>
   <SolidColorBrush x:Key="ChipBg">#1F5B9CF0</SolidColorBrush>
@@ -48,8 +44,8 @@
   <SolidColorBrush x:Key="SuccessBg">#1c2b22</SolidColorBrush>
   <SolidColorBrush x:Key="SuccessBorder">#2c4636</SolidColorBrush>
   <SolidColorBrush x:Key="DangerBorder">#4a302c</SolidColorBrush>
-  <!-- macOS desk behind the floating pane cards (chrome 1b). -->
+
   <SolidColorBrush x:Key="DeskBg">#232220</SolidColorBrush>
-  <!-- Pin the Fluent accent to Duetto's blue so a green/other OS accent never bleeds in. -->
+
   <Color x:Key="SystemAccentColor">#7fb0f5</Color>
 </ResourceDictionary>

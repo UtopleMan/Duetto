@@ -6,8 +6,6 @@ public enum AuthMode
     Key,
 }
 
-// Secrets (password / key passphrase) are NOT stored here — they are supplied at
-// connect time via ConnectSecret.
 public sealed record ConnectionInfo(
     string Id,
     string Name,

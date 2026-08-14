@@ -100,9 +100,6 @@ public class CrossProviderTransferTests
     [Fact]
     public async Task Move_with_same_provider_cross_directory_removes_source_and_delivers_content()
     {
-        // IFileSystemProvider.Move (not Rename) is used for cross-directory moves even on the
-        // same provider instance.  After the move, the source is gone and the destination
-        // has the expected content.
         var fs = MakeMemFs();
         fs.CreateDirectory("/", "s");
         fs.CreateDirectory("/", "d");
@@ -237,8 +234,6 @@ public class CrossProviderTransferTests
         Assert.Equal("native move content", ReadText(inner, "/dst/file.txt"));
     }
 
-    // A forwarding wrapper (rather than a subclass) is needed because
-    // InMemoryFileSystemProvider is sealed.
     private sealed class MTimeCallSpy(IFileSystemProvider inner) : IFileSystemProvider
     {
         public bool MTimeWasSet { get; private set; }

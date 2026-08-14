@@ -14,12 +14,8 @@ public enum ConnectProtocol
     AzureBlob,
 }
 
-// One protocol-aware connect dialog (per the drive-popover design spec: a single "Connect…"
-// entry that opens one dialog with a protocol selector). SFTP and SMB keep separate on-disk
-// stores and managers; this VM routes connect/save by the selected Protocol.
 public partial class ConnectDialogViewModel : ObservableObject
 {
-    // Runs on a background thread; tests inject fakes that open no sockets.
     public Action<ConnectionInfo, ConnectSecret> ConnectAction { get; set; }
 
     public Action<SmbConnectionInfo, ConnectSecret> SmbConnectAction { get; set; }
@@ -36,7 +32,6 @@ public partial class ConnectDialogViewModel : ObservableObject
 
     public Action<StoredAzureConnection> AzureSaveAction { get; set; }
 
-    // Removes a stale host-key pin so the next connect attempt re-pins (SFTP only).
     public Action<string> ForgetKeyAction { get; set; }
 
     [ObservableProperty]
@@ -76,7 +71,6 @@ public partial class ConnectDialogViewModel : ObservableObject
     [ObservableProperty]
     private string _keyPassphrase = "";
 
-    // SMB only.
     [ObservableProperty]
     private string _domain = "";
 
@@ -87,7 +81,6 @@ public partial class ConnectDialogViewModel : ObservableObject
     [ObservableProperty]
     private string _initialRemotePath = "/";
 
-    // S3 only.
     [ObservableProperty]
     private string _endpoint = "";
 
@@ -118,7 +111,6 @@ public partial class ConnectDialogViewModel : ObservableObject
     [ObservableProperty]
     private string _bucket = "";
 
-    // Azure Blob only. Endpoint (reused from S3) is the optional custom service URL.
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AzureAccountVisible), nameof(AzureKeyVisible),
         nameof(AzureConnStringVisible), nameof(AzureSasVisible),
@@ -180,55 +172,38 @@ public partial class ConnectDialogViewModel : ObservableObject
     public bool IsAzureSasMode => AzureAuth == AzureAuthMode.Sas;
     public bool IsAzureAnonymousMode => AzureAuth == AzureAuthMode.Anonymous;
 
-    // SSH auth section (password/key radios + key file) is SFTP-only.
     public bool SftpAuthVisible => IsSftp;
 
-    // Domain + guest are SMB-only.
     public bool SmbFieldsVisible => IsSmb;
 
     public bool KeySectionVisible => IsSftp && IsKeyMode;
 
-    // Host + port apply to SFTP/SMB; S3 and Azure use an endpoint URL instead.
     public bool HostPortVisible => IsSftp || IsSmb;
 
-    // Endpoint / region / path-style / bucket / auth selector are S3-only.
     public bool S3FieldsVisible => IsS3;
 
-    // Access key + secret + session token show only for S3 Keys auth.
     public bool S3KeysVisible => IsS3 && S3Auth == S3AuthMode.Keys;
 
-    // Profile name shows only for S3 Profile auth.
     public bool S3ProfileVisible => IsS3 && S3Auth == S3AuthMode.Profile;
 
-    // Endpoint / container / auth selector are Azure-only.
     public bool AzureFieldsVisible => IsAzure;
 
-    // Account name shows for the modes that need it (SharedKey; also useful for SAS/Anonymous to
-    // build the default endpoint). Hidden for ConnectionString (the string carries the account).
     public bool AzureAccountVisible => IsAzure && AzureAuth != AzureAuthMode.ConnectionString;
 
-    // Account key shows only for Azure SharedKey auth.
     public bool AzureKeyVisible => IsAzure && AzureAuth == AzureAuthMode.SharedKey;
 
-    // Connection string shows only for Azure ConnectionString auth.
     public bool AzureConnStringVisible => IsAzure && AzureAuth == AzureAuthMode.ConnectionString;
 
-    // SAS token shows only for Azure SAS auth.
     public bool AzureSasVisible => IsAzure && AzureAuth == AzureAuthMode.Sas;
 
-    // Container field is shown for every Azure mode (required for Anonymous).
     public bool AzureContainerVisible => IsAzure;
 
-    // The password box is shown for SFTP password auth and for non-guest SMB.
     public bool PasswordVisible => (IsSftp && IsPasswordMode) || (IsSmb && !Guest);
 
-    // Any Azure mode except Anonymous carries a persistable secret.
     public bool AzureSecretVisible => IsAzure && AzureAuth != AzureAuthMode.Anonymous;
 
-    // The "save secret" checkbox covers SFTP/SMB passwords, the S3 secret key, and Azure secrets.
     public bool SaveSecretVisible => PasswordVisible || S3KeysVisible || AzureSecretVisible;
 
-    // Username is hidden for SMB guest connections and for S3/Azure (which use keys).
     public bool UsernameVisible => IsSftp || (IsSmb && !Guest);
 
     public bool HostKeyWarningVisible => IsSftp && IsHostKeyChanged;
@@ -245,7 +220,6 @@ public partial class ConnectDialogViewModel : ObservableObject
     public event Action<AzureConnectionInfo>? AzureConnected;
     public event Action? Cancelled;
 
-    // Null for a new connection, set when editing an existing one.
     private string? _editingId;
 
     private readonly SecretCodec _codec;
@@ -315,7 +289,6 @@ public partial class ConnectDialogViewModel : ObservableObject
         _codec = codec;
     }
 
-    // Swap the port default when switching protocols, unless the user already set a custom port.
     partial void OnProtocolChanged(ConnectProtocol value)
     {
         if (value == ConnectProtocol.Smb && PortText == "22")
@@ -468,7 +441,6 @@ public partial class ConnectDialogViewModel : ObservableObject
         S3AuthMode.Keys when string.IsNullOrWhiteSpace(AccessKeyId) => "Access key ID is required",
         S3AuthMode.Keys when string.IsNullOrWhiteSpace(SecretKey) => "Secret access key is required",
         S3AuthMode.Profile when string.IsNullOrWhiteSpace(Profile) => "Profile name is required",
-        // Anonymous cannot list buckets, so a specific bucket is mandatory.
         S3AuthMode.Anonymous when string.IsNullOrWhiteSpace(Bucket) => "Bucket is required for anonymous access",
         _ => null,
     };
@@ -480,7 +452,6 @@ public partial class ConnectDialogViewModel : ObservableObject
         AzureAuthMode.ConnectionString when string.IsNullOrWhiteSpace(AzureConnectionString) => "Connection string is required",
         AzureAuthMode.Sas when string.IsNullOrWhiteSpace(AzureSasToken) => "SAS token is required",
         AzureAuthMode.Sas when string.IsNullOrWhiteSpace(AzureAccount) && string.IsNullOrWhiteSpace(Endpoint) => "Account name or endpoint is required",
-        // Anonymous cannot list containers, so a specific container is mandatory.
         AzureAuthMode.Anonymous when string.IsNullOrWhiteSpace(AzureContainer) => "Container is required for anonymous access",
         AzureAuthMode.Anonymous when string.IsNullOrWhiteSpace(AzureAccount) && string.IsNullOrWhiteSpace(Endpoint) => "Account name or endpoint is required",
         _ => null,
@@ -583,7 +554,6 @@ public partial class ConnectDialogViewModel : ObservableObject
         }
 
         var info = BuildInfo();
-        // Lock in the editing id so the same GUID is reused if this is an edit.
         _editingId = info.Id;
         var secret = BuildSecret();
 

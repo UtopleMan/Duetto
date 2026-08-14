@@ -2,7 +2,6 @@ namespace Duetto.Core.FileSystem;
 
 public sealed record RemoteAddress(string Scheme, string Id, string LocalPath);
 
-// Remote addresses always use '/'; local paths delegate to System.IO.Path.
 public static class PathUtil
 {
     private const string SchemeSeparator = "://";
@@ -26,7 +25,6 @@ public static class PathUtil
         return new RemoteAddress(scheme, id, local.Length == 0 ? "/" : local);
     }
 
-    // Returns "" at a remote root.
     public static string Leaf(string path)
     {
         if (ParseRemote(path) is not { } r)
@@ -43,7 +41,7 @@ public static class PathUtil
 
         var local = r.LocalPath.TrimEnd('/');
         if (local.Length == 0)
-            return null; // already at the remote root
+            return null;
 
         var slash = local.LastIndexOf('/');
         var parentLocal = slash <= 0 ? "/" : local[..slash];
@@ -60,8 +58,6 @@ public static class PathUtil
         return Rebuild(r, childLocal);
     }
 
-    // When the owning pane shows a remote directory, rebuild the full scheme://id/… address
-    // for a provider-local row path; local pane paths pass through unchanged.
     public static string ToAddress(string panePath, string rowPath) =>
         ParseRemote(panePath) is { } r
             ? $"{r.Scheme}://{r.Id}{rowPath}"

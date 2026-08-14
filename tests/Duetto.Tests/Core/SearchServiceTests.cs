@@ -59,7 +59,7 @@ public class SearchServiceTests : IDisposable
     public async Task Unreadable_subdirectory_does_not_abort_search()
     {
         if (OperatingSystem.IsWindows())
-            return; // chmod-based denial is unix-only
+            return;
         _tmp.File("visible/find-me.txt", "x");
         var locked = _tmp.Dir("locked");
         File.WriteAllText(Path.Combine(locked, "find-me-too.txt"), "x");
@@ -96,8 +96,6 @@ public class SearchServiceTests : IDisposable
     }
 }
 
-// Guards RelativeFolder when the search scope is the provider root "/" (localPath has a
-// trailing separator) — the scopeBase-trimming edge case.
 public class SearchServiceRootScopeTests
 {
     [Fact]
@@ -144,7 +142,6 @@ public class SearchServiceRootScopeTests
         var reg = new Duetto.Core.FileSystem.FileSystemRegistry();
         reg.Register("mem", "host", mem);
 
-        // Scope is the root with a trailing slash — this is the bug-trigger case.
         var scope = "mem://host/";
 
         var stats = new SearchStats();
@@ -253,7 +250,6 @@ public class SearchServiceProviderTests
     [Fact]
     public async Task SupportsSearch_false_yields_no_results()
     {
-        // Provider with SupportsSearch=false must return an empty sequence — no exception.
         var (reg, scope, mem) = BuildMemRegistry("/scope", supportsSearch: false);
         SeedFile(mem, "/scope/findme.txt", "target");
 

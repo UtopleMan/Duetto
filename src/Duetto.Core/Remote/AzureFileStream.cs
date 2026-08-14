@@ -1,9 +1,5 @@
 namespace Duetto.Core.Remote;
 
-// Write stream for a block blob. A single upload wants a seekable source, so writes spool to a temp
-// file; on close the rewound temp stream is handed to `upload`. The blob only becomes visible once
-// the upload completes, so a failed transfer never exposes a partial blob — this is why the Azure
-// provider needs no ".part" staging. Backed by a delegate so it can be unit-tested without a network.
 internal sealed class AzureFileStream : Stream
 {
     private readonly FileStream temp;
@@ -72,7 +68,6 @@ internal sealed class AzureFileStream : Stream
                 }
                 catch (IOException)
                 {
-                    // Best-effort temp cleanup; a leaked temp file must not fail the transfer.
                 }
             }
         }

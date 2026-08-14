@@ -1,6 +1,6 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <!-- Duetto light palette (design spec t0/1a-1g). Moved verbatim from App.axaml. -->
+
   <SolidColorBrush x:Key="WindowBg">#faf9f7</SolidColorBrush>
   <SolidColorBrush x:Key="ChromeBg">#f0eeea</SolidColorBrush>
   <SolidColorBrush x:Key="ToolbarBg">#f6f5f2</SolidColorBrush>
@@ -43,8 +43,8 @@
   <SolidColorBrush x:Key="SuccessBg">#e7f3ec</SolidColorBrush>
   <SolidColorBrush x:Key="SuccessBorder">#cfe6d9</SolidColorBrush>
   <SolidColorBrush x:Key="DangerBorder">#eed7d4</SolidColorBrush>
-  <!-- macOS desk behind the floating pane cards (chrome 1b). -->
+
   <SolidColorBrush x:Key="DeskBg">#e8e6e1</SolidColorBrush>
-  <!-- Pin the Fluent accent to Duetto's blue so a green/other OS accent never bleeds in. -->
+
   <Color x:Key="SystemAccentColor">#2f6fd0</Color>
 </ResourceDictionary>

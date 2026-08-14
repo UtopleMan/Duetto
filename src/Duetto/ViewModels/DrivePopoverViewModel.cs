@@ -16,20 +16,16 @@ public sealed class VolumeRowViewModel(VolumeInfo volume, bool isCurrent)
     public string SwatchColor => IsCurrent
         ? PaletteLookup.Hex("Accent", "#2f6fd0")
         : Volume.IsEjectable ? PaletteLookup.Hex("FolderMark", "#c8992f") : PaletteLookup.Hex("TextMid", "#5b5950");
-    // Saturated usage-bar colors read on both light and dark backgrounds, so they stay literal.
     public string BarColor => Volume.UsedPercent switch
     {
         > 90 => "#b8443c",
         > 75 => "#c07a3a",
         _ => "#2f8f5b",
     };
-    public double BarWidth => Volume.UsedPercent * 1.7; // track is 170px wide
+    public double BarWidth => Volume.UsedPercent * 1.7;
     public string RowBg => IsCurrent ? PaletteLookup.Hex("ChipBg", "#eef1f7") : "Transparent";
 }
 
-// One row in the popover's "Connected Shares" list. Scheme-tagged so a single list can merge
-// SFTP and SMB connections drawn from two separate stores; exactly one of Stored / SmbStored is
-// set. The view routes activate/edit/remove by Scheme.
 public sealed class ShareRowViewModel
 {
     public string Scheme { get; }
@@ -73,7 +69,6 @@ public sealed class ShareRowViewModel
         IsConnected = isConnected;
         Id = stored.Id;
         Name = stored.Name;
-        // No host for S3; show the endpoint (blank = AWS) so the row still has a subtitle.
         Host = string.IsNullOrEmpty(stored.Endpoint) ? "AWS" : stored.Endpoint;
         InitialRemotePath = stored.InitialPath;
     }
@@ -85,7 +80,6 @@ public sealed class ShareRowViewModel
         IsConnected = isConnected;
         Id = stored.Id;
         Name = stored.Name;
-        // Show the account (or custom endpoint) so the row still has a subtitle.
         Host = !string.IsNullOrEmpty(stored.AccountName) ? stored.AccountName
             : (string.IsNullOrEmpty(stored.Endpoint) ? "Azure" : stored.Endpoint);
         InitialRemotePath = stored.InitialPath;
@@ -129,30 +123,24 @@ public partial class DrivePopoverViewModel : ObservableObject
     public Func<IReadOnlyList<VolumeInfo>> ListVolumes { get; set; } = VolumeCatalog.List;
     public Func<string, Task<EjectResult>> Eject { get; set; } = m => VolumeEjector.EjectAsync(m);
 
-    // Test/wiring seam: defaults to empty, replaced by MainViewModel after construction.
     public Func<StoredConnection[]> ListConnections { get; set; } = () => [];
 
-    // Test/wiring seam: defaults to false, replaced by MainViewModel after construction.
     public Func<string, bool> IsConnected { get; set; } = _ => false;
 
-    // SMB counterparts of the two seams above; merged into the same Shares list.
     public Func<StoredSmbConnection[]> ListSmbConnections { get; set; } = () => [];
 
     public Func<string, bool> IsSmbConnected { get; set; } = _ => false;
 
-    // S3 counterparts; merged into the same Shares list.
     public Func<StoredS3Connection[]> ListS3Connections { get; set; } = () => [];
 
     public Func<string, bool> IsS3Connected { get; set; } = _ => false;
 
-    // Azure counterparts; merged into the same Shares list.
     public Func<StoredAzureConnection[]> ListAzureConnections { get; set; } = () => [];
 
     public Func<string, bool> IsAzureConnected { get; set; } = _ => false;
 
     public string PaneSide { get; set; } = "left";
     public string HeaderText => $"Open in {PaneSide} pane";
-    // instance property: {Binding ConnectShortcut} can't resolve statics
     public string ConnectShortcut => OperatingSystem.IsMacOS() ? "⌘K" : "Ctrl K";
 
     public ObservableCollection<VolumeRowViewModel> Volumes { get; } = [];
@@ -172,12 +160,8 @@ public partial class DrivePopoverViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CanEject), nameof(EjectRowVisible))]
     private bool _isEjecting;
 
-    // True when the current volume is ejectable and the platform supports eject.
-    // Controls row *visibility* — the row stays in the layout while ejecting.
     public bool EjectRowVisible => Current is { IsEjectable: true } && !OperatingSystem.IsWindows();
 
-    // True when ejection is allowed right now (visible and not already in progress).
-    // Controls row *enabled* state — the row is disabled while an eject is running.
     public bool CanEject => EjectRowVisible && !IsEjecting;
     public string EjectLabel => $"Eject {Current?.Name}";
 
@@ -233,8 +217,6 @@ public partial class DrivePopoverViewModel : ObservableObject
         _loaded = true;
         Current = VolumeCatalog.FindByPath(_all, _pane.CurrentPath);
         ErrorText = "";
-        // Reset the backing field directly: the property setter's change callback
-        // would run RebuildRows a second time on this popover-open hot path.
         _filterText = "";
         OnPropertyChanged(nameof(FilterText));
         RebuildShareRows();

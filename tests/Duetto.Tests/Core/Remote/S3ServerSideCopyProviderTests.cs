@@ -55,7 +55,7 @@ public sealed class S3ServerSideCopyProviderTests
         Assert.True(dest.FileExists("/duetto/dst/a.txt"));
         Assert.False(src.FileExists("/duetto/a.txt"));
         Assert.True(adapter.CopyCount >= 1);
-        Assert.Equal(0, adapter.ReadCount); // no bytes streamed through the client
+        Assert.Equal(0, adapter.ReadCount);
     }
 
     private static S3Connection Connect(S3ConnectionInfo info, FakeS3ClientFactory factory)

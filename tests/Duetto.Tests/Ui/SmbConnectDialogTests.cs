@@ -6,7 +6,6 @@ using Duetto.ViewModels;
 
 namespace Duetto.Tests.Ui;
 
-// The SMB path of the unified (protocol-aware) ConnectDialogViewModel.
 public sealed class SmbConnectDialogTests
 {
     private static (ConnectDialogViewModel Vm,

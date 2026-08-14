@@ -87,7 +87,7 @@ public static class FormatUtil
             return "Folder";
         var ext = Path.GetExtension(name);
         if (ext.Length == 0 && name.StartsWith('.'))
-            ext = name; // dotfiles like ".gitignore" report the whole name as extension-less
+            ext = name;
         if (TypeByExtension.TryGetValue(ext, out var label))
             return label;
         return ext.Length > 1 ? ext[1..].ToUpperInvariant() : "File";

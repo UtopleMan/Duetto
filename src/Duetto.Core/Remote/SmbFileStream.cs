@@ -1,9 +1,5 @@
 namespace Duetto.Core.Remote;
 
-// Forward-only stream over an SMB file handle. Reads pull server chunks of up to the
-// negotiated MaxReadSize; writes buffer up to MaxWriteSize before flushing. Not seekable —
-// TransferEngine only does sequential Read/Write then Dispose (verified in TransferEngine).
-// Backed by delegates so it can be unit-tested without a socket.
 internal sealed class SmbFileStream : Stream
 {
     private readonly Func<long, int, byte[]>? readAt;
@@ -105,8 +101,6 @@ internal sealed class SmbFileStream : Stream
         if (writeAt is null || writeBufferLen == 0)
             return;
 
-        // Always hand out a right-sized copy: the internal buffer is reused across flushes, so
-        // passing it by reference would let a later Write mutate data a caller may still hold.
         var data = writeBuffer![..writeBufferLen];
         writeAt(position, data);
         position += writeBufferLen;

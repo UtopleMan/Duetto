@@ -2,14 +2,12 @@ using Duetto.Core.Cli;
 
 namespace Duetto;
 
-// Every failure is swallowed so CLI installation can never affect app startup.
 internal static class CliInstall
 {
     public static void EnsureBestEffort()
     {
         try
         {
-            // Only the POSIX shell launcher is supported; the shipped desktop build is macOS.
             if (!OperatingSystem.IsMacOS() && !OperatingSystem.IsLinux())
                 return;
 
@@ -32,7 +30,6 @@ internal static class CliInstall
         }
         catch
         {
-            // Best-effort: never let CLI install affect startup.
         }
     }
 

@@ -39,7 +39,6 @@ public sealed class SmbConnectionTests
 
         Assert.Equal("ok", result);
         Assert.Equal(2, attempts);
-        // One initial connect + one reconnect.
         Assert.Equal(2, adapter.ConnectCount);
     }
 
@@ -52,7 +51,6 @@ public sealed class SmbConnectionTests
         Assert.Throws<SmbAuthenticationException>(() =>
             conn.WithReconnect<int>(() => throw new SmbAuthenticationException("bad creds")));
 
-        // Connected once for the initial attempt; no reconnect on an auth failure.
         Assert.Equal(1, adapter.ConnectCount);
     }
 
@@ -65,7 +63,6 @@ public sealed class SmbConnectionTests
         Assert.Throws<SmbConnectionException>(() =>
             conn.WithReconnect<int>(() => throw new SmbConnectionException("still dropped")));
 
-        // Initial connect + one reconnect, then the retry's failure propagates.
         Assert.Equal(2, adapter.ConnectCount);
     }
 

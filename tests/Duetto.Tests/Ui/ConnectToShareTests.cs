@@ -44,7 +44,6 @@ public sealed class ConnectToShareTests
         var registry = new FileSystemRegistry();
         var hks = new HostKeyStore();
         var adapter = new FakeSftpClientAdapter();
-        // Pre-create the target directory in the adapter tree so DirectoryExists returns true.
         adapter.CreateDirectory("/home");
         adapter.CreateDirectory("/home/user");
 
@@ -73,7 +72,6 @@ public sealed class ConnectToShareTests
         var registry = new FileSystemRegistry();
         var hks = new HostKeyStore();
         var adapter = new FakeSftpClientAdapter();
-        // Pre-create the target directory in the adapter tree so DirectoryExists returns true.
         adapter.CreateDirectory("/projects");
 
         var manager = new ConnectionManager(registry, hks, new FixedAdapterFactory(adapter));
@@ -249,8 +247,6 @@ public sealed class ConnectToShareTests
         using var vm = new MainViewModel(tmp.Path, tmp.Path,
             registry: registry, connectionManager: manager, connectionStore: store, codec: codec);
 
-        // Deferred scheduler: capture the connect work without running it, so we can
-        // overwrite the seam between the ConnectToShare call and the connect failure.
         Action? capturedWork = null;
         vm.ConnectScheduler = work => { capturedWork = work; return Task.CompletedTask; };
 
@@ -261,10 +257,8 @@ public sealed class ConnectToShareTests
         vm.ConnectToShare(stored, vm.Left);
         Assert.NotNull(capturedWork);
 
-        // Simulate a second share click rewiring the seam (each call site wires its own owner).
         vm.OpenConnectDialog = (_, _) => laterInvoked++;
 
-        // Now the first connect fails: it must open the dialog wired for the FIRST click.
         capturedWork!();
         Dispatcher.UIThread.RunJobs();
 
@@ -280,8 +274,6 @@ public sealed class PaneLoadRobustnessTests
     {
         using var tmp = new TempDir();
         var registry = new FileSystemRegistry();
-        // The registered provider only satisfies NavigateTo's DirectoryExists check during
-        // pane construction; the Lister override below is what actually throws under test.
         registry.Register("sftp", "srv1", new ThrowingProvider(new SshException("SFTP error")));
 
         using var pane = new PaneViewModel("sftp://srv1/", registry);
@@ -289,7 +281,6 @@ public sealed class PaneLoadRobustnessTests
 
         pane.Reload(preserveSelection: false);
 
-        // At remote root there is no parent nav row.
         Assert.False(pane.IsLoading);
         Assert.Empty(pane.Rows);
     }
@@ -299,8 +290,6 @@ public sealed class PaneLoadRobustnessTests
     {
         using var tmp = new TempDir();
         var registry = new FileSystemRegistry();
-        // As above: the registered provider only satisfies the existence check;
-        // the Lister override does the throwing.
         registry.Register("sftp", "srv2", new ThrowingProvider(new InvalidOperationException("Registry removed")));
 
         using var pane = new PaneViewModel("sftp://srv2/", registry);
@@ -312,7 +301,6 @@ public sealed class PaneLoadRobustnessTests
         Assert.Empty(pane.Rows);
     }
 
-    // Minimal provider that DirectoryExists=true but List throws.
     private sealed class ThrowingProvider(Exception ex) : IFileSystemProvider
     {
         public FileSystemCapabilities Capabilities { get; } = new()
@@ -385,7 +373,6 @@ public sealed class SearchScopeDirNameTests
     [AvaloniaFact]
     public void ScopeDirName_local_root_returns_full_path()
     {
-        // On Unix "/" has no leaf → returns the full path.
         var vm = new SearchViewModel(() => "/");
         vm.ScopeDir = "/";
 

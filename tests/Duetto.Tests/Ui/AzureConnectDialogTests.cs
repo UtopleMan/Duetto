@@ -5,7 +5,6 @@ using Duetto.ViewModels;
 
 namespace Duetto.Tests.Ui;
 
-// The Azure Blob path of the unified (protocol-aware) ConnectDialogViewModel.
 public sealed class AzureConnectDialogTests
 {
     private static (ConnectDialogViewModel Vm,

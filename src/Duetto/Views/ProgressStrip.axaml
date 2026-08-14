@@ -25,7 +25,6 @@
         </StackPanel>
       </DockPanel>
 
-      <!-- Two-tone bar: solid green done, light green in-flight -->
       <Border Height="7" CornerRadius="4" Background="{StaticResource Hairline}" ClipToBounds="True">
         <Grid x:Name="BarGrid">
           <Grid.ColumnDefinitions>

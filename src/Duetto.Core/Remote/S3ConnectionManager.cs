@@ -2,10 +2,6 @@ using Duetto.Core.FileSystem;
 
 namespace Duetto.Core.Remote;
 
-// S3 analogue of SmbConnectionManager: owns live S3 connections, registers each provider under
-// scheme "s3", and mirrors the same lock / evict-outside-lock discipline so state queries stay
-// responsive during a slow connect (the credential/endpoint validation in S3Connection.Connect can
-// take seconds or hang).
 public sealed class S3ConnectionManager : IDisposable
 {
     private readonly FileSystemRegistry registry;
@@ -46,9 +42,6 @@ public sealed class S3ConnectionManager : IDisposable
             return entries.TryGetValue(id, out var e) && e.Connection.IsConnected;
     }
 
-    // The validation handshake can take seconds or hang, so it runs OUTSIDE the manager lock —
-    // concurrent IsConnected / ConnectedIds / Disconnect / Dispose calls stay responsive. Races
-    // during the unlocked window resolve last-writer-wins.
     public void Connect(S3ConnectionInfo info, ConnectSecret secret)
     {
         S3Connection conn;

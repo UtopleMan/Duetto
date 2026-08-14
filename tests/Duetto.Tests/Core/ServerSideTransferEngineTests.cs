@@ -6,8 +6,6 @@ namespace Duetto.Tests.Core;
 
 public class ServerSideTransferEngineTests
 {
-    // A provider over a shared in-memory store, tagged with a backend key, that records whether
-    // the engine used native Move vs streamed through OpenRead/OpenWrite.
     private sealed class BackendProvider(InMemoryFileSystemProvider store, string backendKey)
         : IFileSystemProvider, IBackendIdentity, IServerSideCopy
     {
@@ -56,7 +54,6 @@ public class ServerSideTransferEngineTests
         public Stream OpenWrite(string p) { OpenWriteCalled = true; return store.OpenWrite(p); }
     }
 
-    // Two providers share one InMemoryFileSystemProvider instance = same backend store.
     private static (BackendProvider, BackendProvider, InMemoryFileSystemProvider) SameBackendPair(string key = "smb://h/s")
     {
         var store = new InMemoryFileSystemProvider();
@@ -104,9 +101,6 @@ public class ServerSideTransferEngineTests
         var session = TransferEngine.Start(["/src/a.txt"], src, "/dst", dst, TransferMode.Move);
         await session.Completion;
 
-        // Assert the OUTCOME, not the fallback mechanism: native Move threw yet the file still
-        // moved. (After Task 6 the fallback prefers server-side copy over streaming; asserting
-        // OpenReadCalled here would then be wrong.)
         Assert.True(session.Snapshot().IsComplete);
         Assert.False(src.MoveCalled, "native Move threw, never marked success");
         Assert.False(src.FileExists("/src/a.txt"), "source removed after fallback move");

@@ -4,15 +4,11 @@ using Renci.SshNet.Sftp;
 
 namespace Duetto.Core.Remote;
 
-// WithReconnect is not thread-safe; this provider serialises concurrent calls with a lock
-// so multi-threaded callers (UI panes, search threads) are safe.
 public sealed class SftpFileSystemProvider : IFileSystemProvider, IDisposable
 {
     private readonly SftpConnection _conn;
     private readonly object _lock = new();
 
-    // AtomicRename = true because POSIX-rename (used by ReplaceFile) is atomic on the server.
-    // HasTrash = false — remote delete is always permanent.
     public static readonly FileSystemCapabilities SftpCapabilities = new()
     {
         CanRename = true,
@@ -34,7 +30,6 @@ public sealed class SftpFileSystemProvider : IFileSystemProvider, IDisposable
 
     public FileSystemCapabilities Capabilities => _capabilities;
 
-    // read and written only inside the _lock via Exec.
     private bool _posixRenameWorked = true;
 
     public SftpFileSystemProvider(SftpConnection connection)
@@ -140,7 +135,6 @@ public sealed class SftpFileSystemProvider : IFileSystemProvider, IDisposable
         return target;
     }
 
-    // SFTP non-POSIX rename does not overwrite, so guard against an existing destination.
     public void Move(string fromPath, string toPath)
     {
         Exec(a =>
@@ -186,8 +180,6 @@ public sealed class SftpFileSystemProvider : IFileSystemProvider, IDisposable
 
         if (entry.IsDirectory)
         {
-            // Materialise the listing before any child deletion so a reconnect
-            // mid-delete does not re-enumerate from the top.
             var children = a.ListDirectory(path).ToList();
             foreach (var child in children)
             {
@@ -204,24 +196,15 @@ public sealed class SftpFileSystemProvider : IFileSystemProvider, IDisposable
         }
     }
 
-    // Stream lifetime: the returned stream is bound to the connection live at open time; a
-    // reconnect does not migrate it — after a drop the held stream fails with a channel error,
-    // not a clean SshConnectionException. Callers must treat stream failures as fatal for the
-    // operation and retry the whole operation (re-open the stream), not just the individual read.
     public Stream OpenRead(string path) =>
         Exec(a => a.OpenRead(path));
 
-    // Stream lifetime: same as OpenRead — the stream dies on reconnect and must not be reused.
     public Stream OpenWrite(string path) =>
         Exec(a => a.OpenWrite(path));
 
     public void SetLastWriteTimeUtc(string path, DateTime utc) =>
         Exec(a => a.SetLastWriteTimeUtc(path, utc));
 
-    // Per-directory SFTP failures are swallowed so the walk continues past bad directories
-    // (matching LocalFileSystemProvider swallowing IOException/UnauthorizedAccessException).
-    // A SshConnectionException reaching this frame means WithReconnect's single reconnect
-    // retry already failed, so it propagates to the caller rather than silently truncating.
     public IEnumerable<FileEntry> EnumerateRecursive(string path)
     {
         List<SftpEntry> children;
@@ -242,7 +225,6 @@ public sealed class SftpFileSystemProvider : IFileSystemProvider, IDisposable
         {
             yield return MapEntry(child);
 
-            // Recurse into real directories only; skip symlinks to avoid cycles.
             if (child.IsDirectory && !child.IsSymbolicLink)
                 foreach (var descendant in EnumerateRecursive(child.FullName))
                     yield return descendant;

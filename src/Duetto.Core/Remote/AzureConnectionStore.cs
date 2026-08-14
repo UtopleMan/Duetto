@@ -3,11 +3,6 @@ using System.Text.Json.Serialization;
 
 namespace Duetto.Core.Remote;
 
-// On-disk DTO for a saved Azure Blob connection. Secrets are never placed on AzureConnectionInfo;
-// the (obfuscated) account key / SAS token / connection string lives here in ObfuscatedSecret. Only
-// the credentialed modes (SharedKey, ConnectionString, Sas) persist a secret — Anonymous stores
-// none. Separate from StoredS3Connection by design — Azure has account/container/endpoint instead of
-// region/path-style/bucket.
 public sealed record StoredAzureConnection
 {
     [JsonPropertyName("id")]
@@ -51,8 +46,6 @@ public sealed class AzureConnectionStore
         Converters = { new JsonStringEnumConverter() },
     };
 
-    // The single credential value (account key, SAS, or connection string) is packed as JSON before
-    // obfuscation so it survives a save/load round-trip inside the ObfuscatedSecret field.
     private sealed record SecretPayload(
         [property: JsonPropertyName("s")] string Secret);
 
@@ -75,8 +68,6 @@ public sealed class AzureConnectionStore
         this.writer = writer;
     }
 
-    // Returns an empty array when the file is missing, empty, or corrupt — never throws, so a
-    // hand-mangled config can't crash startup.
     public StoredAzureConnection[] Load()
     {
         try
@@ -114,9 +105,6 @@ public sealed class AzureConnectionStore
             Container: stored.Container,
             InitialPath: stored.InitialPath);
 
-    // Anonymous needs no stored secret — an empty ConnectSecret lets the connect flow proceed without
-    // a prompt. For the credentialed modes, null means the caller must obtain the secret at connect
-    // time (it wasn't saved, or decryption failed on a foreign machine).
     public static ConnectSecret? ResolveSecret(StoredAzureConnection stored, SecretCodec codec)
     {
         ArgumentNullException.ThrowIfNull(codec);
@@ -145,8 +133,6 @@ public sealed class AzureConnectionStore
     public static (AzureConnectionInfo Info, ConnectSecret? Secret) Resolve(StoredAzureConnection stored, SecretCodec codec) =>
         (ResolveInfo(stored), ResolveSecret(stored, codec));
 
-    // The secret is persisted (obfuscated) only for credentialed modes when savePassword is true and
-    // secret is non-null.
     public static StoredAzureConnection Pack(
         AzureConnectionInfo info,
         ConnectSecret? secret,

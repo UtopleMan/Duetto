@@ -10,7 +10,7 @@
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource WindowBg}">
   <DockPanel>
-    <!-- 1a Windows: custom 34px title bar with caption buttons -->
+
     <Border DockPanel.Dock="Top" x:Name="WinTitleBar" Height="34" Background="{StaticResource ChromeBg}"
             BorderBrush="{StaticResource HairlineDark}" BorderThickness="0,0,0,1"
             IsVisible="{Binding IsWinChrome}"
@@ -31,7 +31,6 @@
       </DockPanel>
     </Border>
 
-    <!-- 1c GNOME: 46px header bar with round buttons and title stack -->
     <Border DockPanel.Dock="Top" x:Name="GnomeHeader" Height="46" Background="{StaticResource ChromeBg}"
             BorderBrush="{StaticResource InputBorder}" BorderThickness="0,0,0,1"
             IsVisible="{Binding IsGnomeChrome}"
@@ -57,7 +56,6 @@
       </DockPanel>
     </Border>
 
-    <!-- Toolbar (all chromes; GNOME hides nav — its header has them) -->
     <Border DockPanel.Dock="Top" x:Name="Toolbar" Height="46" Background="{StaticResource ToolbarBg}"
             BorderBrush="{StaticResource Hairline}" BorderThickness="0,0,0,1">
       <DockPanel Margin="12,0" VerticalAlignment="Center">
@@ -83,7 +81,6 @@
           </Button>
         </StackPanel>
 
-        <!-- Filter chips (visible while searching) -->
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" Margin="10,0,0,0"
                     IsVisible="{Binding Search.IsActive}">
           <Button Classes="chipbtn" Classes.active="{Binding Search.IncludeContents}"
@@ -111,7 +108,6 @@
           </Button>
         </StackPanel>
 
-        <!-- Scoped search field -->
         <Border x:Name="SearchShell" Height="30" Background="{StaticResource PaneBg}"
                 BorderBrush="{StaticResource InputBorder}" BorderThickness="1" CornerRadius="7">
           <DockPanel Margin="10,0">
@@ -140,11 +136,8 @@
       </DockPanel>
     </Border>
 
-    <!-- Command bar + output drawer -->
     <views:CommandBar DockPanel.Dock="Bottom" x:Name="CommandBarView" />
 
-    <!-- Unified operation strip (docked after the command bar so it sits above it):
-         transfers render rich; delete/rename/slow-listing render indeterminate. -->
     <ContentControl DockPanel.Dock="Bottom"
                     Content="{Binding ActiveOperation}"
                     IsVisible="{Binding ActiveOperation, Converter={x:Static ObjectConverters.IsNotNull}}">
@@ -158,9 +151,8 @@
       </ContentControl.DataTemplates>
     </ContentControl>
 
-    <!-- Rail + panes; the right pane is overlaid by search results while a search is active -->
     <Grid ColumnDefinitions="Auto,*">
-      <!-- 1c GNOME Places rail -->
+
       <Border Grid.Column="0" x:Name="PlacesRail" Width="186" Background="{StaticResource ChromeBg}"
               BorderBrush="{StaticResource Hairline}" BorderThickness="0,0,1,0"
               IsVisible="{Binding IsGnomeChrome}">
@@ -181,7 +173,7 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
-          <!-- REMOTE section: saved SFTP connections; hidden when none exist -->
+
           <StackPanel IsVisible="{Binding RemotePlacesVisible}">
             <TextBlock Text="REMOTE" FontSize="10.5" LetterSpacing="0.6"
                        Foreground="{StaticResource HeaderText}" Margin="10,10,10,5" />
@@ -263,7 +255,6 @@
       <Setter Property="Foreground" Value="{StaticResource Accent}" />
     </Style>
 
-    <!-- Windows caption buttons -->
     <Style Selector="Button.caption">
       <Setter Property="Width" Value="44" />
       <Setter Property="Height" Value="33" />
@@ -285,7 +276,6 @@
       <Setter Property="Foreground" Value="White" />
     </Style>
 
-    <!-- GNOME round buttons -->
     <Style Selector="Button.roundbtn">
       <Setter Property="Width" Value="30" />
       <Setter Property="Height" Value="30" />
@@ -307,7 +297,6 @@
       <Setter Property="Foreground" Value="White" />
     </Style>
 
-    <!-- GNOME places rail items -->
     <Style Selector="Button.placeitem">
       <Setter Property="Height" Value="28" />
       <Setter Property="Padding" Value="10,0" />

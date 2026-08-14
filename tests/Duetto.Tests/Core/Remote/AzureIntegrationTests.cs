@@ -7,13 +7,9 @@ using Duetto.Core.Remote;
 
 namespace Duetto.Tests.Core.Remote;
 
-// Real-server Azure Blob smoke tests, gated on the DUETTO_AZURE_TEST env var so they never run in
-// CI. Bring Azurite up with docker-compose.yml (see scripts/smoke.sh). xunit 2.x has no Assert.Skip;
-// tests return early when the gate is unset — an implicit 0-assertion pass.
 [Trait("Category", "Integration")]
 public sealed class AzureIntegrationTests
 {
-    // Azurite's well-known emulator account key (public, safe to embed in tests).
     private const string AzuriteKey =
         "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==";
 
@@ -34,8 +30,6 @@ public sealed class AzureIntegrationTests
         info = new AzureConnectionInfo("it", "IT", Endpoint: endpoint, AccountName: account, AuthMode: AzureAuthMode.SharedKey);
         secret = ConnectSecret.FromPassword(key);
 
-        // The container may not exist yet (Azurite starts empty). Create it with public blob access
-        // so the anonymous test can read a seeded blob.
         var svc = new BlobServiceClient(new Uri(endpoint), new StorageSharedKeyCredential(account, key));
         svc.GetBlobContainerClient(container).CreateIfNotExists(PublicAccessType.Blob);
         return true;
@@ -144,7 +138,6 @@ public sealed class AzureIntegrationTests
         if (!TryConfig(out var info, out var secret, out var container))
             return;
 
-        // Seed a blob with the authed connection.
         using var authed = Connect(info, secret);
         var key = "anon-" + Guid.NewGuid().ToString("N")[..8] + ".txt";
         var path = "/" + container + "/" + key;
@@ -153,8 +146,6 @@ public sealed class AzureIntegrationTests
 
         try
         {
-            // The container was created with public blob access. Anonymous cannot list, so it must
-            // be scoped to the container and read the blob directly.
             var anonInfo = new AzureConnectionInfo("it-anon", "anon", Endpoint: info.Endpoint,
                 AccountName: info.AccountName, AuthMode: AzureAuthMode.Anonymous, Container: container);
             using var anon = Connect(anonInfo, new ConnectSecret());

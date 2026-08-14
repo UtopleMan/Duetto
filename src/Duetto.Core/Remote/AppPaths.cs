@@ -6,7 +6,6 @@ public static class AppPaths
 {
     private const string AppName = "Duetto";
 
-    // Created on demand.
     public static string ConfigDir
     {
         get

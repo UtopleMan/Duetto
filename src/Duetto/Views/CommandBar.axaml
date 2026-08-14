@@ -4,7 +4,7 @@
              x:Class="Duetto.Views.CommandBar"
              x:DataType="vm:MainViewModel">
   <StackPanel x:Name="BarRoot" Classes.mac="{Binding IsMacChrome}">
-    <!-- Output drawer -->
+
     <Border IsVisible="{Binding CommandBar.IsDrawerOpen}"
             BorderBrush="{StaticResource Hairline}" BorderThickness="0,1,0,0">
       <StackPanel>
@@ -50,7 +50,6 @@
       </StackPanel>
     </Border>
 
-    <!-- Prompt row: win = light strip, gnome = dark terminal strip, mac = floating card -->
     <Border x:Name="PromptRow" Height="40" Background="{StaticResource ChromeBg}"
             BorderBrush="{StaticResource HairlineDark}" BorderThickness="0,1,0,0"
             Classes.gnome="{Binding IsGnomeChrome}"
@@ -109,7 +108,6 @@
       <Setter Property="Background" Value="Transparent" />
     </Style>
 
-    <!-- GNOME: dark terminal strip -->
     <Style Selector="Border#PromptRow.gnome">
       <Setter Property="Background" Value="{StaticResource TermBg}" />
       <Setter Property="Height" Value="42" />
@@ -129,7 +127,6 @@
       <Setter Property="Background" Value="{StaticResource WindowBg}" />
     </Style>
 
-    <!-- macOS: white floating card (design 1b) -->
     <Style Selector="Border#PromptRow.mac">
       <Setter Property="Background" Value="{StaticResource PaneBg}" />
       <Setter Property="Height" Value="38" />

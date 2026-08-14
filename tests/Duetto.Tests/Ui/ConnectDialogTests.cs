@@ -327,8 +327,6 @@ public sealed class ConnectDialogTests
     [AvaloniaFact]
     public void MainViewModel_search_uses_the_same_registry_instance()
     {
-        // SearchViewModel stores the registry privately; a reflection-based equality check
-        // would be brittle, so we assert on the pane registries that share the same instance.
         using var tmp = new TempDir();
         using var vm = new MainViewModel(tmp.Path, tmp.Path);
 
@@ -362,7 +360,6 @@ public sealed class ConnectDialogTests
     [AvaloniaFact]
     public void Connect_command_raises_request_unchanged_after_stub_removal()
     {
-        // Regression guard for the same VM event contract the old ConnectStubWindow test relied on.
         using var tmp = new TempDir();
         using var pane = new PaneViewModel(tmp.Path);
         pane.Drives.ListVolumes = () => [];

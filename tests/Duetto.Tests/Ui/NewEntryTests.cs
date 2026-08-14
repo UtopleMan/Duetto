@@ -99,7 +99,7 @@ public class NewEntryTests
         vm.NewFolder();
         var before = Placeholder(vm);
 
-        vm.Reload(preserveSelection: true); // e.g. a FileSystemWatcher tick
+        vm.Reload(preserveSelection: true);
         Dispatcher.UIThread.RunJobs();
 
         var after = Placeholder(vm);

@@ -5,8 +5,6 @@ using Xunit;
 
 namespace Duetto.Tests.Core;
 
-// macOS-only: trashing an item on a *different* volume must succeed. A naive move into
-// ~/.Trash fails across volumes; the native trash API routes it to the volume's own trash.
 public class MacTrashTests
 {
     [Fact]
@@ -17,13 +15,13 @@ public class MacTrashTests
 
         var dmg = Path.Combine(Path.GetTempPath(), "duetto-trash-" + Guid.NewGuid().ToString("N")[..8] + ".dmg");
         if (!Run("hdiutil", $"create -size 10m -fs APFS -volname DuettoTrashTest -ov \"{dmg}\"", out _))
-            return; // cannot create image (unavailable/unpermitted) — skip.
+            return;
 
         string? mount = null;
         try
         {
             if (!Run("hdiutil", $"attach \"{dmg}\"", out var attachOut))
-                return; // cannot mount — skip.
+                return;
             mount = Regex.Match(attachOut, "/Volumes/\\S+").Value;
             if (string.IsNullOrEmpty(mount) || !Directory.Exists(mount))
                 return;
@@ -34,7 +32,7 @@ public class MacTrashTests
 
             TrashService.Trash(folder);
 
-            Assert.False(Directory.Exists(folder)); // moved to the volume's trash, off its old path
+            Assert.False(Directory.Exists(folder));
         }
         finally
         {

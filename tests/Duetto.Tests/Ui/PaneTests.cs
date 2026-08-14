@@ -80,8 +80,6 @@ public class PaneTests
 
         Assert.Equal(Path.Combine(tmp.Path, "sub"), vm.Left.CurrentPath);
         Assert.Equal(["..", "inner.txt"], vm.Left.Rows.Select(r => r.Name));
-        // Focus refocus after reload can't be asserted headlessly (Focus() is
-        // rejected without an active window); covered by RefocusActiveList.
         window.Close();
     }
 
@@ -343,9 +341,6 @@ public class PaneTests
         Assert.Equal(Path.Combine(tmp.Path, "doc.txt"), launched);
     }
 
-    // The default Lister lambda captures `this`, so it reads Registry at call time —
-    // no re-wiring needed after assigning the registry.
-
     [AvaloniaFact]
     public void Remote_pane_lists_directory_via_injected_registry()
     {
@@ -360,7 +355,6 @@ public class PaneTests
         Dispatcher.UIThread.RunJobs();
 
         Assert.Contains(vm.Rows, r => r.Name == "docs");
-        // Remote root has no parent — no ".." row.
         Assert.DoesNotContain(vm.Rows, r => r.IsParentNav);
     }
 
@@ -425,12 +419,10 @@ public class PaneTests
         var reg = new FileSystemRegistry();
         reg.Register("sftp", "host2", fs);
 
-        // Positive control: a local pane gets a live watcher.
         using var tmp = new TempDir();
         using var localVm = new PaneViewModel(tmp.Path);
         Assert.True(localVm.HasActiveWatcher);
 
-        // The IsRemote gate must prevent any watcher from starting for a remote pane.
         using var vm = new PaneViewModel("sftp://host2/", reg);
         Dispatcher.UIThread.RunJobs();
         Assert.False(vm.HasActiveWatcher);

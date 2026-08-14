@@ -7,8 +7,6 @@ using Duetto.Views;
 
 namespace Duetto.Tests.Ui;
 
-// Constructs the real ConnectWindow so the (compiled) XAML actually loads and the protocol
-// dropdown wiring runs — catches resource/binding/name errors the VM-only tests can't.
 public sealed class ConnectWindowTests
 {
     private static ConnectDialogViewModel MakeVm()

@@ -34,15 +34,15 @@ public class SmbCopyChunkTests
             new SmbCopyChunk.Chunk(SourceOffset: 1048576, TargetOffset: 1048576, Length: 256),
         ]);
 
-        Assert.Equal(32 + 24 * 2, req.Length);              // header 32 + 24/chunk
-        Assert.Equal(0xAB, req[0]);                          // SourceKey
+        Assert.Equal(32 + 24 * 2, req.Length);
+        Assert.Equal(0xAB, req[0]);
         var span = req.AsSpan();
-        Assert.Equal(2u, BinaryPrimitives.ReadUInt32LittleEndian(span[24..]));    // ChunkCount
-        Assert.Equal(0L, BinaryPrimitives.ReadInt64LittleEndian(span[32..]));     // chunk0 SourceOffset
-        Assert.Equal(0L, BinaryPrimitives.ReadInt64LittleEndian(span[40..]));     // chunk0 TargetOffset
-        Assert.Equal(1048576, BinaryPrimitives.ReadInt32LittleEndian(span[48..]));// chunk0 Length
-        Assert.Equal(1048576L, BinaryPrimitives.ReadInt64LittleEndian(span[56..]));// chunk1 SourceOffset
-        Assert.Equal(256, BinaryPrimitives.ReadInt32LittleEndian(span[72..]));    // chunk1 Length
+        Assert.Equal(2u, BinaryPrimitives.ReadUInt32LittleEndian(span[24..]));
+        Assert.Equal(0L, BinaryPrimitives.ReadInt64LittleEndian(span[32..]));
+        Assert.Equal(0L, BinaryPrimitives.ReadInt64LittleEndian(span[40..]));
+        Assert.Equal(1048576, BinaryPrimitives.ReadInt32LittleEndian(span[48..]));
+        Assert.Equal(1048576L, BinaryPrimitives.ReadInt64LittleEndian(span[56..]));
+        Assert.Equal(256, BinaryPrimitives.ReadInt32LittleEndian(span[72..]));
     }
 
     [Fact]

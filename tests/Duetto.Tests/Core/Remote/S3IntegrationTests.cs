@@ -4,9 +4,6 @@ using Duetto.Core.Remote;
 
 namespace Duetto.Tests.Core.Remote;
 
-// Real-server S3 smoke tests, gated on the DUETTO_S3_TEST env var so they never run in CI.
-// Bring MinIO up with docker-compose.yml (see scripts/smoke.sh). xunit 2.x has no Assert.Skip;
-// tests return early when the gate is unset — an implicit 0-assertion pass.
 [Trait("Category", "Integration")]
 public sealed class S3IntegrationTests
 {
@@ -133,7 +130,6 @@ public sealed class S3IntegrationTests
         if (!TryConfig(out var info, out var secret, out var bucket))
             return;
 
-        // Seed an object with the authed connection.
         using var authed = Connect(info, secret);
         var key = "anon-" + Guid.NewGuid().ToString("N")[..8] + ".txt";
         var path = "/" + bucket + "/" + key;
@@ -142,8 +138,6 @@ public sealed class S3IntegrationTests
 
         try
         {
-            // The MinIO fixture grants anonymous download on the bucket. Anonymous cannot list, so
-            // it must be scoped to the bucket and read the object directly.
             var anonInfo = new S3ConnectionInfo("it-anon", "anon", Endpoint: info.Endpoint,
                 Region: info.Region, PathStyle: true, AuthMode: S3AuthMode.Anonymous, Bucket: bucket);
             using var anon = Connect(anonInfo, new ConnectSecret());

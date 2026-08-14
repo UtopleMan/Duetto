@@ -10,8 +10,6 @@ public partial class ConnectWindow : Window
 {
     private ConnectDialogViewModel Vm => (ConnectDialogViewModel)DataContext!;
 
-    // Parameterless constructor required by Avalonia's XAML resource loader.
-    // Not used at runtime; production code always calls the overload that takes a VM.
     public ConnectWindow()
     {
         InitializeComponent();
@@ -21,9 +19,6 @@ public partial class ConnectWindow : Window
     {
         DataContext = vm;
 
-        // Capture before InitializeComponent: the ComboBox's SelectedIndex="0" fires
-        // OnProtocolChanged during load and resets vm.Protocol to Sftp, so read the intended
-        // protocol (set by ForEdit) first, then reflect it in the dropdown afterwards.
         var startProtocol = vm.Protocol;
         InitializeComponent();
         ProtocolBox.SelectedIndex = startProtocol switch
@@ -50,8 +45,6 @@ public partial class ConnectWindow : Window
         }
     }
 
-    // Uses `sender` rather than the ProtocolBox field: this fires during InitializeComponent
-    // (ComboBox EndInit) before the named field is assigned, so the field is still null then.
     private void OnProtocolChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (sender is ComboBox box && DataContext is ConnectDialogViewModel vm)

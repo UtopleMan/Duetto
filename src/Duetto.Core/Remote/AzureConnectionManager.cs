@@ -2,10 +2,6 @@ using Duetto.Core.FileSystem;
 
 namespace Duetto.Core.Remote;
 
-// Azure analogue of S3ConnectionManager: owns live Azure connections, registers each provider under
-// scheme "azure", and mirrors the same lock / evict-outside-lock discipline so state queries stay
-// responsive during a slow connect (the credential/endpoint validation in AzureConnection.Connect can
-// take seconds or hang).
 public sealed class AzureConnectionManager : IDisposable
 {
     private readonly FileSystemRegistry registry;
@@ -46,9 +42,6 @@ public sealed class AzureConnectionManager : IDisposable
             return entries.TryGetValue(id, out var e) && e.Connection.IsConnected;
     }
 
-    // The validation handshake can take seconds or hang, so it runs OUTSIDE the manager lock —
-    // concurrent IsConnected / ConnectedIds / Disconnect / Dispose calls stay responsive. Races
-    // during the unlocked window resolve last-writer-wins.
     public void Connect(AzureConnectionInfo info, ConnectSecret secret)
     {
         AzureConnection conn;

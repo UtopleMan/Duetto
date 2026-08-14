@@ -32,7 +32,6 @@ public class SearchUiTests
         Dispatcher.UIThread.RunJobs();
         Assert.Equal(0, vm.Search.Selection.SelectedIndex);
 
-        // Focus is now off the search box, so arrows drive the results.
         window.KeyPressQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
         Dispatcher.UIThread.RunJobs();
         Assert.Equal(1, vm.Search.Selection.SelectedIndex);
@@ -56,18 +55,15 @@ public class SearchUiTests
         await vm.Search.StartSearchAsync();
         Assert.True(vm.Search.IsActive);
 
-        // Search box -> results.
         window.KeyPressQwerty(PhysicalKey.F, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
         window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.None);
         Dispatcher.UIThread.RunJobs();
 
-        // Results -> left pane.
         window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.None);
         Dispatcher.UIThread.RunJobs();
         Assert.True(vm.Left.IsActive);
 
-        // Left pane -> results again: arrows must drive the results, not a hidden pane.
         window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.None);
         Dispatcher.UIThread.RunJobs();
         window.KeyPressQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
@@ -89,8 +85,6 @@ public class SearchUiTests
         window.Show();
         Dispatcher.UIThread.RunJobs();
 
-        // Search stays active (pinned overlay), but focus is on the left pane — arrows must
-        // move the pane cursor, not the hidden results behind the overlay.
         vm.Search.Query = "match";
         await vm.Search.StartSearchAsync();
         Assert.True(vm.Search.IsActive);
@@ -199,7 +193,7 @@ public class SearchUiTests
         using var leftDir = new TempDir();
         scope.File("inner/wanted.txt", "payload");
         using var vm = new MainViewModel(leftDir.Path, scope.Path);
-        vm.Activate(vm.Right); // search scopes to the right pane's dir
+        vm.Activate(vm.Right);
 
         vm.Search.Query = "wanted";
         await vm.Search.StartSearchAsync();
@@ -225,7 +219,7 @@ public class SearchUiTests
         Assert.Single(vm.Search.Results);
 
         vm.Search.PinResults();
-        await vm.Search.StartSearchAsync(); // debounce would fire with the now-empty query
+        await vm.Search.StartSearchAsync();
 
         Assert.True(vm.Search.IsPinned);
         Assert.True(vm.Search.IsActive);

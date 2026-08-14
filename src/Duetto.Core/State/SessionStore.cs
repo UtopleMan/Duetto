@@ -19,7 +19,6 @@ public sealed class SessionStore
                p => File.Exists(p) ? File.ReadAllText(p) : null,
                (p, content) =>
                {
-                   // Atomic temp-then-move so a crash mid-write cannot leave a torn file.
                    var tmp = p + ".tmp";
                    File.WriteAllText(tmp, content);
                    File.Move(tmp, p, overwrite: true);
@@ -33,8 +32,6 @@ public sealed class SessionStore
         _writer = writer;
     }
 
-    // Null when the file is missing, empty, or corrupt — never throws, so the caller falls
-    // back to default folders instead of crashing on a mangled file.
     public SessionState? Load()
     {
         try

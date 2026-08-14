@@ -21,16 +21,12 @@ public partial class PaneViewModel : ObservableObject, IDisposable
 
     private FileRowViewModel? _editingPlaceholder;
 
-    // Default is a shared local-only instance; tests inject a registry pre-populated with
-    // an in-memory provider to exercise remote navigation without touching the disk.
     public FileSystemRegistry Registry { get; set; } = SharedLocalRegistry;
 
     private static readonly FileSystemRegistry SharedLocalRegistry = new();
 
     public Func<string, IReadOnlyList<FileEntry>> Lister { get; set; }
 
-    // Default runs inline; production swaps in BackgroundScheduler so slow directories
-    // never block the UI.
     public Func<Func<IReadOnlyList<FileEntry>>, CancellationToken, Task<IReadOnlyList<FileEntry>>> LoadScheduler { get; set; }
         = static (work, _) => Task.FromResult(work());
 
@@ -46,7 +42,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
 
     public Task RenameCompletion { get; private set; } = Task.CompletedTask;
 
-    // Remote panes never have a watcher.
     public bool HasActiveWatcher => _watcher is not null;
 
     [ObservableProperty]
@@ -79,23 +74,18 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _isLoading;
 
-    // True while a valid drag is hovering this pane; the view draws an accent border.
     [ObservableProperty]
     private bool _isDropTarget;
 
     public ObservableCollection<FileRowViewModel> Rows { get; } = [];
 
-    // The cursor is exactly one row; multi-selection marks live on FileRowViewModel.IsMarked.
     public SelectionModel<FileRowViewModel> Selection { get; } = new() { SingleSelect = true };
 
-    // Raised after Reload rebuilds Rows so the view can restore keyboard focus.
     public event Action? Reloaded;
 
     public Action<string> LaunchFile { get; set; } = static path =>
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
 
-    // Invoked for a remote file row on activation (Enter / double-click). MainViewModel wires
-    // this to the download-and-open orchestration; null leaves the remote branch a no-op.
     public Action<FileRowViewModel>? OpenRemoteFile { get; set; }
 
     public string DirName => PathUtil.Leaf(CurrentPath) is { Length: > 0 } name ? name : CurrentPath;
@@ -145,8 +135,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         _currentPath = initialPath;
         if (registry is not null)
             Registry = registry;
-        // Routes through the registry so remote addresses hit the right provider; tests can
-        // replace the Lister delegate directly for lower-level overrides.
         Lister = path =>
         {
             var (provider, localPath) = Registry.Resolve(path);
@@ -166,8 +154,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     {
         try
         {
-            // For remote addresses, skip the synchronous pre-check — it would stall the UI
-            // thread on a network call. The already-guarded background load handles a bad path.
             if (!PathUtil.IsRemote(path))
             {
                 var (provider, localPath) = Registry.Resolve(path);
@@ -176,7 +162,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
             }
             else
             {
-                // Validate that the address resolves to a registered provider; if not, bail.
                 Registry.Resolve(path);
             }
         }
@@ -231,7 +216,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
             NavigateTo(PathUtil.ToAddress(CurrentPath, row.Entry.FullPath));
         else if (PathUtil.IsRemote(CurrentPath))
         {
-            // Remote files can't be launched in place — hand off to the downloader.
             OpenRemoteFile?.Invoke(row);
         }
         else
@@ -264,8 +248,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     public Task Reload(bool preserveSelection) =>
         StartLoad(preserveSelection, selectAfter: null, selectFirst: false);
 
-    // A newer load cancels and supersedes any in-flight one; the stale result is discarded
-    // so rapid navigation always lands on the final directory.
     private Task StartLoad(bool preserveSelection, string? selectAfter, bool selectFirst)
     {
         var markedNames = preserveSelection
@@ -322,8 +304,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         {
             var entries = await task;
 
-            // A newer load superseded this one while it was in flight — discard the result and
-            // leave the loading state to that newer load.
             if (!ReferenceEquals(cts, _loadCts))
                 return;
 
@@ -331,14 +311,9 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         }
         catch (OperationCanceledException)
         {
-            // Cancelled (superseded or disposed) — the finally clears the spinner if we are still
-            // the current load.
         }
         finally
         {
-            // Only the current load clears the spinner; a superseded one must not, or it would
-            // hide the newer load that is still in flight. The cancellation path used to skip this
-            // and leak IsLoading = true.
             if (ReferenceEquals(cts, _loadCts))
                 IsLoading = false;
         }
@@ -368,14 +343,9 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         else if (selectFirst && Rows.Count > 0)
             Selection.Select(0);
 
-        // The preserved cursor row is gone (deleted, or renamed/moved away): land on whatever
-        // now occupies its slot — the next item, or the last row when it was the tail. Leaving
-        // no selection would strand keyboard focus (no row container to focus).
         if (cursorName is not null && Selection.SelectedIndex < 0 && Rows.Count > 0)
             Selection.Select(Math.Clamp(cursorIndex, 0, Rows.Count - 1));
 
-        // An in-progress new-entry placeholder is synthetic (not on disk), so a rebuild would
-        // drop it — re-attach it in edit mode so an unrelated reload can't cancel the naming.
         if (_editingPlaceholder is { } placeholder)
         {
             var insertAt = Rows.Count > 0 && Rows[0].IsParentNav ? 1 : 0;
@@ -393,12 +363,9 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     public FileRowViewModel? CursorRow => Selection.SelectedItem;
     public bool HasMarks => Rows.Any(r => r.IsMarked);
 
-    // Explicitly marked rows only — no cursor fallback, so an unmarked pane yields nothing.
-    // Delete targets these: it must never touch the file merely under the cursor.
     public IReadOnlyList<FileRowViewModel> MarkedRows =>
         Rows.Where(r => r.IsMarked && !r.IsParentNav).ToList();
 
-    // Operation targets: the marked rows, or the cursor row when nothing is marked.
     public IReadOnlyList<FileRowViewModel> SelectedRows
     {
         get
@@ -421,7 +388,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         UpdateStatus();
     }
 
-    // Shift-click: marks every row between the cursor and the target, cursor moves to target.
     public void MarkRangeTo(FileRowViewModel row)
     {
         var to = Rows.IndexOf(row);
@@ -438,7 +404,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         UpdateStatus();
     }
 
-    // Shift+arrow: toggles the cursor row's mark, then moves the cursor.
     public void MarkCursorAndMove(int delta)
     {
         if (Rows.Count == 0)
@@ -461,7 +426,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     {
         if (Selection.SelectedItem is not { IsParentNav: false } row)
             return null;
-        // Capability gate: no-op when the provider doesn't support rename.
         var (provider, _) = Registry.Resolve(CurrentPath);
         if (!provider.Capabilities.CanRename)
             return null;
@@ -470,7 +434,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         return row;
     }
 
-    // A colliding placeholder name stays in edit mode.
     public void CommitRename(FileRowViewModel row)
     {
         if (row.IsNewPlaceholder)
@@ -487,8 +450,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         RenameCompletion = RunRenameAsync(row.Entry.FullPath, newName);
     }
 
-    // LostFocus commit: a placeholder with a bad/colliding name is discarded rather than
-    // kept open — clicking away must never trap focus in the edit box.
     public void CommitRenameFromBlur(FileRowViewModel row)
     {
         if (row.IsNewPlaceholder)
@@ -511,7 +472,7 @@ public partial class PaneViewModel : ObservableObject, IDisposable
             if (fromBlur)
                 DiscardPlaceholder(row);
             else
-                StatusText = error; // stay in edit mode so the user can fix the name
+                StatusText = error;
             return;
         }
 
@@ -523,8 +484,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
             else
                 FileOps.CreateFile(provider, localParent, name);
         }
-        // NotSupportedException: capability belt — a provider without CanCreateEmptyDir /
-        // CanCreateFile degrades to a graceful no-op (P5c disables the command as well).
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException
             or NotSupportedException)
         {
@@ -562,20 +521,14 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         UpdateStatus();
     }
 
-    // Runs off the UI thread so a slow (cross-volume) move never blocks. A single OS move
-    // is not interruptible mid-flight, so there is no true mid-move cancel — same-volume
-    // renames are effectively instant anyway.
     private async Task RunRenameAsync(string fullPath, string newName)
     {
         var ok = true;
         try
         {
-            // fullPath is the provider-local path (FileEntry.FullPath); resolve the provider
-            // from CurrentPath (the pane's full URL) to get the correct provider instance.
             var (provider, _) = Registry.Resolve(CurrentPath);
             await RenameScheduler(() => FileOps.Rename(provider, fullPath, newName));
         }
-        // NotSupportedException: capability belt — a provider without CanRename no-ops.
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException
             or NotSupportedException)
         {
@@ -597,7 +550,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     [RelayCommand]
     public void NewFolder()
     {
-        // Capability gate: no-op when the provider doesn't support directory creation.
         var (provider, _) = Registry.Resolve(CurrentPath);
         if (!provider.Capabilities.CanCreateEmptyDir)
             return;
@@ -607,7 +559,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
     [RelayCommand]
     public void NewFile()
     {
-        // Capability gate: no-op when the provider doesn't support file creation.
         var (provider, _) = Registry.Resolve(CurrentPath);
         if (!provider.Capabilities.CanCreateFile)
             return;
@@ -625,8 +576,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         Selection.Select(insertAt);
     }
 
-    // Orthodox Insert-mark: toggles the cursor row's mark and moves the cursor down one.
-    // The ".." row is never marked, only stepped over.
     public void ToggleMarkAndAdvance()
     {
         if (Rows.Count == 0)
@@ -678,7 +627,6 @@ public partial class PaneViewModel : ObservableObject, IDisposable
         _watcher?.Dispose();
         _watcher = null;
 
-        // Remote paths get manual refresh only — FileSystemWatcher cannot watch a URI.
         if (PathUtil.IsRemote(CurrentPath))
             return;
 

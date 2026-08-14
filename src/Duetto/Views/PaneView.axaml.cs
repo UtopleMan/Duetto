@@ -18,9 +18,6 @@ public partial class PaneView : UserControl
 
     private PaneViewModel? _subscribedVm;
 
-    // Internal pane→pane drags carry the source side as an in-process string; the drop handler
-    // maps it back to the owning MainViewModel pane. OS drag-out rides DataFormat.File on the
-    // same DataTransfer (Phase 3).
     private static readonly DataFormat<string> PaneDragFormat =
         DataFormat.CreateStringApplicationFormat("duetto.pane-source");
 
@@ -65,8 +62,6 @@ public partial class PaneView : UserControl
             }
         };
 
-        // ⌘/Ctrl-click toggles a mark, Shift-click marks a range — before the
-        // ListBox turns the click into a plain cursor move.
         RowList.AddHandler(PointerPressedEvent, OnRowPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         RowList.AddHandler(PointerMovedEvent, OnRowPointerMoved, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         RowList.AddHandler(PointerReleasedEvent, OnRowPointerReleased, Avalonia.Interactivity.RoutingStrategies.Tunnel);
@@ -97,13 +92,10 @@ public partial class PaneView : UserControl
         }
         else if (!row.IsParentNav && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
-            // Arm a potential drag; a plain click still falls through to ListBox selection.
             _dragOrigin = e.GetPosition(this);
         }
     }
 
-    // A press-and-move past the threshold on a real row starts the drag. The payload carries the
-    // source pane (internal DnD) and, for a local pane, the selected files (OS drag-out, Phase 3).
     private void OnRowPointerMoved(object? sender, PointerEventArgs e)
     {
         if (_dragOrigin is not { } origin)
@@ -133,8 +125,6 @@ public partial class PaneView : UserControl
         var data = new DataTransfer();
         data.Add(DataTransferItem.Create(PaneDragFormat, side));
 
-        // Local pane: ride the OS file format on the same drag so it can drop into Finder/Explorer.
-        // Export/copy only — Duetto never deletes the source on drag-out. Remote panes opt out.
         if (mainVm.LocalDragPayload(vm) is { } localPaths &&
             TopLevel.GetTopLevel(this)?.StorageProvider is { } storage)
         {
@@ -172,8 +162,6 @@ public partial class PaneView : UserControl
         e.Handled = true;
     }
 
-    // Whole-pane target: Copy by default, Move on Shift. Rejects a drop while an operation is in
-    // flight, and rejects an internal drag back onto its own source pane.
     private DragDropEffects ResolveDropEffect(DragEventArgs e)
     {
         if (Vm is not { } targetVm || MainVm is not { } mainVm)
@@ -231,9 +219,6 @@ public partial class PaneView : UserControl
             .ToList();
     }
 
-    // Reload replaces every row container; if the focused one died with it, keyboard focus
-    // becomes null. Restore it to this pane when it is active. The reload keeps a valid selected
-    // row (see ApplyRows), so the list always has a container to focus.
     private void OnVmReloaded() => Dispatcher.UIThread.Post(() =>
     {
         if (Vm is { IsActive: true } &&
@@ -327,8 +312,6 @@ public partial class PaneView : UserControl
             vm.CommitRenameFromBlur(row);
     }
 
-    // Double-click the path bar to copy the pane's current path to the clipboard. Double-taps on
-    // the volume chip are ignored — the chip owns its own single-click action (the drives flyout).
     private async void OnPathBarDoubleTapped(object? sender, TappedEventArgs e)
     {
         if (Vm is not { } vm || IsWithinVolumeChip(e.Source as Visual))
@@ -354,7 +337,6 @@ public partial class PaneView : UserControl
             return;
         Interacted?.Invoke(this);
         vm.Drives.Refresh();
-        // Flyout opens automatically (Button.Flyout); focus the filter box for type-to-filter.
         Dispatcher.UIThread.Post(() =>
         {
             DriveFilterBox.Focus();
@@ -446,8 +428,6 @@ public partial class PaneView : UserControl
         new ConnectWindow(dialogVm).ShowDialog(owner);
     }
 
-    // Builds the one protocol-aware connect dialog and wires both success paths (the dialog's
-    // protocol dropdown decides which fires).
     private static ConnectDialogViewModel BuildConnectDialog(MainViewModel mainVm, PaneViewModel paneVm)
     {
         var dialogVm = new ConnectDialogViewModel(
@@ -496,8 +476,6 @@ public partial class PaneView : UserControl
             owner.DataContext is not MainViewModel mainVm)
             return;
 
-        // Any pane still on this share must leave it before the provider is torn down
-        // (same behavior as the Disconnect row).
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         foreach (var pane in new[] { mainVm.Left, mainVm.Right })
         {
@@ -506,7 +484,6 @@ public partial class PaneView : UserControl
                 pane.NavigateTo(home);
         }
 
-        // Disconnect is a no-op for unknown ids.
         mainVm.ConnectionManager.Disconnect(id);
         var all = mainVm.ConnectionStore.Load().Where(c => !string.Equals(c.Id, id, StringComparison.OrdinalIgnoreCase)).ToArray();
         mainVm.ConnectionStore.Save(all);
@@ -522,7 +499,6 @@ public partial class PaneView : UserControl
 
         if (share.IsSmb)
         {
-            // Resolve the freshest stored record (the row's copy may be stale after an edit).
             var smbStored = mainVm.SmbConnectionStore.Load()
                                 .FirstOrDefault(c => string.Equals(c.Id, share.Id, StringComparison.OrdinalIgnoreCase))
                             ?? share.SmbStored;
@@ -569,7 +545,6 @@ public partial class PaneView : UserControl
         if (stored is null)
             return;
 
-        // Wire the dialog seam for this call site so ConnectToShare can open the window.
         mainVm.OpenConnectDialog = (forEdit, targetPane) =>
             OpenConnectDialogCore(mainVm, targetPane, forEdit, owner);
 
@@ -727,7 +702,6 @@ public partial class PaneView : UserControl
         mainVm.RebuildRemotePlaces();
     }
 
-    // x:Name fields inside Flyout content can be unreliable; go via the chip.
     private void HideDriveFlyout()
     {
         VolumeChip.Flyout?.Hide();

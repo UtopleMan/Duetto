@@ -28,7 +28,6 @@ public sealed record TransferFileState(
     TransferFileStatus Status,
     double Percent);
 
-// Immutable snapshot of a running transfer, safe to hand to the UI thread.
 public sealed record TransferSnapshot(
     TransferMode Mode,
     string DestinationDir,
@@ -74,7 +73,6 @@ public sealed class TransferSession : IDisposable
     public bool IsCancelled => _cts.IsCancellationRequested;
     public string? FaultMessage => _faultMessage;
 
-    // Raised from the worker thread whenever progress advances.
     public event Action? Changed;
 
     internal TransferSession(TransferMode mode, string destinationDir)
@@ -280,7 +278,6 @@ public static class TransferEngine
 
             session.Plan(files);
 
-            // Create destination directories (in order, so parents come before children).
             foreach (var (_, dest) in dirPairs)
             {
                 session.Token.ThrowIfCancellationRequested();
@@ -309,11 +306,6 @@ public static class TransferEngine
 
                 session.FileStarted(source, dest, size);
 
-                // Move shortcut: same rename domain (same provider instance, or two instances
-                // addressing the same backend host+share), CanRename, and the destination does
-                // not already exist → native Move (cross-directory allowed), issued via the source
-                // provider so no bytes cross the client. A non-fatal refusal (permissions/replace)
-                // falls through to streaming copy + delete.
                 if (mode == TransferMode.Move
                     && srcProvider.Capabilities.CanRename
                     && SameRenameDomain(srcProvider, source, destProvider, dest)
@@ -328,8 +320,6 @@ public static class TransferEngine
                     catch (IOException ex) when (ex is not SmbConnectionException
                         and not SmbAuthenticationException)
                     {
-                        // Native rename refused — fall through to streaming copy + delete.
-                        // (HostKeyChangedException is not an IOException; it propagates to Run.)
                     }
 
                     if (moved)
@@ -349,7 +339,6 @@ public static class TransferEngine
 
             if (mode == TransferMode.Move)
             {
-                // Depth-first so children go before parents; only empty dirs are removed.
                 foreach (var (dirSource, _) in dirPairs.OrderByDescending(p => p.Source.Length))
                 {
                     if (srcProvider.DirectoryExists(dirSource)
@@ -384,8 +373,6 @@ public static class TransferEngine
         var succeeded = false;
         try
         {
-            // Prefer a server-side copy (SMB copychunk) when source and destination share a backend
-            // domain; fall back to streaming the bytes through the client otherwise.
             if (!TryServerSideCopyInto(session, source, writePath, srcProvider, destProvider))
             {
                 using var input = srcProvider.OpenRead(source);
@@ -418,10 +405,6 @@ public static class TransferEngine
         }
     }
 
-    // Returns true when the file was fully copied server-side into writePath (no bytes crossed the
-    // client). Returns false to make the caller stream: the source provider does not support
-    // server-side copy, the paths are not in the same backend domain, or a non-fatal server error
-    // occurred. Cancellation and connection/auth failures propagate so the session faults/cancels.
     private static bool TryServerSideCopyInto(
         TransferSession session, string source, string writePath,
         IFileSystemProvider srcProvider, IFileSystemProvider destProvider)
@@ -443,15 +426,10 @@ public static class TransferEngine
         }
         catch (IOException ex) when (ex is not SmbConnectionException and not SmbAuthenticationException)
         {
-            // Non-fatal server error (e.g. copychunk rejected) — fall back to streaming.
             return false;
         }
     }
 
-    // True when a native rename/copy from `source` (on `src`) to `destPath` (on `dest`) stays
-    // entirely server-side: either the same provider instance, or two instances that report equal,
-    // non-null backend keys (same host + share for SMB). Providers that do not implement
-    // IBackendIdentity (SFTP, local, in-memory) only match by instance.
     internal static bool SameRenameDomain(
         IFileSystemProvider src, string source, IFileSystemProvider dest, string destPath)
         => ReferenceEquals(src, dest)
@@ -472,7 +450,6 @@ public static class TransferEngine
         if (idx < 0)
             return null;
         var parent = trimmed[..idx];
-        // Preserve a bare separator root (e.g. "/" on unix or in-memory).
         return parent.Length == 0 ? sep.ToString() : parent;
     }
 

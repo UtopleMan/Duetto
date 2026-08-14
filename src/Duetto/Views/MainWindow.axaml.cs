@@ -15,8 +15,6 @@ public partial class MainWindow : Window
 {
     public MainViewModel Vm { get; }
 
-    // Window-placement persistence. Null when not wired (the plain vm ctor used by tests /
-    // the XAML previewer, and headless smoke/screenshot runs) — the overrides then no-op.
     private WindowPlacementStore? _placement;
     private Func<IReadOnlyList<ScreenBounds>>? _screensProvider;
     private PixelPoint _normalPosition;
@@ -25,8 +23,6 @@ public partial class MainWindow : Window
     public MainWindow()
         : this(new MainViewModel())
     {
-        // Production entry (App.axaml.cs). Persist placement to disk, except in headless
-        // smoke/screenshot/CI runs which must never touch the user's window.json.
         if (!Program.Options.Headless)
             WirePlacement(
                 new WindowPlacementStore(AppPaths.WindowJsonPath),
@@ -35,7 +31,6 @@ public partial class MainWindow : Window
                     .ToList());
     }
 
-    // Test seam: inject an in-memory placement store and a fake screen list.
     internal MainWindow(MainViewModel vm, WindowPlacementStore placement,
         Func<IReadOnlyList<ScreenBounds>> screens)
         : this(vm)
@@ -53,11 +48,8 @@ public partial class MainWindow : Window
         LeftPane.Interacted += _ => vm.Activate(vm.Left);
         RightPane.Interacted += _ => vm.Activate(vm.Right);
 
-        // Tab switches panes app-wide; tunnel so focus traversal never sees it.
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
 
-        // macOS clears keyboard focus at the moment the window activates, wiping
-        // anything focused while it was still inactive — restore it here.
         Activated += (_, _) =>
         {
             if (FocusManager?.GetFocusedElement() is null)
@@ -71,15 +63,12 @@ public partial class MainWindow : Window
         {
             case ChromeKind.Win:
             case ChromeKind.Gnome:
-                // Custom title bar replaces the native one.
                 ExtendClientAreaToDecorationsHint = true;
                 ExtendClientAreaChromeHints = ExtendClientAreaChromeHints.NoChrome;
                 ExtendClientAreaTitleBarHeightHint = -1;
                 break;
 
             case ChromeKind.Mac:
-                // Native title bar; panes float as cards on a recessed desk (design 1b).
-                // Theme-aware brushes (fall back to the light values headless / without the palette).
                 Desk.Background = PaletteLookup.Brush("DeskBg", "#e8e6e1");
                 Desk.Padding = new Thickness(14, 12);
                 PanesGrid.ColumnDefinitions[1].Width = new GridLength(12);
@@ -140,12 +129,10 @@ public partial class MainWindow : Window
             return;
 
         var pane = Vm.ActivePane;
-        // Resolve the freshest stored record; fall back to the place's own Stored when absent.
         var stored = Vm.ConnectionStore.Load()
                          .FirstOrDefault(c => string.Equals(c.Id, remotePlace.Id, StringComparison.OrdinalIgnoreCase))
                      ?? remotePlace.Stored;
 
-        // Wire the dialog seam so ConnectToShare can open this window's connect dialog.
         var capturedWindow = this;
         Vm.OpenConnectDialog = (forEdit, targetPane) =>
             OpenRemoteConnectDialog(forEdit, targetPane, capturedWindow);
@@ -203,8 +190,6 @@ public partial class MainWindow : Window
     {
         base.OnOpened(e);
         RestorePlacement();
-        // Cursor starts on the first row; focus is deferred to Background priority
-        // so it lands after Avalonia's own initial-focus pass instead of before it.
         if (Vm.ActivePane.Rows.Count > 0 && Vm.ActivePane.Selection.SelectedItem is null)
             Vm.ActivePane.Selection.Select(0);
         RefocusActiveList(Avalonia.Threading.DispatcherPriority.Background);
@@ -221,8 +206,6 @@ public partial class MainWindow : Window
                 Maximized: WindowState == WindowState.Maximized));
         }
 
-        // Persist the pane directories so the next launch can restore them (no-op when the
-        // view-model has no session store — tests / headless).
         Vm.SaveSession();
 
         base.OnClosing(e);
@@ -232,8 +215,6 @@ public partial class MainWindow : Window
     {
         _placement = placement;
         _screensProvider = screens;
-        // Track the last *normal* (non-maximized) bounds so a window closed while maximized
-        // still restores to a sensible size when later un-maximized.
         PositionChanged += (_, _) => RecordNormalBounds();
         SizeChanged += (_, _) => RecordNormalBounds();
     }
@@ -255,8 +236,6 @@ public partial class MainWindow : Window
         var saved = _placement.Load();
         if (saved is not null && saved.IsVisibleOn(_screensProvider()))
         {
-            // Seed the normal-bounds trackers from the saved values first, so restoring
-            // straight into a maximized window still remembers a sane un-maximized size.
             _normalPosition = new PixelPoint(saved.X, saved.Y);
             _normalSize = new Size(saved.Width, saved.Height);
             Position = _normalPosition;
@@ -266,7 +245,6 @@ public partial class MainWindow : Window
         }
         else
         {
-            // No usable saved placement — keep the XAML default size, seed trackers from it.
             _normalPosition = Position;
             _normalSize = new Size(Width, Height);
         }
@@ -282,10 +260,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Rename/new-entry control keys. Handled here (tunnel, before the text-input guard)
-        // so Enter commits and Escape cancels regardless of whether the inline edit TextBox
-        // holds keyboard focus — routing to that box is otherwise fragile (focus timing, or
-        // the ListBoxItem/TextBox consuming the key first).
         if (e.Key is Key.Enter or Key.Escape && e.KeyModifiers == KeyModifiers.None
             && Vm.ActivePane.Rows.FirstOrDefault(r => r.IsEditing) is { } editing)
         {
@@ -368,7 +342,6 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 return;
             case Key.Space:
-                // Toggle the cursor row's mark in place (Insert advances; Space does not).
                 if (pane.CursorRow is { } spaceRow)
                     pane.ToggleMarkAt(spaceRow);
                 RefocusActiveList();
@@ -418,9 +391,6 @@ public partial class MainWindow : Window
 
     public PaneView ActivePaneView() => Vm.ActivePane == Vm.Left ? LeftPane : RightPane;
 
-    // While the results overlay is up it covers the right pane, so the only visible file pane is
-    // the left one — Tab toggles focus between it and the results. Which way we go is decided by
-    // where focus actually is, so the cycle survives entering the results from the search box.
     private void ToggleSearchFocus()
     {
         if (ResultsHaveFocus())
@@ -440,8 +410,6 @@ public partial class MainWindow : Window
     private bool ResultsHaveFocus() =>
         FocusManager?.GetFocusedElement() is Visual focused && ResultsView.IsVisualAncestorOf(focused);
 
-    // Navigation reloads replace the row containers; the focused item detaches
-    // asynchronously and would drop focus, so refocus after that cleanup runs.
     private void RefocusActiveList(Avalonia.Threading.DispatcherPriority? priority = null) =>
         Avalonia.Threading.Dispatcher.UIThread.Post(
             () => ActivePaneView().FocusList(),
@@ -461,7 +429,6 @@ public partial class MainWindow : Window
         RefocusActiveList();
     }
 
-    // Rows visible in the active list at the 27px row height, minus one for context.
     private int VisiblePageSize() =>
         Math.Max(1, (int)(ActivePaneView().List.Bounds.Height / 27) - 1);
 

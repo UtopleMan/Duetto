@@ -13,7 +13,6 @@ public sealed class SmbFileSystemProviderContractTests : FileSystemProviderContr
     {
         adapter = new FakeSmbClientAdapter();
 
-        // A top-level directory is a "share"; the contract's Root lives inside it.
         adapter.CreateDirectory("/Shared");
 
         conn = new SmbConnection(
@@ -25,7 +24,6 @@ public sealed class SmbFileSystemProviderContractTests : FileSystemProviderContr
 
     protected override IFileSystemProvider Provider => provider;
 
-    // Operate inside a share (never at the share-list root "/") to match a real SMB session.
     protected override string Root => "/Shared";
 
     public void Dispose()

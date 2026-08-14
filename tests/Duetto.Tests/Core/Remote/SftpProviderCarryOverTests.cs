@@ -21,7 +21,6 @@ public class SftpProviderCarryOverTests
     public void ReplaceFile_posix_rejected_falls_back_to_delete_and_rename()
     {
         var adapter = new PosixProbeAdapter();
-        // Root "/" is pre-populated by FakeSftpClientAdapter; don't re-create it.
         adapter.CreateFile("/src.part");
         adapter.CreateFile("/dst.txt");
 
@@ -40,7 +39,6 @@ public class SftpProviderCarryOverTests
     public void ReplaceFile_after_posix_rejection_goes_straight_to_fallback()
     {
         var adapter = new PosixProbeAdapter();
-        // Root "/" is pre-populated by FakeSftpClientAdapter; don't re-create it.
         adapter.CreateFile("/a.part");
         adapter.CreateFile("/a.txt");
         adapter.CreateFile("/b.part");
@@ -62,7 +60,6 @@ public class SftpProviderCarryOverTests
     public void AtomicRename_capability_false_after_posix_rejection()
     {
         var adapter = new PosixProbeAdapter();
-        // Root "/" is pre-populated by FakeSftpClientAdapter; don't re-create it.
         adapter.CreateFile("/src.part");
         adapter.CreateFile("/dst.txt");
 
@@ -76,10 +73,6 @@ public class SftpProviderCarryOverTests
         conn.Dispose();
     }
 
-    // Materialising the listing first prevents a reconnect mid-delete from re-enumerating
-    // from the top with a stale iterator. The guard adapter's ListDirectory returns a lazy
-    // sequence that throws if advanced after any delete call, so a lazy foreach-then-delete
-    // walk trips it while the materialised (.ToList-first) walk does not.
     [Fact]
     public void DeleteRecursive_materializes_children_before_deleting()
     {

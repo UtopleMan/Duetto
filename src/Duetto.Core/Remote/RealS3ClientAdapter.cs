@@ -8,14 +8,8 @@ using Amazon.S3.Transfer;
 
 namespace Duetto.Core.Remote;
 
-// Wraps AWSSDK's AmazonS3Client behind IS3ClientAdapter. AWSSDK v4 is async-only, so each SDK call
-// is awaited and blocked on — the provider is synchronous and already runs transfers off the UI
-// thread. All object keys are backslash-free '/'-separated S3 keys; FullName on returned entries is
-// the provider-local "/bucket/key" form.
 internal sealed class RealS3ClientAdapter(S3ConnectionInfo info, ConnectSecret secret) : IS3ClientAdapter
 {
-    // AWS caps a single-part server-side copy at 5 GiB; larger objects need multipart copy, which
-    // we do not implement — the provider streams those instead.
     private const long SingleCopyLimit = 5L * 1024 * 1024 * 1024;
 
     private IAmazonS3? client;
@@ -28,18 +22,11 @@ internal sealed class RealS3ClientAdapter(S3ConnectionInfo info, ConnectSecret s
     {
         client?.Dispose();
         client = null;
-        // Wrap construction too: an invalid endpoint (e.g. a bare host with no scheme) makes the
-        // SDK throw AmazonClientException here, which must surface as a dialog error, not a crash.
         client = Run(() => (IAmazonS3)new AmazonS3Client(BuildCredentials(), BuildConfig()));
 
-        // Anonymous access often has only GetObject (e.g. a public "download" policy) and cannot
-        // list — there is no cheap call to validate, so skip eager validation and let per-object
-        // reads authorize themselves.
         if (info.AuthMode == S3AuthMode.Anonymous)
             return;
 
-        // Validate credentials + endpoint eagerly so failures surface in the connect dialog. Creds
-        // scoped to one bucket cannot ListBuckets, so probe the bucket when one is configured.
         if (string.IsNullOrEmpty(info.Bucket))
             ListBuckets();
         else
@@ -81,9 +68,6 @@ internal sealed class RealS3ClientAdapter(S3ConnectionInfo info, ConnectSecret s
         return config;
     }
 
-    // The AWS SDK requires a scheme on ServiceURL and throws otherwise. Users commonly enter just a
-    // host (e.g. "minio.example.ts.net"); default to https so it forms a valid URL. A user who needs
-    // http (or a non-default port) types the full URL, which passes through unchanged.
     internal static string NormalizeEndpoint(string endpoint)
     {
         var trimmed = endpoint.Trim();
@@ -116,7 +100,6 @@ internal sealed class RealS3ClientAdapter(S3ConnectionInfo info, ConnectSecret s
 
             foreach (var obj in resp.S3Objects ?? [])
             {
-                // Skip the folder's own marker (key == prefix) and any "…/" placeholder.
                 if (obj.Key == prefix || obj.Key.EndsWith('/'))
                     continue;
                 entries.Add(new S3Entry(LeafOfKey(obj.Key), ObjectPath(bucket, obj.Key), IsDirectory: false, IsReadOnly: false, obj.Size ?? 0, obj.LastModified?.ToUniversalTime() ?? default));
@@ -253,7 +236,6 @@ internal sealed class RealS3ClientAdapter(S3ConnectionInfo info, ConnectSecret s
 
     private static string LeafOfPrefix(string prefix) => LeafOfKey(prefix);
 
-    // Translates AWSSDK faults into the exception contract the connection/provider expect.
     private static T Run<T>(Func<T> op)
     {
         try
@@ -264,9 +246,6 @@ internal sealed class RealS3ClientAdapter(S3ConnectionInfo info, ConnectSecret s
         {
             throw Translate(ex);
         }
-        // AmazonClientException is the base of AmazonServiceException, and also what the SDK throws
-        // for client-side faults such as an invalid ServiceURL — catch it so nothing escapes as an
-        // unhandled crash.
         catch (AmazonClientException ex)
         {
             throw new S3ConnectionException(ex.Message, ex);

@@ -5,7 +5,7 @@
              x:DataType="vm:SearchViewModel"
              Background="{StaticResource PaneBg}">
   <Grid RowDefinitions="30,24,*,26">
-    <!-- Results header -->
+
     <Border Grid.Row="0" Background="{StaticResource ActivePathBg}"
             BorderBrush="{StaticResource Hairline}" BorderThickness="0,0,0,1">
       <DockPanel Margin="12,0" VerticalAlignment="Center">
@@ -28,7 +28,6 @@
       </DockPanel>
     </Border>
 
-    <!-- Column headers -->
     <Border Grid.Row="1" Background="{StaticResource WindowBg}"
             BorderBrush="{StaticResource HairlineLight}" BorderThickness="0,0,0,1">
       <Grid Margin="12,0" ColumnDefinitions="*,14,200,14,70,14,96">
@@ -39,7 +38,6 @@
       </Grid>
     </Border>
 
-    <!-- Result rows (29px per design) -->
     <ListBox Grid.Row="2" x:Name="ResultList"
              Background="{StaticResource PaneBg}"
              ItemsSource="{Binding Results}"
@@ -94,7 +92,6 @@
       </ListBox.ItemTemplate>
     </ListBox>
 
-    <!-- Footer -->
     <Border Grid.Row="3" Background="{StaticResource ToolbarBg}"
             BorderBrush="{StaticResource HairlineLight}" BorderThickness="0,1,0,0">
       <StackPanel Orientation="Horizontal" Spacing="10" Margin="12,0">

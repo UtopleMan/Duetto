@@ -4,7 +4,6 @@ namespace Duetto.Tests.Core;
 
 public class ThemeSettingStoreTests
 {
-    // In-memory store: reader/writer share one dictionary so Save then Load round-trips.
     private static ThemeSettingStore InMemory(string? seed = null)
     {
         var disk = new Dictionary<string, string>();

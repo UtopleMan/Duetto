@@ -3,10 +3,6 @@ using System.Text.Json.Serialization;
 
 namespace Duetto.Core.Remote;
 
-// On-disk DTO for a saved S3 connection. Secrets are never placed on S3ConnectionInfo; the
-// (obfuscated) secret access key + optional session token live here in ObfuscatedSecret. Only Keys
-// auth persists a secret — Profile and Anonymous store none. Separate from StoredConnection (SFTP)
-// and StoredSmbConnection by design — S3 has endpoint/region/path-style/bucket instead of a host.
 public sealed record StoredS3Connection
 {
     [JsonPropertyName("id")]
@@ -59,8 +55,6 @@ public sealed class S3ConnectionStore
         Converters = { new JsonStringEnumConverter() },
     };
 
-    // Secret access key + optional session token are packed as JSON before obfuscation so both
-    // survive a save/load round-trip inside the single ObfuscatedSecret field.
     private sealed record SecretPayload(
         [property: JsonPropertyName("s")] string Secret,
         [property: JsonPropertyName("t")] string? Token);
@@ -84,8 +78,6 @@ public sealed class S3ConnectionStore
         this.writer = writer;
     }
 
-    // Returns an empty array when the file is missing, empty, or corrupt — never throws, so a
-    // hand-mangled config can't crash startup.
     public StoredS3Connection[] Load()
     {
         try
@@ -126,9 +118,6 @@ public sealed class S3ConnectionStore
             Bucket: stored.Bucket,
             InitialPath: stored.InitialPath);
 
-    // Profile and Anonymous need no stored secret — an empty ConnectSecret lets the connect flow
-    // proceed without a prompt. For Keys auth, null means the caller must obtain the secret at
-    // connect time (it wasn't saved, or decryption failed on a foreign machine).
     public static ConnectSecret? ResolveSecret(StoredS3Connection stored, SecretCodec codec)
     {
         ArgumentNullException.ThrowIfNull(codec);
@@ -157,8 +146,6 @@ public sealed class S3ConnectionStore
     public static (S3ConnectionInfo Info, ConnectSecret? Secret) Resolve(StoredS3Connection stored, SecretCodec codec) =>
         (ResolveInfo(stored), ResolveSecret(stored, codec));
 
-    // The secret is persisted (obfuscated) only for Keys auth when savePassword is true and secret
-    // is non-null. Session token is packed alongside the secret access key.
     public static StoredS3Connection Pack(
         S3ConnectionInfo info,
         ConnectSecret? secret,

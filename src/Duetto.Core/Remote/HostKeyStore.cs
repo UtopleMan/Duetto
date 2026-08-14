@@ -2,9 +2,6 @@ using Renci.SshNet.Common;
 
 namespace Duetto.Core.Remote;
 
-// Trust-On-First-Use (TOFU) host-key store. Keyed by OpenSSH-style "algo:[host]:port"
-// (e.g. "ssh-ed25519:[example.com]:22"), so two servers behind one hostname on different
-// ports get independent pins, and an algorithm switch is detectable.
 public sealed class HostKeyStore
 {
     private readonly Dictionary<string, string> _pins = new(StringComparer.OrdinalIgnoreCase);
@@ -37,8 +34,6 @@ public sealed class HostKeyStore
             port = 22;
         }
 
-        // SSH.NET initialises CanTrust to true. Drop trust before verifying so a thrown
-        // HostKeyChangedException can never leave the presented key trusted.
         e.CanTrust = false;
         e.CanTrust = Verify(host, port, e.HostKeyName, e.FingerPrintSHA256);
     }
@@ -57,16 +52,12 @@ public sealed class HostKeyStore
                 throw new HostKeyChangedException(host, stored, fingerprint, algoName, storeKey);
             }
 
-            // Detect algorithm substitution: a genuine first contact has no pins at all,
-            // whereas an algorithm switch already has at least one pin for this host+port.
             var hostSuffix = $":[{host}]:{port}";
             var existingPin = _pins
                 .FirstOrDefault(kv => kv.Key.EndsWith(hostSuffix, StringComparison.OrdinalIgnoreCase));
 
             if (existingPin.Key is not null)
             {
-                // Surface the old pin's fingerprint so the caller can compare against the
-                // substituted algorithm's key.
                 throw new HostKeyChangedException(
                     host,
                     oldFingerprint: existingPin.Value,

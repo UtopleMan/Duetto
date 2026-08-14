@@ -2,10 +2,6 @@ using System.Runtime.InteropServices;
 
 namespace Duetto.Core.Operations;
 
-// macOS-only: trashes via Cocoa's [[NSFileManager defaultManager]
-// trashItemAtURL:resultingItemURL:error:] — the same API Finder uses. Unlike a raw
-// move into ~/.Trash, this records "Put Back" metadata and routes items on other
-// volumes to that volume's own .Trashes.
 internal static class MacTrash
 {
     private const string Libobjc = "/usr/lib/libobjc.dylib";

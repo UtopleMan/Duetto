@@ -3,11 +3,6 @@ using System.Text;
 
 namespace Duetto.Core.Remote;
 
-// Security model: this is obfuscation only, not cryptographically secure protection. The key
-// is derived from machine name + OS user + a fixed app salt, so the ciphertext is unreadable on
-// a different machine or account but is trivially reversible by anyone with the same account and
-// the source. Protects against shoulder-surfing and casual file inspection; NOT against a local
-// attacker who can execute code in the same user context.
 public sealed class SecretCodec
 {
     private const string AppSalt = "Duetto-ConfigStore-v1";
@@ -32,7 +27,7 @@ public sealed class SecretCodec
         aes.GenerateIV();
 
         using var ms = new MemoryStream();
-        ms.Write(aes.IV, 0, aes.IV.Length); // 16-byte IV prefix
+        ms.Write(aes.IV, 0, aes.IV.Length);
 
         using (var encryptor = aes.CreateEncryptor())
         using (var cs = new CryptoStream(ms, encryptor, CryptoStreamMode.Write))
@@ -45,8 +40,6 @@ public sealed class SecretCodec
         return Convert.ToBase64String(ms.ToArray());
     }
 
-    // Returns null (never throws) on corrupt, too-short, or foreign-key ciphertext so the
-    // caller can fall back to prompting instead of crashing.
     public string? TryDecrypt(string? ciphertext)
     {
         if (string.IsNullOrEmpty(ciphertext))
@@ -56,11 +49,6 @@ public sealed class SecretCodec
         {
             var raw = Convert.FromBase64String(ciphertext);
 
-            // Valid output of Encrypt is a 16-byte IV followed by at least one whole
-            // AES block (CBC + PKCS7 padding always emits >= 1 block, even for empty
-            // plaintext).  Reject anything shorter — including exactly-16 bytes (an IV
-            // with an empty payload) — and any payload that is not a whole number of
-            // blocks, via the guard rather than relying on a padding exception.
             const int ivLen = 16;
             const int blockLen = 16;
             if (raw.Length < ivLen + blockLen || (raw.Length - ivLen) % blockLen != 0)

@@ -19,7 +19,6 @@ public class ShellRunnerTests : IDisposable
 
         Assert.Equal(0, result.ExitCode);
         var pwd = Assert.Single(lines.Where(l => l.Stream == ShellStream.Output && l.Text.Length > 0));
-        // macOS reports /private/var for the /var symlink — compare by unique leaf name.
         Assert.EndsWith(Path.GetFileName(_tmp.Path), pwd.Text.TrimEnd());
     }
 

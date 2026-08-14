@@ -16,10 +16,8 @@ public sealed class AppOptions
 
     public string? Screenshot { get; init; }
 
-    // Forces a theme, overriding settings.json — used by screenshot runs to render a given variant.
     public AppTheme? Theme { get; init; }
 
-    // Null when absent or the path is missing / not a directory — the caller falls back to home.
     public string? Folder { get; init; }
 
     public bool Headless => Smoke || Screenshot is not null;
@@ -59,7 +57,6 @@ public sealed class AppOptions
                         var other => throw new ArgumentException($"Unknown theme '{other}' (expected system|light|dark)"),
                     };
                     break;
-                // Flag values are consumed above via ++i, so this only ever sees genuine positionals.
                 default:
                     if (folder is null && !args[i].StartsWith("--", StringComparison.Ordinal))
                         folder = ResolveFolder(args[i]);

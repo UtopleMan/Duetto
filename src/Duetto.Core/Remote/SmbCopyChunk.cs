@@ -2,8 +2,6 @@ using System.Buffers.Binary;
 
 namespace Duetto.Core.Remote;
 
-// Byte marshalling for SMB2 server-side copy (copychunk), MS-SMB2 2.2.31 / 2.2.32. Deliberately
-// free of any SMBLibrary type so the layout can be unit-tested in isolation.
 internal static class SmbCopyChunk
 {
     public const uint FsctlRequestResumeKey = 0x00140078;
@@ -13,7 +11,6 @@ internal static class SmbCopyChunk
     public readonly record struct Chunk(long SourceOffset, long TargetOffset, int Length);
     public readonly record struct CopyChunkResult(uint ChunksWritten, uint ChunkBytesWritten, uint TotalBytesWritten);
 
-    // SRV_REQUEST_RESUME_KEY Response: ResumeKey(24) | ContextLength(4) | Context(var).
     public static byte[] ParseResumeKey(byte[] fsctlOutput)
     {
         if (fsctlOutput is null || fsctlOutput.Length < ResumeKeyLength)
@@ -21,8 +18,6 @@ internal static class SmbCopyChunk
         return fsctlOutput[..ResumeKeyLength];
     }
 
-    // SRV_COPYCHUNK_COPY: SourceKey(24) | ChunkCount(u32) | Reserved(u32) | Chunk[]
-    //   where SRV_COPYCHUNK = SourceOffset(u64) | TargetOffset(u64) | Length(u32) | Reserved(u32).
     public static byte[] BuildCopyChunkRequest(byte[] sourceKey, IReadOnlyList<Chunk> chunks)
     {
         if (sourceKey is null || sourceKey.Length != ResumeKeyLength)
@@ -32,21 +27,18 @@ internal static class SmbCopyChunk
         var span = buffer.AsSpan();
         sourceKey.CopyTo(span);
         BinaryPrimitives.WriteUInt32LittleEndian(span[24..], (uint)chunks.Count);
-        // Reserved [28..32) stays zero.
         var offset = 32;
         foreach (var c in chunks)
         {
             BinaryPrimitives.WriteInt64LittleEndian(span[offset..], c.SourceOffset);
             BinaryPrimitives.WriteInt64LittleEndian(span[(offset + 8)..], c.TargetOffset);
             BinaryPrimitives.WriteInt32LittleEndian(span[(offset + 16)..], c.Length);
-            // Reserved [offset+20..offset+24) stays zero.
             offset += 24;
         }
 
         return buffer;
     }
 
-    // SRV_COPYCHUNK_RESPONSE: ChunksWritten(u32) | ChunkBytesWritten(u32) | TotalBytesWritten(u32).
     public static CopyChunkResult ParseCopyChunkResponse(byte[] fsctlOutput)
     {
         if (fsctlOutput is null || fsctlOutput.Length < 12)

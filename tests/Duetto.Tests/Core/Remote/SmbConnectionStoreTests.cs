@@ -95,11 +95,9 @@ public sealed class SmbConnectionStoreTests
         var guest = MakeInfo() with { Guest = true, Username = "" };
         var stored = SmbConnectionStore.Pack(guest, ConnectSecret.FromPassword("ignored"), savePassword: true, codec);
 
-        // Guest never persists a secret...
         Assert.Empty(stored.ObfuscatedSecret);
         Assert.True(stored.Guest);
 
-        // ...but resolves a usable (empty) secret so the connect flow needs no prompt.
         var secret = SmbConnectionStore.ResolveSecret(stored, codec);
         Assert.NotNull(secret);
         Assert.Equal("", secret.Password);

@@ -11,7 +11,6 @@ public sealed class InMemoryFileSystemProvider : IFileSystemProvider
         public DateTime ModifiedUtc = DateTime.UnixEpoch;
     }
 
-    // Keyed by normalized full path ("/", "/a", "/a/b.txt"). Root always present.
     private readonly Dictionary<string, Node> _nodes = new() { ["/"] = new Node { IsDirectory = true } };
 
     public FileSystemCapabilities Capabilities { get; init; } = new()
@@ -112,8 +111,6 @@ public sealed class InMemoryFileSystemProvider : IFileSystemProvider
     {
         var source = Norm(from);
         var target = Norm(to);
-        // Single dictionary re-key: the old target (if any) is replaced in one step,
-        // mirroring the atomic same-directory rename of a real backend.
         _nodes[target] = _nodes[source];
         _nodes.Remove(source);
     }

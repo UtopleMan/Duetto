@@ -59,8 +59,6 @@ public class RemoteOpsTests
         remoteFs.CreateDirectory("/", "incoming");
         var reg = MakeRegistry("fake", "host", remoteFs);
 
-        // Left = local, Right = remote; we need both reachable through one registry.
-        // The local provider is the registry's default, so just register the remote side.
         using var vm = new MainViewModel(src.Path, "fake://host/incoming", registry: reg);
         await vm.Left.LoadCompletion;
         await vm.Right.LoadCompletion;
@@ -236,8 +234,6 @@ public class RemoteOpsTests
         using var vm = new MainViewModel("sftp://srv/", "sftp://srv/", registry: reg);
         await vm.Left.LoadCompletion;
 
-        // Inline scheduler so the test is synchronous; TrashFn stays the production default
-        // (TrashViaProvider) so this exercises the real remote routing.
         vm.DeleteScheduler = (work, ct) => { work(ct); return Task.CompletedTask; };
 
         vm.Left.SelectByName("file.txt");
@@ -356,7 +352,6 @@ public class RemoteOpsTests
 
         var pathBefore = vm.CurrentPath;
 
-        // "sftp://gone/" has no registered provider — Resolve throws InvalidOperationException.
         var ex = Record.Exception(() => vm.NavigateTo("sftp://gone/sub"));
         Assert.Null(ex);
         Assert.Equal(pathBefore, vm.CurrentPath);
@@ -365,16 +360,11 @@ public class RemoteOpsTests
     [AvaloniaFact]
     public void NavigateTo_remote_address_with_SshConnectionException_does_not_throw_and_pane_survives()
     {
-        // Provider that throws SshConnectionException from DirectoryExists; registered so
-        // Resolve succeeds but any pre-check call would throw. Since the implementation
-        // skips DirectoryExists for remote (removes UI-thread network stall), the nav
-        // commits the path and the load guard handles the subsequent listing failure.
         var throwingFs = new DirectoryExistsThrowingProvider(
             new SshConnectionException("connection dropped"));
         var reg = new FileSystemRegistry();
         reg.Register("sftp", "srv", throwingFs);
 
-        // Start on local so CurrentPath is a local directory (no load needed).
         using var tmp = new TempDir();
         using var vm = new PaneViewModel(tmp.Path, reg);
         Dispatcher.UIThread.RunJobs();

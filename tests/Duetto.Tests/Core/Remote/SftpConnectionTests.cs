@@ -249,7 +249,6 @@ internal sealed class FakeAdapter : ISftpClientAdapter
     public void SetHostKeyReceived(EventHandler<HostKeyEventArgs> handler)
         => HostKeyHandlerWired = true;
 
-    // Narrow SFTP ops — not used by connection-lifecycle tests; stubs that throw.
     public IEnumerable<Duetto.Core.Remote.SftpEntry> ListDirectory(string path) => throw new NotSupportedException();
     public Duetto.Core.Remote.SftpEntry? Get(string path) => throw new NotSupportedException();
     public bool IsDirectory(string path) => throw new NotSupportedException();

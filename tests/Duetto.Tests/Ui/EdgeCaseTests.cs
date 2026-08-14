@@ -39,7 +39,7 @@ public class EdgeCaseTests
         using var vm = new PaneViewModel(tmp.Path);
         clock.Stop();
 
-        Assert.Equal(3001, vm.Rows.Count); // ".." + 3000 files
+        Assert.Equal(3001, vm.Rows.Count);
         Assert.Equal("file-00000.txt", vm.Rows[1].Name);
         Assert.True(clock.ElapsedMilliseconds < 5000, $"load took {clock.ElapsedMilliseconds} ms");
     }

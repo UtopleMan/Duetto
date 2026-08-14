@@ -32,7 +32,6 @@ public static class SearchService
         CancellationToken ct = default)
         => Search(scopeDir, query, includeContents, stats, _defaultRegistry, ct);
 
-    // Returns no results when SupportsSearch is false (clean no-op, no exception).
     public static async IAsyncEnumerable<SearchHit> Search(
         string scopeDir,
         string query,
@@ -47,7 +46,6 @@ public static class SearchService
             yield break;
 
         var sep = provider.Capabilities.Separator;
-        // Trim any trailing separator so slice offsets are stable even for root ("/").
         var scopeBase = localPath.TrimEnd(sep);
         var channel = Channel.CreateUnbounded<SearchHit>();
         var worker = Task.Run(() =>
@@ -110,7 +108,6 @@ public static class SearchService
         {
             using var stream = provider.OpenRead(path);
             using var reader = new StreamReader(stream);
-            // NUL byte in the first chunk = treat as binary, skip.
             var buffer = new char[8192];
             var first = reader.Read(buffer, 0, buffer.Length);
             var window = new string(buffer, 0, first);
@@ -119,7 +116,6 @@ public static class SearchService
             if (window.Contains(query, StringComparison.OrdinalIgnoreCase))
                 return true;
 
-            // Overlap window so a match straddling chunk boundaries is still found.
             var carry = window.Length >= query.Length ? window[^(query.Length - 1)..] : window;
             int read;
             while ((read = reader.Read(buffer, 0, buffer.Length)) > 0)

@@ -14,10 +14,6 @@ public class App : Application
 {
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
-    // Restart-to-apply: resolve the saved theme (System follows the OS), set the Fluent variant,
-    // and append the matching palette dictionary so it overrides the light default merged in
-    // App.axaml. Runs before any window is created, so views bind the chosen palette at parse
-    // time. A forced --theme (screenshot runs) wins over settings.json.
     private void ApplyTheme()
     {
         var setting = Program.Options.Theme

@@ -2,25 +2,13 @@ using Duetto.Core.FileSystem;
 
 namespace Duetto.Core.Remote;
 
-// Maps the provider-local root "/" to the container list (or the single configured container);
-// "/container/blob…" addresses blobs. Blob storage has no real directories — a folder is a blob-name
-// prefix, and an empty folder is a zero-byte "prefix/" marker blob. Serialises concurrent calls with
-// a lock (AzureConnection is not thread-safe) so UI panes and search threads are safe.
 public sealed class AzureFileSystemProvider : IFileSystemProvider, IBackendIdentity, IServerSideCopy, IDisposable
 {
     private readonly AzureConnection conn;
     private readonly Lock gate = new();
 
-    // An empty folder is represented by a zero-byte keep blob at "prefix/.duettokeep". A bare
-    // "prefix/" marker is not portable — Azurite strips the trailing slash and stores it as a file —
-    // so a real child blob under the prefix is the reliable marker. Keep blobs are hidden from listings.
     private const string KeepMarker = ".duettokeep";
 
-    // CanRename = false: blob stores have no rename, so the transfer engine routes moves through copy
-    // + delete — and, when both panes share this connection, through the server-side Copy Blob offload
-    // (IServerSideCopy) with no bytes crossing the client. AtomicRename = false: an upload only becomes
-    // visible when complete, so no ".part" staging is needed. HasTrash = false: permanent delete.
-    // PreservesMTime = false: the service owns the blob's LastModified.
     public static readonly FileSystemCapabilities AzureCapabilities = new()
     {
         CanRename = false,
@@ -47,7 +35,6 @@ public sealed class AzureFileSystemProvider : IFileSystemProvider, IBackendIdent
 
     private static bool IsRoot(string path) => path is "" or "/";
 
-    // Splits a provider-local path into (container, key). key is "" at a container root.
     private static (string Container, string Key) Split(string path)
     {
         var trimmed = path.Trim('/');
@@ -57,7 +44,6 @@ public sealed class AzureFileSystemProvider : IFileSystemProvider, IBackendIdent
         return slash < 0 ? (trimmed, "") : (trimmed[..slash], trimmed[(slash + 1)..]);
     }
 
-    // The listing prefix for a folder key: "" for a container root, else "key/".
     private static string PrefixFor(string key) => key.Length == 0 ? "" : key.TrimEnd('/') + "/";
 
     private static string Join(string parent, string name)
@@ -166,7 +152,6 @@ public sealed class AzureFileSystemProvider : IFileSystemProvider, IBackendIdent
         });
     }
 
-    // Creates a zero-byte "prefix/" marker so an empty folder is visible.
     public string CreateDirectory(string parent, string name)
     {
         var target = Join(parent, name);
@@ -187,8 +172,6 @@ public sealed class AzureFileSystemProvider : IFileSystemProvider, IBackendIdent
         return target;
     }
 
-    // File rename only. Blob-store folders are name prefixes; renaming one means bulk-copying every
-    // child, which is out of scope — the transfer engine handles moving a folder's contents instead.
     public string Rename(string fullPath, string newName)
     {
         var parent = ParentOf(fullPath);
@@ -208,8 +191,6 @@ public sealed class AzureFileSystemProvider : IFileSystemProvider, IBackendIdent
         return target;
     }
 
-    // File move = server-side Copy Blob + delete. Guards against overwrite (the engine only calls this
-    // when the destination is free). Folders are handled by the engine's tree walk.
     public void Move(string fromPath, string toPath)
     {
         var (sc, sk) = Split(fromPath);
@@ -225,7 +206,6 @@ public sealed class AzureFileSystemProvider : IFileSystemProvider, IBackendIdent
                 throw new IOException($"Destination already exists: {toPath}");
             if (!a.CopyBlob(sc, sk, dc, dk, _ => { }, CancellationToken.None))
             {
-                // No server-side copy available (e.g. SAS/anonymous creds): stream through the client.
                 using var src = a.OpenRead(sc, sk);
                 using var dst = a.OpenWrite(dc, dk);
                 src.CopyTo(dst);
@@ -234,7 +214,6 @@ public sealed class AzureFileSystemProvider : IFileSystemProvider, IBackendIdent
         });
     }
 
-    // Overwriting copy + delete of the source. An Azure upload/copy replaces any existing target blob.
     public void ReplaceFile(string from, string to)
     {
         var (sc, sk) = Split(from);
@@ -269,8 +248,6 @@ public sealed class AzureFileSystemProvider : IFileSystemProvider, IBackendIdent
         });
     }
 
-    // The returned stream is bound to the connection live at open time; a reconnect does not migrate
-    // it. Callers treat stream failures as fatal for the operation and re-open.
     public Stream OpenRead(string path)
     {
         var (container, key) = Split(path);
@@ -286,9 +263,6 @@ public sealed class AzureFileSystemProvider : IFileSystemProvider, IBackendIdent
     public void SetLastWriteTimeUtc(string path, DateTime utc) =>
         throw new NotSupportedException("Azure Blob does not support setting a blob's modification time.");
 
-    // Walks the tree level by level so folder entries (name prefixes) are yielded as well as blobs —
-    // the transfer engine needs the directory entries to recreate the folder structure at the
-    // destination. A lock is taken per level, not held across yields.
     public IEnumerable<FileEntry> EnumerateRecursive(string path)
     {
         if (IsRoot(path))
@@ -319,17 +293,9 @@ public sealed class AzureFileSystemProvider : IFileSystemProvider, IBackendIdent
 
     public VolumeInfo? VolumeFor(string path) => null;
 
-    // Server-side copy/move domain: every blob path of this connection. Two paths reachable by this
-    // connection's client can be Copy Blob'd server-side. The container-list root has no domain. Keyed
-    // on the connection id (a single client/creds pair reaches all its containers), so cross-container
-    // server-side copy within one connection is allowed; a different connection falls back to
-    // streaming, which is always correct.
     public string? BackendKey(string path) =>
         IsRoot(path) ? null : $"azure://{conn.ConnId}";
 
-    // Server-side Copy Blob. The engine gates this on BackendKey equality, so both paths are reachable
-    // by this connection's client. Returns false when a server-side copy is unavailable (the credential
-    // cannot mint a readable source SAS) so the engine streams instead.
     public bool TryServerSideCopy(string source, string dest, Action<long> onBytesCopied, CancellationToken token)
     {
         var (sc, sk) = Split(source);

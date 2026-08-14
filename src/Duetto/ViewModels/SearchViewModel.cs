@@ -78,18 +78,15 @@ public partial class SearchViewModel : ObservableObject
     [ObservableProperty]
     private bool _isSearching;
 
-    // Defaults to true because local panes always support search.
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SearchWatermark))]
     private bool _isSearchSupported = true;
 
-    // The unavailable message lets the disabled text box still communicate why it is disabled.
     public string SearchWatermark =>
         IsSearchSupported
             ? "Search everything below this folder…"
             : "Search unavailable for this provider";
 
-    // "Open as pane": results stay visible after the query clears, until Esc or a new search.
     [ObservableProperty]
     private bool _isPinned;
 
@@ -98,8 +95,6 @@ public partial class SearchViewModel : ObservableObject
 
     public event Action<FileEntry>? RevealRequested;
 
-    // Rationale: the volume chip uses the same connection-name lookup, so the search header stays
-    // consistent with the chip label already visible in the pane header.
     public string ScopeDirName
     {
         get
@@ -134,7 +129,6 @@ public partial class SearchViewModel : ObservableObject
         _ => "Any date",
     };
 
-    // Test seam. Returns null when the id is not found (caller falls back to showing the id itself).
     public Func<string, string?> ConnectionNameResolver { get; set; } = _ => null;
 
     public SearchViewModel(Func<string> scopeProvider, FileSystemRegistry? registry = null)
@@ -192,8 +186,6 @@ public partial class SearchViewModel : ObservableObject
         Query = "";
     }
 
-    // Path-like input ("/…", "~…", "C:\…", or anything with a separator) is an address, not a
-    // query — Enter navigates instead, and no search runs.
     public static bool IsPathLike(string text) =>
         text.StartsWith('~') || Path.IsPathRooted(text) ||
         text.Contains(Path.DirectorySeparatorChar) || text.Contains(Path.AltDirectorySeparatorChar);

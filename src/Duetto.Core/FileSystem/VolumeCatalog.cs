@@ -61,15 +61,13 @@ public static class VolumeCatalog
         return Build(sources, platform);
     }
 
-    // Longest mount that is a prefix of path on a segment boundary — the boundary check
-    // stops "/foo" from matching "/foobar".
     public static VolumeInfo? FindByPath(IReadOnlyList<VolumeInfo> volumes, string path)
     {
         VolumeInfo? best = null;
         foreach (var v in volumes)
         {
             var mount = v.MountPath.TrimEnd('/', '\\');
-            var isMatch = mount.Length == 0 // unix root "/"
+            var isMatch = mount.Length == 0
                 || string.Equals(path, mount, StringComparison.OrdinalIgnoreCase)
                 || (path.StartsWith(mount, StringComparison.OrdinalIgnoreCase)
                     && path.Length > mount.Length
@@ -83,7 +81,6 @@ public static class VolumeCatalog
 
     private static string DisplayName(VolumeSource s, VolumePlatform platform)
     {
-        // Unix DriveInfo.VolumeLabel echoes the mount path; treat that as no label.
         if (!string.IsNullOrWhiteSpace(s.Label) && !IsMountEcho(s.Label, s.MountPath))
             return s.Label;
         if (platform == VolumePlatform.Mac && IsRoot(s.MountPath))

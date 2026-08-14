@@ -5,7 +5,6 @@ namespace Duetto.Core.Operations;
 
 public static class TrashService
 {
-    // Returns the path inside the trash on Unix, null on Windows (the shell API does not report it).
     public static string? Trash(string fullPath)
     {
         if (!File.Exists(fullPath) && !Directory.Exists(fullPath))
@@ -22,9 +21,6 @@ public static class TrashService
 
     private static string TrashMac(string fullPath)
     {
-        // Prefer the native trash API (Put Back metadata + correct handling of items on other
-        // volumes). Fall back to a same-volume ~/.Trash move only if the interop call fails, so
-        // a delete never silently becomes permanent.
         try
         {
             return MacTrash.Trash(fullPath);
@@ -87,9 +83,8 @@ public static class TrashService
     {
         var op = new SHFILEOPSTRUCT
         {
-            wFunc = 3, // FO_DELETE
+            wFunc = 3,
             pFrom = fullPath + "\0\0",
-            // FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT
             fFlags = 0x0040 | 0x0010 | 0x0004,
         };
         var result = SHFileOperationW(ref op);

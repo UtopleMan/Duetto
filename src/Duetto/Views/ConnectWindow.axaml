@@ -13,7 +13,6 @@
 
   <StackPanel Margin="24,20,24,20" Spacing="0">
 
-    <!-- Protocol selector -->
     <TextBlock Text="PROTOCOL" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                Foreground="{StaticResource HeaderText}" Margin="0,0,0,4"/>
     <ComboBox x:Name="ProtocolBox" SelectedIndex="0" HorizontalAlignment="Stretch" Margin="0,0,0,14"
@@ -24,12 +23,10 @@
       <ComboBoxItem Content="Azure Blob Storage" />
     </ComboBox>
 
-    <!-- Name -->
     <TextBlock Text="CONNECTION NAME (optional)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                Foreground="{StaticResource HeaderText}" Margin="0,0,0,4"/>
     <TextBox Text="{Binding Name}" Watermark="My Server" Margin="0,0,0,14"/>
 
-    <!-- Host + Port (SFTP/SMB) -->
     <Grid ColumnDefinitions="*,8,80" Margin="0,0,0,14" IsVisible="{Binding HostPortVisible}">
       <StackPanel Grid.Column="0" Spacing="4">
         <TextBlock Text="HOST" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
@@ -43,7 +40,6 @@
       </StackPanel>
     </Grid>
 
-    <!-- S3 endpoint + region -->
     <Grid ColumnDefinitions="*,8,120" Margin="0,0,0,14" IsVisible="{Binding S3FieldsVisible}">
       <StackPanel Grid.Column="0" Spacing="4">
         <TextBlock Text="ENDPOINT (blank = AWS)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
@@ -57,12 +53,10 @@
       </StackPanel>
     </Grid>
 
-    <!-- S3 path-style toggle -->
     <CheckBox IsVisible="{Binding S3FieldsVisible}" IsChecked="{Binding PathStyle}"
               Content="Use path-style addressing (MinIO / on-prem)"
               Foreground="{StaticResource TextBody}" Margin="0,0,0,10"/>
 
-    <!-- S3 auth mode selector -->
     <StackPanel IsVisible="{Binding S3FieldsVisible}" Spacing="0">
       <TextBlock Text="CREDENTIALS" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}" Margin="0,0,0,6"/>
@@ -76,7 +70,6 @@
       </StackPanel>
     </StackPanel>
 
-    <!-- S3 access key + secret + session token (Keys mode) -->
     <StackPanel IsVisible="{Binding S3KeysVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="ACCESS KEY ID" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
@@ -89,35 +82,30 @@
       <TextBox Text="{Binding SessionToken}" PasswordChar="•" Watermark="(temporary / STS credentials)"/>
     </StackPanel>
 
-    <!-- S3 profile name (Profile mode) -->
     <StackPanel IsVisible="{Binding S3ProfileVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="AWS PROFILE" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
       <TextBox Text="{Binding Profile}" Watermark="default"/>
     </StackPanel>
 
-    <!-- S3 bucket (optional; required for anonymous) -->
     <StackPanel IsVisible="{Binding S3FieldsVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="BUCKET (blank = list all buckets)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
       <TextBox Text="{Binding Bucket}" Watermark="my-bucket"/>
     </StackPanel>
 
-    <!-- Azure endpoint -->
     <StackPanel IsVisible="{Binding AzureFieldsVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="ENDPOINT (blank = {account}.blob.core.windows.net)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
       <TextBox Text="{Binding Endpoint}" Watermark="http://127.0.0.1:10000/devstoreaccount1"/>
     </StackPanel>
 
-    <!-- Azure account name -->
     <StackPanel IsVisible="{Binding AzureAccountVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="STORAGE ACCOUNT" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
       <TextBox Text="{Binding AzureAccount}" Watermark="mystorageaccount"/>
     </StackPanel>
 
-    <!-- Azure auth mode selector -->
     <StackPanel IsVisible="{Binding AzureFieldsVisible}" Spacing="0">
       <TextBlock Text="CREDENTIALS" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}" Margin="0,0,0,6"/>
@@ -133,47 +121,40 @@
       </WrapPanel>
     </StackPanel>
 
-    <!-- Azure account key (SharedKey mode) -->
     <StackPanel IsVisible="{Binding AzureKeyVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="ACCOUNT KEY" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
       <TextBox Text="{Binding AzureAccountKey}" PasswordChar="•" Watermark="(not stored unless checked below)"/>
     </StackPanel>
 
-    <!-- Azure connection string (ConnectionString mode) -->
     <StackPanel IsVisible="{Binding AzureConnStringVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="CONNECTION STRING" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
       <TextBox Text="{Binding AzureConnectionString}" PasswordChar="•" Watermark="DefaultEndpointsProtocol=…;AccountName=…;AccountKey=…"/>
     </StackPanel>
 
-    <!-- Azure SAS token (Sas mode) -->
     <StackPanel IsVisible="{Binding AzureSasVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="SAS TOKEN OR URL" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
       <TextBox Text="{Binding AzureSasToken}" PasswordChar="•" Watermark="?sv=…&amp;sig=…  or  https://…?sv=…"/>
     </StackPanel>
 
-    <!-- Azure container (optional; required for anonymous) -->
     <StackPanel IsVisible="{Binding AzureContainerVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="CONTAINER (blank = list all containers)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
       <TextBox Text="{Binding AzureContainer}" Watermark="my-container"/>
     </StackPanel>
 
-    <!-- Guest toggle (SMB only) -->
     <CheckBox IsVisible="{Binding SmbFieldsVisible}" IsChecked="{Binding Guest}"
               Content="Connect as guest (no credentials)"
               Foreground="{StaticResource TextBody}" Margin="0,0,0,10"/>
 
-    <!-- Username -->
     <StackPanel IsVisible="{Binding UsernameVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="USERNAME" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
       <TextBox Text="{Binding Username}" Watermark="user"/>
     </StackPanel>
 
-    <!-- Auth mode (SFTP only) -->
     <StackPanel IsVisible="{Binding SftpAuthVisible}" Spacing="0">
       <TextBlock Text="AUTHENTICATION" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}" Margin="0,0,0,6"/>
@@ -185,21 +166,18 @@
       </StackPanel>
     </StackPanel>
 
-    <!-- Password field -->
     <StackPanel IsVisible="{Binding PasswordVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="PASSWORD" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
       <TextBox Text="{Binding Password}" PasswordChar="•" Watermark="(not stored unless checked below)"/>
     </StackPanel>
 
-    <!-- Domain (SMB only) -->
     <StackPanel IsVisible="{Binding SmbFieldsVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="DOMAIN / WORKGROUP (optional)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
       <TextBox Text="{Binding Domain}" Watermark="WORKGROUP"/>
     </StackPanel>
 
-    <!-- Key file + passphrase (SFTP key mode) -->
     <StackPanel IsVisible="{Binding KeySectionVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="PRIVATE KEY FILE" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
@@ -213,17 +191,14 @@
       <TextBox Text="{Binding KeyPassphrase}" PasswordChar="•" Watermark="(leave blank for unencrypted key)"/>
     </StackPanel>
 
-    <!-- Initial path -->
     <TextBlock Text="INITIAL PATH" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                Foreground="{StaticResource HeaderText}" Margin="0,0,0,4"/>
     <TextBox Text="{Binding InitialRemotePath}" Watermark="/" Margin="0,0,0,14"/>
 
-    <!-- Save password / secret checkbox -->
     <CheckBox IsVisible="{Binding SaveSecretVisible}" IsChecked="{Binding SavePassword}"
               Content="Save password / secret"
               Foreground="{StaticResource TextBody}" Margin="0,0,0,14"/>
 
-    <!-- Host key changed warning (SFTP only) -->
     <Border IsVisible="{Binding HostKeyWarningVisible}"
             Background="{StaticResource DangerBg}"
             BorderBrush="{StaticResource DangerRed}"
@@ -246,12 +221,10 @@
       </StackPanel>
     </Border>
 
-    <!-- Inline error text -->
     <TextBlock IsVisible="{Binding HasError}" Text="{Binding ErrorText}"
                FontSize="11.5" Foreground="{StaticResource DangerRed}"
                TextWrapping="Wrap" Margin="0,0,0,10"/>
 
-    <!-- Buttons -->
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
       <Button Content="Cancel" Click="OnCancelClicked"
               Padding="18,5" CornerRadius="6"/>

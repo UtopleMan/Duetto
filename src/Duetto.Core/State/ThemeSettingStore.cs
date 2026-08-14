@@ -3,7 +3,6 @@ using System.Text.Json.Serialization;
 
 namespace Duetto.Core.State;
 
-// The user's theme choice. System follows the OS appearance; Light/Dark are explicit.
 public enum AppTheme
 {
     System,
@@ -11,9 +10,6 @@ public enum AppTheme
     Dark,
 }
 
-// Persists the theme choice to settings.json in the config dir. Applied on next launch
-// (restart-to-apply). Mirrors SessionStore: injectable reader/writer, atomic default write,
-// never throws on a missing/corrupt/unknown file — an unreadable setting falls back to System.
 public sealed class ThemeSettingStore
 {
     private readonly string _path;

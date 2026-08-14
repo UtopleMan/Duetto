@@ -75,7 +75,6 @@ public sealed class LocalFileSystemProvider : IFileSystemProvider
 
     public IEnumerable<FileEntry> EnumerateRecursive(string path)
     {
-        // Guard every MoveNext: macOS TCC can deny individual entries mid-iteration.
         IEnumerator<FileSystemInfo>? iterator;
         try
         {
@@ -103,7 +102,6 @@ public sealed class LocalFileSystemProvider : IFileSystemProvider
                 }
 
                 yield return DirectoryLister.ToEntry(info);
-                // Recurse into real directories only; symlinked dirs risk cycles.
                 if (info is DirectoryInfo dir && dir.LinkTarget is null)
                     foreach (var descendant in EnumerateRecursive(dir.FullName))
                         yield return descendant;

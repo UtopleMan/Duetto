@@ -62,7 +62,6 @@ public class OpenRemoteFileTests
 
         var launchCount = 0;
         vm.Left.LaunchFile = _ => launchCount++;
-        // First open never completes — leaves ActiveOperation unfinished.
         var gate = new TaskCompletionSource();
         vm.OpenScheduler = (_, _) => gate.Task;
 
@@ -72,7 +71,6 @@ public class OpenRemoteFileTests
         Assert.NotNull(first);
         Assert.False(first!.IsFinished);
 
-        // Second open must be ignored while the first is in flight.
         vm.Left.Open(vm.Left.CursorRow!);
 
         Assert.Same(first, vm.ActiveOperation);

@@ -2,8 +2,6 @@ using System.Text.Json;
 
 namespace Duetto.Core.State;
 
-// Load never throws — a missing, empty, or corrupt file yields null so the caller falls
-// back to a default placement.
 public sealed class WindowPlacementStore
 {
     private readonly string _path;

@@ -114,7 +114,7 @@ public class RemoteFileOpenerTests
     public void Download_dir_is_owner_only_on_posix()
     {
         if (OperatingSystem.IsWindows())
-            return; // Unix file modes are a no-op on Windows.
+            return;
 
         using var tmp = new TempDir();
         var (reg, fs) = RemoteRegistry();

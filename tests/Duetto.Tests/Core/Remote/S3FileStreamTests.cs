@@ -19,7 +19,7 @@ public sealed class S3FileStreamTests
         }))
         {
             stream.Write(payload, 0, payload.Length);
-            Assert.Null(uploaded); // upload happens only on close
+            Assert.Null(uploaded);
         }
 
         Assert.NotNull(uploaded);

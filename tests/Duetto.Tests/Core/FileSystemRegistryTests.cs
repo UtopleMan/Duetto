@@ -42,9 +42,6 @@ public class FileSystemRegistryTests
     [Fact]
     public async Task Concurrent_Resolve_during_Register_Unregister_does_not_throw()
     {
-        // Under concurrent Register/Unregister, a reader must see either a valid result or
-        // the "no provider registered" InvalidOperationException — anything else is a
-        // thread-safety bug.
         const int Iterations = 200;
 
         var reg = new FileSystemRegistry();
@@ -83,7 +80,6 @@ public class FileSystemRegistryTests
                 }
                 catch (InvalidOperationException)
                 {
-                    // Expected: provider not registered at this moment — not a bug.
                 }
                 catch (Exception ex)
                 {

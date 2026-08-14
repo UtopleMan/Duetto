@@ -43,12 +43,11 @@ public class DeleteOperationTests
         using var vm = new MainViewModel(tmp.Path, tmp.Path);
 
         vm.DeleteScheduler = (work, ct) => { work(ct); return Task.CompletedTask; };
-        // SFTP permission-denied surfaces as an SshException — it must be reported, not fault the task.
         vm.TrashFn = _ => throw new SshException("permission denied");
 
         MarkAll(vm.Left);
         vm.DeleteSelectedCommand.Execute(null);
-        await vm.DeleteCompletion; // must not throw
+        await vm.DeleteCompletion;
 
         var op = (SimpleOperationViewModel)vm.ActiveOperation!;
         Assert.True(op.IsFinished);
@@ -146,7 +145,6 @@ public class DeleteOperationTests
         vm.DeleteScheduler = (work, ct) => { work(ct); return Task.CompletedTask; };
         vm.TrashFn = p => { trashed.Add(p); return null; };
 
-        // The cursor sits on a row, but nothing is marked — delete must touch nothing.
         vm.Left.SelectByName("b.txt");
         vm.DeleteSelectedCommand.Execute(null);
 
@@ -169,8 +167,6 @@ public class DeleteOperationTests
         vm.Left.ToggleMarkAt(vm.Left.CursorRow!);
         vm.DeleteSelectedCommand.Execute(null);
 
-        // b.txt is gone; the cursor must land on a real row (the one that took its slot),
-        // not vanish — an empty selection leaves no container to keep keyboard focus.
         Assert.DoesNotContain(vm.Left.Rows, r => r.Name == "b.txt");
         var cursor = vm.Left.Selection.SelectedItem;
         Assert.NotNull(cursor);
@@ -236,7 +232,6 @@ public class DeleteOperationTests
         tmp.File("a.txt", "a");
         using var vm = new MainViewModel(tmp.Path, tmp.Path);
 
-        // A delete whose worker never completes keeps the strip slot occupied.
         vm.DeleteScheduler = (_, _) => new TaskCompletionSource<bool>().Task;
         vm.TrashFn = _ => null;
 

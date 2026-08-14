@@ -12,7 +12,6 @@ public sealed class ConnectionManagerTests
 
     private static ConnectSecret MakeSecret() => ConnectSecret.FromPassword("pw");
 
-    // Returns the SAME adapter on every call, so tests can inspect its state (ConnectCount, etc.).
     private sealed class SingleAdapterFactory(FakeSftpClientAdapter Adapter) : ISftpClientFactory
     {
         public ISftpClientAdapter Create(DuettoConnectionInfo info, ConnectSecret secret) => Adapter;
@@ -121,7 +120,6 @@ public sealed class ConnectionManagerTests
     [Fact]
     public void Connect_second_time_same_id_disposes_old_and_replaces()
     {
-        // Use two separate adapters to track dispose independently.
         var registry = new FileSystemRegistry();
         var store = new HostKeyStore();
 
@@ -140,7 +138,6 @@ public sealed class ConnectionManagerTests
 
         manager.Connect(MakeInfo(), MakeSecret());
 
-        // IsConnected returns false because Dispose calls Disconnect.
         Assert.False(adapter1.IsConnected);
 
         Assert.Equal(1, adapter2.ConnectCount);
@@ -196,7 +193,6 @@ public sealed class ConnectionManagerTests
         Assert.Throws<SshAuthenticationException>(
             () => manager.Connect(MakeInfo(), MakeSecret()));
 
-        // Old connection is gone (unregistered before the new attempt).
         Assert.Throws<InvalidOperationException>(() => registry.Resolve("sftp://conn1/"));
         Assert.False(manager.IsConnected("conn1"));
         Assert.Empty(manager.ConnectedIds);
@@ -287,8 +283,6 @@ public sealed class ConnectionManagerTests
 
             Assert.True(manager.IsConnected("server1"));
 
-            // Disconnect with different casing must still unregister the provider that was
-            // registered under the ORIGINAL casing (the registry itself is case-sensitive).
             manager.Disconnect("SERVER1");
 
             Assert.Empty(manager.ConnectedIds);
@@ -315,16 +309,13 @@ public sealed class ConnectionManagerTests
         {
             Assert.True(entered.Wait(GateTimeout), "handshake never started");
 
-            // While the handshake is blocked, state queries must NOT block on the manager
-            // lock.  Each runs on its own task; WaitAsync throws TimeoutException on a
-            // regression instead of hanging the test run.
             Assert.False(await Task.Run(() => manager.IsConnected("conn1")).WaitAsync(GateTimeout));
             Assert.Empty(await Task.Run(() => manager.ConnectedIds).WaitAsync(GateTimeout));
             await Task.Run(() => manager.Disconnect("other-id")).WaitAsync(GateTimeout);
         }
         finally
         {
-            gate.Set(); // always release so connectTask cannot leak a blocked thread
+            gate.Set();
         }
 
         await connectTask;
@@ -349,8 +340,6 @@ public sealed class ConnectionManagerTests
         {
             Assert.True(entered.Wait(GateTimeout), "handshake never started");
 
-            // Dispose while the handshake is blocked — must not block on the manager lock.
-            // WaitAsync throws TimeoutException on a regression instead of hanging the run.
             await Task.Run(manager.Dispose).WaitAsync(GateTimeout);
         }
         finally
@@ -358,7 +347,6 @@ public sealed class ConnectionManagerTests
             gate.Set();
         }
 
-        // The post-connect guard must dispose the fresh connection and throw.
         await Assert.ThrowsAsync<ObjectDisposedException>(() => connectTask);
         Assert.False(adapter.IsConnected);
         Assert.Throws<InvalidOperationException>(() => registry.Resolve("sftp://conn1/"));
@@ -367,9 +355,6 @@ public sealed class ConnectionManagerTests
     [Fact]
     public async Task IsConnected_responds_while_Disconnect_is_blocked_on_graceful_close()
     {
-        // Scenario: Disconnect is called and the adapter's Disconnect/Dispose stalls on a
-        // dead peer.  While it stalls, IsConnected and ConnectedIds must remain responsive
-        // (i.e. must NOT wait for the graceful-close to finish).
         var registry = new FileSystemRegistry();
         var store = new HostKeyStore();
         using var disconnectEntered = new ManualResetEventSlim(false);
@@ -383,7 +368,6 @@ public sealed class ConnectionManagerTests
         var factory = new SingleAdapterFactory(adapter);
         using var manager = new ConnectionManager(registry, store, factory);
 
-        // Establish the connection first (no blocking gates during connect).
         manager.Connect(MakeInfo(), MakeSecret());
         Assert.True(manager.IsConnected("conn1"));
 
@@ -393,14 +377,12 @@ public sealed class ConnectionManagerTests
         {
             Assert.True(disconnectEntered.Wait(GateTimeout), "Disconnect never entered adapter");
 
-            // While the adapter's graceful close is blocked, state queries must NOT block.
-            // WaitAsync surfaces a regression as TimeoutException rather than hanging the run.
             Assert.False(await Task.Run(() => manager.IsConnected("conn1")).WaitAsync(GateTimeout));
             Assert.Empty(await Task.Run(() => manager.ConnectedIds).WaitAsync(GateTimeout));
         }
         finally
         {
-            disconnectGate.Set(); // always release so the background thread can finish
+            disconnectGate.Set();
         }
 
         await disconnectTask;

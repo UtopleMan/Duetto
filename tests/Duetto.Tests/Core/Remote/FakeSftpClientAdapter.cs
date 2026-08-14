@@ -4,27 +4,20 @@ using Renci.SshNet.Common;
 
 namespace Duetto.Tests.Core.Remote;
 
-// The tree is keyed by normalized SFTP paths (always '/', no trailing slash except root).
-// Streams returned by OpenWrite write back to the node when disposed.
-// ListDirectory emits "." and ".." entries to mirror a real SFTP server; the provider is
-// responsible for filtering them.
 internal sealed class FakeSftpClientAdapter : ISftpClientAdapter
 {
     internal sealed class Node
     {
         public bool IsDirectory;
-        // False in all base-fake nodes; set explicitly in tests that need a symlink entry.
         public bool IsSymlink = false;
         public byte[] Bytes = [];
         public DateTime LastWriteTimeUtc = DateTime.UnixEpoch;
-        // Default permissions: owner rw(x for dirs), group r, others r.
         public bool OwnerRead = true, OwnerWrite = true;
-        public bool OwnerExecute; // set to true for dirs by CreateDirectory
+        public bool OwnerExecute;
         public bool GroupRead = true, GroupWrite = false, GroupExecute = false;
         public bool OtherRead = true, OtherWrite = false, OtherExecute = false;
     }
 
-    // Keyed by normalized full path ("/", "/a", "/a/b.txt"). Root always present.
     private readonly Dictionary<string, Node> _nodes = new()
     {
         ["/"] = new Node { IsDirectory = true, OwnerExecute = true },
@@ -67,29 +60,20 @@ internal sealed class FakeSftpClientAdapter : ISftpClientAdapter
     private bool _connected;
     public bool IsConnected => _connected;
 
-    // One-shot: the next Connect throws this then clears the field. Used by reconnect tests.
     public Exception? NextConnectThrow { get; set; }
 
     public int ConnectCount { get; private set; }
 
-    // One-shot: the next ListDirectory enumeration throws this then clears the field.
     public Exception? NextListThrow { get; set; }
 
-    // Persistent (unlike NextListThrow): every enumeration of a listed path throws the
-    // mapped exception. Used by per-directory failure tests.
     public Dictionary<string, Exception> ListThrowsByPath { get; } = new();
 
-    // Lock-scope tests: signalled on Connect entry to detect that a (blocked) handshake started.
     public ManualResetEventSlim? ConnectEntered { get; set; }
 
-    // Lock-scope tests: Connect blocks on this gate to simulate a slow SSH handshake.
     public ManualResetEventSlim? ConnectGate { get; set; }
 
-    // Lock-scope tests: signalled on Disconnect entry to detect that a (blocked) disconnect started.
     public ManualResetEventSlim? DisconnectEntered { get; set; }
 
-    // Lock-scope tests: Disconnect (and Dispose) block on this gate to simulate a slow or
-    // stalled graceful disconnect.
     public ManualResetEventSlim? DisconnectGate { get; set; }
 
     public void Connect()
@@ -118,8 +102,6 @@ internal sealed class FakeSftpClientAdapter : ISftpClientAdapter
 
     public IEnumerable<SftpEntry> ListDirectory(string path)
     {
-        // Deferred to first MoveNext, which is fine: the provider materializes the
-        // enumeration inside WithReconnect, so the throw lands inside the guarded op.
         if (NextListThrow is { } listEx)
         {
             NextListThrow = null;
@@ -134,7 +116,6 @@ internal sealed class FakeSftpClientAdapter : ISftpClientAdapter
         if (!node.IsDirectory)
             throw new SftpPathNotFoundException($"Not a directory: {dir}");
 
-        // Emit "." and ".." to mirror a real SFTP server.
         yield return ToEntry(".", node) with { FullName = dir };
         var parentPath = ParentOf(dir);
         yield return ToEntry("..", _nodes.TryGetValue(parentPath, out var pn) ? pn : node) with { FullName = parentPath };
@@ -145,7 +126,7 @@ internal sealed class FakeSftpClientAdapter : ISftpClientAdapter
             if (k == dir) continue;
             if (!k.StartsWith(prefix, StringComparison.Ordinal)) continue;
             var rest = k[prefix.Length..];
-            if (rest.Contains('/')) continue; // only immediate children
+            if (rest.Contains('/')) continue;
             yield return ToEntry(k, v);
         }
     }
@@ -192,7 +173,6 @@ internal sealed class FakeSftpClientAdapter : ISftpClientAdapter
         if (!_nodes.ContainsKey(from))
             throw new SftpPathNotFoundException($"Source not found: {from}");
 
-        // Non-POSIX rename fails if target exists; POSIX-rename replaces it.
         if (!isPosix && _nodes.ContainsKey(to))
             throw new SftpPermissionDeniedException($"Destination exists: {to}");
 

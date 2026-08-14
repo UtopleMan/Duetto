@@ -5,7 +5,6 @@ using Duetto.ViewModels;
 
 namespace Duetto.Tests.Ui;
 
-// The S3 path of the unified (protocol-aware) ConnectDialogViewModel.
 public sealed class S3ConnectDialogTests
 {
     private static (ConnectDialogViewModel Vm,

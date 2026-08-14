@@ -11,7 +11,6 @@ namespace Duetto.ViewModels;
 
 public sealed record Place(string Name, string Path, string Color);
 
-// Carries the stored connection so the click handler can open ConnectWindow when the connection is not live.
 public sealed record RemotePlace(string Name, string Id, string InitialRemotePath, StoredConnection Stored);
 
 public partial class MainViewModel : ObservableObject, IDisposable
@@ -59,7 +58,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public SecretCodec Codec { get; }
 
-    // Seam for tests; production routes through the owning provider's Delete so remote paths get a hook later.
     public Func<string, string?> TrashFn { get; set; }
 
     public Func<Action<CancellationToken>, CancellationToken, Task> DeleteScheduler { get; set; }
@@ -67,8 +65,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public Task DeleteCompletion { get; private set; } = Task.CompletedTask;
 
-    // Runs the remote-file download off the UI thread; tests swap in an inline runner so the
-    // download and launch complete deterministically. Mirrors DeleteScheduler.
     public Func<Action<CancellationToken>, CancellationToken, Task> OpenScheduler { get; set; }
         = static (work, ct) => Task.Run(() => work(ct), ct);
 
@@ -88,8 +84,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public static string SearchHint => OperatingSystem.IsMacOS() ? "⌘F" : "Ctrl F";
     public string PromptGlyph => IsMacChrome ? " ❯" : " $";
 
-    // Test constructor. ConnectionManager, ConnectionStore, HostKeyStore, and Codec are not
-    // wired unless passed explicitly; a null registry yields a new local-only one.
     public MainViewModel(
         string leftPath,
         string rightPath,
@@ -186,8 +180,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public static string StartFolder(string? folder) =>
         folder ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
-    // A command-line folder wins for the left pane; otherwise each pane restores its saved
-    // directory when it still exists locally. Missing or remote (sftp://…) saved paths fall back to home.
     public static (string Left, string Right) ResolveStartupPaths(
         string? folderArg, SessionState? saved, string home)
     {
@@ -205,7 +197,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
     }
 
-    // Single file read: null store when headless (no session.json IO).
     private static (SessionStore? Store, string Left, string Right) LoadProductionStartup()
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -226,23 +217,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
             s3ConnectionStore: new S3ConnectionStore(AppPaths.S3ConnectionsJsonPath),
             azureConnectionStore: new AzureConnectionStore(AppPaths.AzureConnectionsJsonPath))
     {
-        // Production only: run listing and rename off the UI thread. Tests use the
-        // explicit ctor above and keep the default inline schedulers for deterministic asserts.
         Left.LoadScheduler = PaneViewModel.BackgroundScheduler;
         Right.LoadScheduler = PaneViewModel.BackgroundScheduler;
         Left.RenameScheduler = PaneViewModel.BackgroundRenameScheduler;
         Right.RenameScheduler = PaneViewModel.BackgroundRenameScheduler;
     }
 
-    // Seam: replace in tests to capture dialog-open calls without instantiating a real window.
     public Action<StoredConnection?, PaneViewModel> OpenConnectDialog { get; set; } = (_, _) => { };
 
-    // Seam: replace in tests to execute the action synchronously without Task.Run.
     public Func<Action, Task> ConnectScheduler { get; set; } =
         static work => Task.Run(work);
 
-    // Background connect swallows the documented connection exceptions (opening the dialog
-    // prefilled instead); all other exceptions propagate as unobserved task faults — genuine bugs.
     public void ConnectToShare(StoredConnection stored, PaneViewModel pane)
     {
         if (ConnectionManager.IsConnected(stored.Id))
@@ -257,9 +242,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             var info = ConnectionStore.ResolveInfo(stored);
             var capturedPath = $"sftp://{info.Id}{info.InitialRemotePath}";
-            // Capture the seam NOW: a second share click may overwrite OpenConnectDialog
-            // (each call site wires its own owner window) before this background connect
-            // fails — the failure must open the dialog wired for THIS click, not a later one.
             var openDialog = OpenConnectDialog;
             _ = ConnectScheduler(() =>
             {
@@ -267,7 +249,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 {
                     ConnectionManager.Connect(info, secret);
                 }
-                // SshConnectionException ⊂ SshException; listed explicitly for documentation
                 catch (Exception ex) when (ex is SshAuthenticationException
                     or SshConnectionException
                     or SocketException
@@ -288,11 +269,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OpenConnectDialog(stored, pane);
     }
 
-    // Seam: replace in tests to capture SMB dialog-open calls without instantiating a window.
     public Action<StoredSmbConnection?, PaneViewModel> OpenSmbConnectDialog { get; set; } = (_, _) => { };
 
-    // SMB counterpart of ConnectToShare. Connection/auth failures reopen the dialog prefilled;
-    // any other exception surfaces as an unobserved task fault (a genuine bug).
     public void ConnectToSmbShare(StoredSmbConnection stored, PaneViewModel pane)
     {
         if (SmbConnectionManager.IsConnected(stored.Id))
@@ -313,7 +291,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 {
                     SmbConnectionManager.Connect(info, secret);
                 }
-                // SmbConnectionException / SmbAuthenticationException ⊂ IOException; listed for documentation.
                 catch (Exception ex) when (ex is SmbAuthenticationException
                     or SmbConnectionException
                     or SocketException
@@ -332,11 +309,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OpenSmbConnectDialog(stored, pane);
     }
 
-    // Seam: replace in tests to capture S3 dialog-open calls without instantiating a window.
     public Action<StoredS3Connection?, PaneViewModel> OpenS3ConnectDialog { get; set; } = (_, _) => { };
 
-    // S3 counterpart of ConnectToShare. Connection/auth failures reopen the dialog prefilled;
-    // any other exception surfaces as an unobserved task fault (a genuine bug).
     public void ConnectToS3Share(StoredS3Connection stored, PaneViewModel pane)
     {
         if (S3ConnectionManager.IsConnected(stored.Id))
@@ -357,8 +331,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 {
                     S3ConnectionManager.Connect(info, secret);
                 }
-                // S3ConnectionException / S3AuthenticationException are surfaced from the adapter;
-                // SocketException/IOException cover transport faults. Listed for documentation.
                 catch (Exception ex) when (ex is S3AuthenticationException
                     or S3ConnectionException
                     or SocketException
@@ -377,11 +349,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OpenS3ConnectDialog(stored, pane);
     }
 
-    // Seam: replace in tests to capture Azure dialog-open calls without instantiating a window.
     public Action<StoredAzureConnection?, PaneViewModel> OpenAzureConnectDialog { get; set; } = (_, _) => { };
 
-    // Azure counterpart of ConnectToShare. Connection/auth failures reopen the dialog prefilled;
-    // any other exception surfaces as an unobserved task fault (a genuine bug).
     public void ConnectToAzureShare(StoredAzureConnection stored, PaneViewModel pane)
     {
         if (AzureConnectionManager.IsConnected(stored.Id))
@@ -402,8 +371,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 {
                     AzureConnectionManager.Connect(info, secret);
                 }
-                // AzureConnectionException / AzureAuthenticationException are surfaced from the
-                // adapter; SocketException/IOException cover transport faults. Listed for documentation.
                 catch (Exception ex) when (ex is AzureAuthenticationException
                     or AzureConnectionException
                     or SocketException
@@ -422,7 +389,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OpenAzureConnectDialog(stored, pane);
     }
 
-    // Call after Left/Right panes are constructed.
     private void WirePopoverSeams(DrivePopoverViewModel drives)
     {
         drives.ListConnections = () => ConnectionStore.Load();
@@ -547,7 +513,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private void StartTransfer(TransferMode mode)
     {
-        // Search results transfer into the left pane's dir; pane selections into the other pane.
         if (Search.IsActive)
         {
             var entries = Search.SelectedEntries;
@@ -561,9 +526,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         StartTransfer(paths, InactivePane.CurrentPath, mode, source, sourceScope: source.CurrentPath);
     }
 
-    // paths are provider-local (what rows/hits carry); destinationDir is a full address.
-    // sourceScope is the full address the sources live under and resolves the source provider —
-    // the paths themselves are already provider-local.
     private void StartTransfer(
         IReadOnlyList<string> paths, string destinationDir, TransferMode mode,
         PaneViewModel? sourcePane, string sourceScope)
@@ -589,8 +551,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ActiveOperation = transfer;
     }
 
-    // Drag from one pane, drop on the other: Copy by default, Move when Shift is held. A drop on
-    // the originating pane is a no-op. StartTransfer guards empty selection and an in-flight op.
     public void DropBetweenPanes(PaneViewModel source, PaneViewModel target, bool moveRequested)
     {
         if (ReferenceEquals(source, target))
@@ -601,9 +561,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         StartTransfer(paths, target.CurrentPath, mode, source, sourceScope: source.CurrentPath);
     }
 
-    // Files dropped from the OS (Finder/Explorer) land in the target pane's current dir: Copy by
-    // default, Move on Shift. localPaths are absolute local OS paths; a local sourceScope resolves
-    // the local provider. A remote target reuses the existing local→remote upload path.
     public void DropFromOs(PaneViewModel target, IReadOnlyList<string> localPaths, bool moveRequested)
     {
         if (localPaths.Count == 0)
@@ -613,8 +570,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         StartTransfer(localPaths, target.CurrentPath, mode, sourcePane: null, sourceScope: localPaths[0]);
     }
 
-    // Absolute local paths of the current selection for OS drag-out — only for a local pane. A
-    // remote pane returns null (drag-out disabled; remote-via-temp-staging is deferred Phase 4).
     public IReadOnlyList<string>? LocalDragPayload(PaneViewModel source)
     {
         if (PathUtil.IsRemote(source.CurrentPath))
@@ -627,17 +582,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     public void DeleteSelected()
     {
-        // Capability gate: no-op when the owning provider doesn't support delete.
         var checkPath = Search.IsActive ? Search.ScopeDir : ActivePane.CurrentPath;
         var (gateProvider, _) = Registry.Resolve(checkPath);
         if (!gateProvider.Capabilities.CanDelete)
             return;
 
-        // Rows and search hits carry provider-local paths ("/home/user/f.txt" on a remote
-        // pane/scope); rebuild the full scheme://id/... address so TrashFn's Registry.Resolve
-        // hits the owning provider and can never touch a same-named local path.
         var fromSearch = Search.IsActive;
-        // Delete acts only on explicitly marked rows — never the file merely under the cursor.
         var paths = (fromSearch
                 ? Search.SelectedEntries.Select(e => ToAddress(Search.ScopeDir, e.FullPath))
                 : ActivePane.MarkedRows.Select(r => ToAddress(ActivePane.CurrentPath, r.Entry.FullPath)))
@@ -657,8 +607,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         };
         ActiveOperation = op;
 
-        // Capture the trash capability NOW (from the first path's provider) — the active pane
-        // may change while the async delete runs, so it cannot be resolved at finish time.
         var hasTrash = Registry.Resolve(paths[0]).Provider.Capabilities.HasTrash;
         DeleteCompletion = RunDeleteAsync(paths, op, cts.Token, fromSearch, hasTrash);
     }
@@ -666,8 +614,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private static string ToAddress(string panePath, string rowPath) =>
         PathUtil.ToAddress(panePath, rowPath);
 
-    // Routes the delete through the owning provider — local paths go to the OS trash; a remote
-    // provider without HasTrash deletes permanently on its side.
     private string? TrashViaProvider(string path)
     {
         var (provider, localPath) = Registry.Resolve(path);
@@ -675,8 +621,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return null;
     }
 
-    // Checks cancellation before every item (cancel stops before the next one; already-trashed
-    // items stay trashed). A per-item failure is swallowed so one bad entry doesn't abort the batch.
     private async Task RunDeleteAsync(
         IReadOnlyList<string> paths, SimpleOperationViewModel op, CancellationToken token, bool fromSearch,
         bool hasTrash)
@@ -695,10 +639,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
                         TrashFn(path);
                         trashed.Add(path);
                     }
-                    // Expected per-item failures are counted and reported (not swallowed), so one
-                    // bad item neither aborts the batch nor is mistaken for success. Every backend
-                    // maps permission-denied here: Local/SMB/S3 as IOException/UnauthorizedAccess,
-                    // SFTP as SshException; NotSupportedException is a provider without CanDelete.
                     catch (Exception e) when (e is IOException or UnauthorizedAccessException
                         or FileNotFoundException or NotSupportedException or SshException)
                     {
@@ -713,7 +653,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         if (fromSearch)
         {
-            // trashed holds full addresses; rebase each row the same way before comparing.
             foreach (var row in Search.Results
                          .Where(r => trashed.Contains(ToAddress(Search.ScopeDir, r.Entry.FullPath))).ToList())
                 Search.Results.Remove(row);
@@ -728,19 +667,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         else
         {
-            // "Moved to Trash" vs "Deleted" keyed on the owning provider's HasTrash, captured at
-            // DeleteSelected time (remote deletes are permanent). Failed items are surfaced here
-            // rather than silently dropped, so a permission-denied delete reports back — and it
-            // lingers 5s (vs the 1s success flash) so the error is readable.
             op.Finish(
                 DeleteSummary(trashed.Count, failed, hasTrash),
                 dismissAfterSeconds: failed > 0 ? 5.0 : null);
         }
     }
 
-    // Builds the delete strip's completion line. Zero failures keeps the plain success wording;
-    // otherwise the failure count is surfaced ("Couldn't delete N" when nothing succeeded, or a
-    // partial "…, N failed") so a permission-denied delete never reads as success.
     private static string DeleteSummary(int ok, int failed, bool hasTrash)
     {
         static string Items(int n) => n == 1 ? "item" : "items";
@@ -752,8 +684,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return $"{done}, {failed} failed";
     }
 
-    // Enter / double-click on a remote file row: download to temp behind a progress strip,
-    // then launch the local copy. Same single-slot guard as copy/delete.
     private void StartRemoteFileOpen(PaneViewModel pane, FileRowViewModel row)
     {
         if (ActiveOperation is { IsFinished: false })
@@ -773,8 +703,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OpenCompletion = RunOpenAsync(address, row.Name, op, cts.Token);
     }
 
-    // The await resumes on the captured UI context (like RunDeleteAsync), so Launch/Finish run
-    // on the UI thread. A failed download dismisses the strip quietly — the app never crashes.
     private async Task RunOpenAsync(
         string address, string name, SimpleOperationViewModel op, CancellationToken token)
     {
@@ -817,8 +745,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
-        // Cancels an in-flight delete/transfer (SimpleOperationViewModel/TransferSession
-        // cancel their token on Dispose) before tearing down the panes.
         ActiveOperation?.Dispose();
         Left.Dispose();
         Right.Dispose();

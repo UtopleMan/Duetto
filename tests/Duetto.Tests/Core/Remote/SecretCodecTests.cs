@@ -35,7 +35,6 @@ public class SecretCodecTests
     [Fact]
     public void Two_encryptions_of_same_plaintext_produce_different_ciphertexts()
     {
-        // Random IV means the same input gives different base64 blobs each time.
         var codec = MakeCodec();
         const string plaintext = "same-password";
 
@@ -87,7 +86,6 @@ public class SecretCodecTests
     public void TryDecrypt_too_short_returns_null()
     {
         var codec = MakeCodec();
-        // 15 bytes of valid base64 — shorter than the 16-byte IV prefix.
         var tooShort = Convert.ToBase64String(new byte[15]);
         Assert.Null(codec.TryDecrypt(tooShort));
     }
@@ -96,8 +94,6 @@ public class SecretCodecTests
     public void TryDecrypt_exactly_16_bytes_returns_null()
     {
         var codec = MakeCodec();
-        // Exactly one IV with an empty payload — invalid by the length guard
-        // (valid ciphertext is IV + at least one whole AES block).
         var ivOnly = Convert.ToBase64String(new byte[16]);
         Assert.Null(codec.TryDecrypt(ivOnly));
     }
@@ -106,7 +102,6 @@ public class SecretCodecTests
     public void TryDecrypt_non_block_multiple_payload_returns_null()
     {
         var codec = MakeCodec();
-        // IV (16) + 8-byte payload — not a whole number of AES blocks.
         var ragged = Convert.ToBase64String(new byte[24]);
         Assert.Null(codec.TryDecrypt(ragged));
     }
@@ -121,7 +116,6 @@ public class SecretCodecTests
 
         var cipher = codec1.Encrypt("secret");
 
-        // Decrypting with the wrong key must not throw — must return null.
         var result = codec2.TryDecrypt(cipher);
         Assert.Null(result);
     }

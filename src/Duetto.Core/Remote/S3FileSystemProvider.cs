@@ -2,20 +2,11 @@ using Duetto.Core.FileSystem;
 
 namespace Duetto.Core.Remote;
 
-// Maps the provider-local root "/" to the bucket list (or the single configured bucket);
-// "/bucket/key…" addresses objects. S3 has no real directories — a folder is a key prefix, and an
-// empty folder is a zero-byte "prefix/" marker object. Serialises concurrent calls with a lock
-// (S3Connection is not thread-safe) so UI panes and search threads are safe.
 public sealed class S3FileSystemProvider : IFileSystemProvider, IBackendIdentity, IServerSideCopy, IDisposable
 {
     private readonly S3Connection conn;
     private readonly Lock gate = new();
 
-    // CanRename = false: object stores have no rename, so the transfer engine routes moves through
-    // copy + delete — and, when both panes share this connection, through the server-side CopyObject
-    // offload (IServerSideCopy) with no bytes crossing the client. AtomicRename = false: a PUT only
-    // becomes visible when complete, so no ".part" staging is needed. HasTrash = false: permanent
-    // delete. PreservesMTime = false: S3 owns the object's LastModified.
     public static readonly FileSystemCapabilities S3Capabilities = new()
     {
         CanRename = false,
@@ -42,7 +33,6 @@ public sealed class S3FileSystemProvider : IFileSystemProvider, IBackendIdentity
 
     private static bool IsRoot(string path) => path is "" or "/";
 
-    // Splits a provider-local path into (bucket, key). key is "" at a bucket root.
     private static (string Bucket, string Key) Split(string path)
     {
         var trimmed = path.Trim('/');
@@ -52,7 +42,6 @@ public sealed class S3FileSystemProvider : IFileSystemProvider, IBackendIdentity
         return slash < 0 ? (trimmed, "") : (trimmed[..slash], trimmed[(slash + 1)..]);
     }
 
-    // The listing prefix for a folder key: "" for a bucket root, else "key/".
     private static string PrefixFor(string key) => key.Length == 0 ? "" : key.TrimEnd('/') + "/";
 
     private static string Join(string parent, string name)
@@ -159,7 +148,6 @@ public sealed class S3FileSystemProvider : IFileSystemProvider, IBackendIdentity
         });
     }
 
-    // Creates a zero-byte "prefix/" marker so an empty folder is visible.
     public string CreateDirectory(string parent, string name)
     {
         var target = Join(parent, name);
@@ -180,8 +168,6 @@ public sealed class S3FileSystemProvider : IFileSystemProvider, IBackendIdentity
         return target;
     }
 
-    // File rename only. Object-store folders are key prefixes; renaming one means bulk-copying every
-    // child, which is out of scope — the transfer engine handles moving a folder's contents instead.
     public string Rename(string fullPath, string newName)
     {
         var parent = ParentOf(fullPath);
@@ -201,8 +187,6 @@ public sealed class S3FileSystemProvider : IFileSystemProvider, IBackendIdentity
         return target;
     }
 
-    // File move = server-side CopyObject + delete. Guards against overwrite (the engine only calls
-    // this when the destination is free). Folders are handled by the engine's tree walk.
     public void Move(string fromPath, string toPath)
     {
         var (sb, sk) = Split(fromPath);
@@ -221,7 +205,6 @@ public sealed class S3FileSystemProvider : IFileSystemProvider, IBackendIdentity
         });
     }
 
-    // Overwriting copy + delete of the source. S3 PUT/COPY replaces any existing target object.
     public void ReplaceFile(string from, string to)
     {
         var (sb, sk) = Split(from);
@@ -251,8 +234,6 @@ public sealed class S3FileSystemProvider : IFileSystemProvider, IBackendIdentity
         });
     }
 
-    // The returned stream is bound to the connection live at open time; a reconnect does not migrate
-    // it. Callers treat stream failures as fatal for the operation and re-open.
     public Stream OpenRead(string path)
     {
         var (bucket, key) = Split(path);
@@ -268,9 +249,6 @@ public sealed class S3FileSystemProvider : IFileSystemProvider, IBackendIdentity
     public void SetLastWriteTimeUtc(string path, DateTime utc) =>
         throw new NotSupportedException("S3 does not support setting an object's modification time.");
 
-    // Walks the tree level by level so folder entries (key prefixes) are yielded as well as files —
-    // the transfer engine needs the directory entries to recreate the folder structure at the
-    // destination. A lock is taken per level, not held across yields.
     public IEnumerable<FileEntry> EnumerateRecursive(string path)
     {
         if (IsRoot(path))
@@ -299,17 +277,9 @@ public sealed class S3FileSystemProvider : IFileSystemProvider, IBackendIdentity
 
     public VolumeInfo? VolumeFor(string path) => null;
 
-    // Server-side copy/move domain: every object path of this connection. Two paths with equal,
-    // non-null keys can be CopyObject'd server-side. The bucket-list root has no domain. Keyed on the
-    // connection id (a single client/creds pair reaches all its buckets), so cross-bucket
-    // server-side copy within one connection is allowed; a different connection falls back to
-    // streaming, which is always correct.
     public string? BackendKey(string path) =>
         IsRoot(path) ? null : $"s3://{conn.ConnId}";
 
-    // Server-side CopyObject. The engine gates this on BackendKey equality, so both paths are
-    // reachable by this connection's client. Returns false when CopyObject is unavailable (object
-    // too large for a single-part copy) so the engine streams instead.
     public bool TryServerSideCopy(string source, string dest, Action<long> onBytesCopied, CancellationToken token)
     {
         var (sb, sk) = Split(source);

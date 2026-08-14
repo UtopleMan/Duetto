@@ -15,9 +15,6 @@ public sealed class S3EndpointTests
         Assert.Equal(expected, RealS3ClientAdapter.NormalizeEndpoint(input));
     }
 
-    // Regression: a bare-host endpoint used to throw AmazonClientException ("not a valid URL") that
-    // escaped every catch clause and crashed the app. It must now surface as a translated
-    // S3ConnectionException (which the connect dialog catches and shows).
     [Fact]
     public void Bare_host_endpoint_surfaces_S3ConnectionException_not_a_raw_sdk_exception()
     {

@@ -6,7 +6,6 @@ public static class DirectoryLister
     {
         var dir = new DirectoryInfo(path);
         var entries = new List<FileEntry>();
-        // Guard every MoveNext: macOS TCC can deny individual entries mid-iteration.
         using var iterator = dir.EnumerateFileSystemInfos().GetEnumerator();
         while (true)
         {

@@ -15,9 +15,6 @@ public sealed class AzureEndpointTests
         Assert.Equal(expected, RealAzureClientAdapter.NormalizeEndpoint(input));
     }
 
-    // A malformed connection string throws FormatException while building the client. It must surface
-    // as a translated AzureConnectionException (which the connect dialog catches), not a raw crash.
-    // No network is touched — the parser rejects the string synchronously.
     [Fact]
     public void Malformed_connection_string_surfaces_AzureConnectionException_not_a_raw_sdk_exception()
     {

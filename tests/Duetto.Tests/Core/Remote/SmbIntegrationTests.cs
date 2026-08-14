@@ -4,9 +4,6 @@ using Duetto.Core.Remote;
 
 namespace Duetto.Tests.Core.Remote;
 
-// Real-server SMB smoke tests, gated on the DUETTO_SMB_TEST env var so they never run in CI.
-// Bring the server up with docker-compose.smb.yml (see scripts/smb-it.sh). xunit 2.x has no
-// Assert.Skip; tests return early when the gate is unset — an implicit 0-assertion pass.
 [Trait("Category", "Integration")]
 public sealed class SmbIntegrationTests
 {
@@ -60,7 +57,6 @@ public sealed class SmbIntegrationTests
 
         try
         {
-            // create + write + read
             var file = provider.CreateFile(work, "hello.txt");
             var payload = Encoding.UTF8.GetBytes("hello smb integration");
             using (var w = provider.OpenWrite(file))
@@ -73,7 +69,6 @@ public sealed class SmbIntegrationTests
                 Assert.Equal(payload, ms.ToArray());
             }
 
-            // stat + mtime
             var when = new DateTime(2024, 1, 2, 3, 4, 5, DateTimeKind.Utc);
             provider.SetLastWriteTimeUtc(file, when);
             var stat = provider.Stat(file);
@@ -81,12 +76,10 @@ public sealed class SmbIntegrationTests
             Assert.Equal(when, stat.ModifiedUtc);
             Assert.Equal(payload.Length, stat.SizeBytes);
 
-            // rename
             var renamed = provider.Rename(file, "renamed.txt");
             Assert.True(provider.FileExists(renamed));
             Assert.False(provider.FileExists(file));
 
-            // atomic replace (".part" finish)
             var part = provider.CreateFile(work, "renamed.txt.part");
             using (var w = provider.OpenWrite(part))
                 w.Write(Encoding.UTF8.GetBytes("fresh"), 0, 5);
@@ -99,7 +92,6 @@ public sealed class SmbIntegrationTests
                 Assert.Equal("fresh", Encoding.UTF8.GetString(ms.ToArray()));
             }
 
-            // recursive enumerate
             var names = provider.EnumerateRecursive(work).Select(e => e.Name).ToList();
             Assert.Contains("renamed.txt", names);
         }
@@ -121,7 +113,6 @@ public sealed class SmbIntegrationTests
         var work = provider.CreateDirectory(root, "cc-" + Guid.NewGuid().ToString("N")[..8]);
         try
         {
-            // >2 MiB so the 1 MiB-per-call copychunk loop runs multiple iterations.
             var payload = new byte[(2 * 1024 * 1024) + 777];
             new Random(1234).NextBytes(payload);
             var srcFile = provider.CreateFile(work, "src.bin");
@@ -133,7 +124,6 @@ public sealed class SmbIntegrationTests
             var ok = ((IServerSideCopy)provider).TryServerSideCopy(
                 srcFile, dstFile, n => reported += n, CancellationToken.None);
 
-            // Skip silently if this server lacks copychunk (real use falls back to streaming).
             if (!ok)
                 return;
 

@@ -85,7 +85,6 @@ public class TransferEngineTests : IDisposable
     [Fact]
     public async Task Cancel_stops_and_leaves_no_partial_files()
     {
-        // Big enough that cancellation lands mid-copy.
         var big = new string('x', 20 * 1024 * 1024);
         _src.File("big1.bin", big);
         _src.File("big2.bin", big);
@@ -120,16 +119,9 @@ public class TransferEngineTests : IDisposable
         Assert.Equal(big.Length, session.Snapshot().BytesDone);
     }
 
-    // Deterministic: the source read stream signals on its SECOND Read call and then
-    // blocks. The engine's chunk loop is Read → pause-check → cancel-check → Write →
-    // progress, so at the signal the first chunk has already been written to the .part
-    // file. We then cancel and release the blocked read; the next cancellation check
-    // throws mid-copy and the .part file must be cleaned up.
     [Fact]
     public async Task Cancel_mid_copy_cleans_up_part_file()
     {
-        // 4 chunks of 1 MB — the gate fires on the second chunk read, so the copy
-        // can never complete before we cancel.
         var big = new string('z', 4 * 1024 * 1024);
         _src.File("big.bin", big);
 
@@ -142,8 +134,6 @@ public class TransferEngineTests : IDisposable
             [Path.Combine(_src.Path, "big.bin")], gatedSrc, _dst.Path, local, TransferMode.Copy);
         try
         {
-            // Deterministic gate: resolves exactly when the engine is mid-copy
-            // (chunk 1 written, chunk 2 read in flight and blocked).
             await midCopy.Task.WaitAsync(TimeSpan.FromSeconds(30));
             Assert.True(File.Exists(Path.Combine(_dst.Path, "big.bin.part")),
                 ".part file must exist mid-copy");
@@ -151,7 +141,6 @@ public class TransferEngineTests : IDisposable
         }
         finally
         {
-            // Always unblock the worker, even if an assert above failed.
             release.Set();
         }
 
@@ -161,8 +150,6 @@ public class TransferEngineTests : IDisposable
         Assert.Empty(Directory.EnumerateFiles(_dst.Path, "*.part", SearchOption.AllDirectories));
     }
 
-    // Wraps OpenRead streams in a GatedReadStream so a test can deterministically catch
-    // the transfer engine mid-copy.
     private sealed class GatedReadProvider(
         IFileSystemProvider inner, TaskCompletionSource midCopy, ManualResetEventSlim release)
         : IFileSystemProvider
@@ -187,8 +174,6 @@ public class TransferEngineTests : IDisposable
             new GatedReadStream(inner.OpenRead(path), midCopy, release);
     }
 
-    // The second Read call completes midCopy and blocks on release before delegating,
-    // freezing the copy loop at a precisely known point.
     private sealed class GatedReadStream(
         Stream inner, TaskCompletionSource midCopy, ManualResetEventSlim release) : Stream
     {

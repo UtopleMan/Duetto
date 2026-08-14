@@ -1,10 +1,5 @@
 namespace Duetto.Core.FileSystem;
 
-// Materialises a remote file to a local temp copy so an external app can open it, and owns
-// that copy's lifetime. View-only: copies are never uploaded back and are deleted on Dispose.
-// Layout: <tempRoot>/<guid>/<originalName> — a per-open guid dir avoids name collisions and
-// keeps the real filename (so the OS picks the right app). tempRoot is owned entirely by this
-// type, so the startup sweep can safely clear it (recovers files a crashed session left behind).
 public sealed class RemoteFileOpener : IDisposable
 {
     private readonly FileSystemRegistry _registry;
@@ -21,7 +16,6 @@ public sealed class RemoteFileOpener : IDisposable
         Sweep();
     }
 
-    // Copies the remote file to a fresh temp dir and returns the local path.
     public string Download(string fullAddress, CancellationToken ct)
     {
         var (provider, localPath) = _registry.Resolve(fullAddress);
@@ -43,7 +37,6 @@ public sealed class RemoteFileOpener : IDisposable
         return target;
     }
 
-    // Buffered copy that honors cancellation — sync Stream.CopyTo has no CancellationToken overload.
     private static void Copy(Stream src, Stream dst, CancellationToken ct)
     {
         var buffer = new byte[81920];
@@ -57,14 +50,12 @@ public sealed class RemoteFileOpener : IDisposable
         }
     }
 
-    // Downloaded remote files may be sensitive; lock the per-open dir to the owner so a
-    // world-readable /tmp (mode 1777 on Linux) cannot leak them to other local users.
     private static void RestrictToOwner(string dir)
     {
         if (OperatingSystem.IsWindows())
-            return; // Inherits a private-by-default ACL from the user profile.
+            return;
         File.SetUnixFileMode(dir,
-            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); // 0700
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
     }
 
     public void Launch(string path) => _launch(path);
@@ -79,8 +70,6 @@ public sealed class RemoteFileOpener : IDisposable
         }
     }
 
-    // Best-effort clear of everything under the temp root — recovers leftovers from a
-    // previous session that never got to run Dispose (e.g. a crash).
     private void Sweep()
     {
         try
@@ -92,7 +81,6 @@ public sealed class RemoteFileOpener : IDisposable
         }
         catch
         {
-            // Sweep is best-effort; never let cleanup abort startup.
         }
     }
 
@@ -107,7 +95,6 @@ public sealed class RemoteFileOpener : IDisposable
         }
         catch
         {
-            // A locked or already-removed file is fine — the next startup sweep catches it.
         }
     }
 }

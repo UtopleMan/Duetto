@@ -19,8 +19,6 @@ public sealed class CliInstaller
         _writeExecutable = writeExecutable;
     }
 
-    // exec (not a subshell) so the launcher inherits the caller's working directory —
-    // a relative folder argument must resolve against where the user ran the command.
     public static string BuildLauncherScript(string appExecutablePath) =>
         $"#!/bin/sh\nexec \"{appExecutablePath}\" \"$@\"\n";
 

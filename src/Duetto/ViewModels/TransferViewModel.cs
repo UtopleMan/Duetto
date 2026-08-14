@@ -93,7 +93,6 @@ public partial class TransferViewModel : ObservableObject, IStripOperation
         Dismissed?.Invoke();
     }
 
-    // public for tests; normally driven by the timer.
     public void UpdateNow()
     {
         var snap = Session.Snapshot();

@@ -4,9 +4,6 @@ using Duetto.Core.State;
 
 namespace Duetto;
 
-// Maps a stored theme choice to the concrete Avalonia variant + palette dictionary applied at
-// startup. Pure and side-effect free so it is unit-tested without an Avalonia app; System
-// resolves against the OS appearance the caller passes in.
 public static class ThemeResolver
 {
     private static readonly Uri LightPalette = new("avares://Duetto/Themes/Palette.Light.axaml");

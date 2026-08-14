@@ -175,7 +175,6 @@ public sealed class SharesPopoverTests
     public void Disconnect_row_visible_when_pane_is_remote()
     {
         using var tmp = new TempDir();
-        // Construct pane with a fake registry so NavigateTo("sftp://...") succeeds.
         var registry = new FileSystemRegistry();
         var fakeProvider = new FakeProvider();
         registry.Register("sftp", "srv1", fakeProvider);

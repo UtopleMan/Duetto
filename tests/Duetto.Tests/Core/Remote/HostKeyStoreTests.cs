@@ -5,14 +5,8 @@ using Renci.SshNet.Security;
 
 namespace Duetto.Tests.Core.Remote;
 
-// Store key format: "algo:[host]:port" (OpenSSH-style), e.g.
-// "ssh-ed25519:[host1.example.com]:22".  Phase 3 must persist keys in this format.
 public class HostKeyStoreTests
 {
-    // SSH.NET's HostKeyEventArgs.FingerPrintSHA256 is the SHA-256 hash of the host key as
-    // non-padded base64 WITHOUT a "SHA256:" prefix (the body of the ssh CLI's output),
-    // e.g. "ohD8VZEXGWo6Ez8GSEJQ9WpafgLFsOfLOtGGQCQo6Og".  Pins are stored verbatim in
-    // that form — the Phase 3 hostkeys.json writer must keep the same format.
     private const string FpA = "ohD8VZEXGWo6Ez8GSEJQ9WpafgLFsOfLOtGGQCQo6Og";
     private const string FpB = "mBc9XkQ2rT7wLpZa4VuHnE5yD8fGiJ1oKsM6NqR3SxY";
     private const string FpC = "Qw3ErT5yUi7oPa9sDf1gHj2kLz4xCv6bNm8JvC0XzAs";
@@ -83,8 +77,6 @@ public class HostKeyStoreTests
     [Fact]
     public void DifferentAlgorithms_same_host_same_port_raise_algorithm_substitution()
     {
-        // Once a host+port is pinned with one algorithm, presenting a different algorithm
-        // must raise HostKeyChangedException (algorithm substitution guard).
         var store = new HostKeyStore();
         store.Verify(Host1, Port22, "ssh-ed25519", FpA);
 
@@ -93,7 +85,6 @@ public class HostKeyStoreTests
 
         Assert.Equal(Host1, ex.Host);
         Assert.Equal("ecdsa-sha2-nistp256", ex.AlgorithmName);
-        // OldFingerprint is from the existing ed25519 pin.
         Assert.Equal(FpA, ex.OldFingerprint);
         Assert.Equal(FpB, ex.NewFingerprint);
     }
@@ -108,7 +99,6 @@ public class HostKeyStoreTests
         Assert.True(removed);
         Assert.Null(store.GetPinned(Ed25519Key22()));
 
-        // Re-pinning with a NEW fingerprint must succeed (TOFU again after Forget).
         var trusted = store.Verify(Host1, Port22, "ssh-ed25519", FpC);
         Assert.True(trusted);
         Assert.Equal(FpC, store.GetPinned(Ed25519Key22()));
@@ -191,7 +181,6 @@ public class HostKeyStoreTests
     [Fact]
     public void AlgorithmSubstitution_after_pin_raises_HostKeyChangedException()
     {
-        // Host pinned with ed25519 then presents ecdsa — must raise, not silently trust.
         var store = new HostKeyStore();
         store.Verify(Host1, Port22, "ssh-ed25519", FpA);
 
@@ -200,7 +189,6 @@ public class HostKeyStoreTests
 
         Assert.Equal(Host1, ex.Host);
         Assert.Equal("ecdsa-sha2-nistp256", ex.AlgorithmName);
-        // OldFingerprint is the existing ed25519 pin so the dialog can compare.
         Assert.Equal(FpA, ex.OldFingerprint);
         Assert.Equal(FpB, ex.NewFingerprint);
     }
@@ -208,7 +196,6 @@ public class HostKeyStoreTests
     [Fact]
     public void TrueFirstContact_no_pins_for_host_pins_silently()
     {
-        // A brand-new host with no pins at all must pin silently (genuine TOFU first contact).
         var store = new HostKeyStore();
         var trusted = store.Verify(Host1, Port22, "ecdsa-sha2-nistp256", FpB);
         Assert.True(trusted);
@@ -304,13 +291,12 @@ public class HostKeyStoreTests
         Assert.False(args.CanTrust);
     }
 
-    // Encodes the key in SSH wire format: string "ssh-ed25519" + string(32-byte key).
     private static HostKeyEventArgs MakeRealHostKeyArgs()
     {
         var algo = System.Text.Encoding.ASCII.GetBytes("ssh-ed25519");
         var key = new byte[32];
         for (var i = 0; i < key.Length; i++)
-            key[i] = (byte)(i + 1); // deterministic, first byte < 0x80
+            key[i] = (byte)(i + 1);
 
         var blob = new byte[4 + algo.Length + 4 + key.Length];
         blob[3] = (byte)algo.Length;

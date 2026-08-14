@@ -6,7 +6,6 @@ namespace Duetto.Tests.Core.Remote;
 
 public class ConnectionStoreTests
 {
-    // Fixed test codec so secrets are stable across machines.
     private static readonly byte[] TestKey = SHA256.HashData("duetto-cs-test-v1"u8.ToArray());
     private static SecretCodec MakeCodec() => new(TestKey);
 
@@ -75,9 +74,6 @@ public class ConnectionStoreTests
     [Fact]
     public void Load_accepts_hand_edited_property_name_casing()
     {
-        // The on-disk format is camelCase; a hand-edited file may use PascalCase
-        // (or any other casing).  PropertyNameCaseInsensitive must map the fields
-        // instead of silently deserializing them to defaults.
         var json = """
             [
               {
@@ -192,7 +188,6 @@ public class ConnectionStoreTests
     {
         var store = MakeStore(out _);
         var info = MakeKeyInfo();
-        // savePassword = false but KeyPath must still be persisted.
         var packed = ConnectionStore.Pack(info, secret: null, savePassword: false, MakeCodec());
 
         store.Save([packed]);
@@ -258,7 +253,6 @@ public class ConnectionStoreTests
     [Fact]
     public void ResolveSecret_returns_null_for_foreign_machine_ciphertext()
     {
-        // Encrypt with one key, try to decrypt with another — must return null.
         var otherCodec = new SecretCodec(SHA256.HashData("other-machine"u8.ToArray()));
         var myCodec = MakeCodec();
 
@@ -321,11 +315,10 @@ public class ConnectionStoreTests
     {
         var codec = MakeCodec();
         var info = MakeKeyInfo();
-        // Key with no passphrase: savePassword=true, but passphrase is null → obfuscate empty string.
         var packed = ConnectionStore.Pack(info, ConnectSecret.FromKey(null), savePassword: true, codec);
         Assert.True(packed.SavePassword);
         var resolved = ConnectionStore.ResolveSecret(packed, codec);
         Assert.NotNull(resolved);
-        Assert.Null(resolved!.KeyPassphrase); // empty string → null passphrase via FromKey
+        Assert.Null(resolved!.KeyPassphrase);
     }
 }

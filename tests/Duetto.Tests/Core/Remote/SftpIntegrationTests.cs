@@ -5,9 +5,6 @@ using DuettoConnectionInfo = Duetto.Core.Remote.ConnectionInfo;
 
 namespace Duetto.Tests.Core.Remote;
 
-// Real-server SFTP smoke tests, gated on the DUETTO_SFTP_TEST env var so they never run in CI.
-// xunit 2.x has no Assert.Skip; tests return early when the gate is unset — an implicit
-// 0-assertion pass that keeps the regular suite green.
 [Trait("Category", "Integration")]
 public sealed class SftpIntegrationTests : IDisposable
 {
@@ -21,7 +18,6 @@ public sealed class SftpIntegrationTests : IDisposable
 
     public void Dispose() => _manager.Dispose();
 
-    // Returns false when the gate (DUETTO_SFTP_TEST) is closed — callers must return immediately.
     private static bool TryGetConfig(
         out DuettoConnectionInfo info,
         out ConnectSecret secret,
@@ -113,9 +109,6 @@ public sealed class SftpIntegrationTests : IDisposable
         Assert.DoesNotContain("integration", _manager.ConnectedIds);
     }
 
-    // Live smoke for the open-remote-file feature: RemoteFileOpener pulls a real file off the
-    // SFTP server through the production provider, lands it under the temp root (0700 on POSIX),
-    // hands the path to the launcher, and wipes it on Dispose.
     [Fact]
     public void RemoteFileOpener_downloads_live_file_to_temp_launches_and_cleans_up()
     {
@@ -125,7 +118,6 @@ public sealed class SftpIntegrationTests : IDisposable
         _manager.Connect(info, secret);
         var (provider, _) = _registry.Resolve($"sftp://integration{testPath}");
 
-        // Seed a file on the live server.
         var runDir = $"duetto-open-{Guid.NewGuid():N}";
         var runPath = provider.CreateDirectory(testPath, runDir);
         var filePath = provider.CreateFile(runPath, "opened.txt");
@@ -155,7 +147,6 @@ public sealed class SftpIntegrationTests : IDisposable
             Assert.Equal(tempPath, launched);
         }
 
-        // Dispose wiped the temp copy.
         Assert.False(File.Exists(tempPath));
 
         provider.Delete(runPath, toTrash: false);

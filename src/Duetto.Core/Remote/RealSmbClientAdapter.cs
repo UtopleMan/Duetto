@@ -12,9 +12,6 @@ public sealed class DefaultSmbClientFactory : ISmbClientFactory
         new RealSmbClientAdapter(info, secret);
 }
 
-// Wraps SMBLibrary's SMB2Client behind ISmbClientAdapter. One tree connection is cached per
-// share for the life of the connection. All provider-local paths ("/share/dir/file") are split
-// into (share, relative) and the relative part is translated to SMB2 backslash form.
 internal sealed class RealSmbClientAdapter(SmbConnectionInfo info, ConnectSecret secret) : ISmbClientAdapter
 {
     private SMB2Client? client;
@@ -44,8 +41,6 @@ internal sealed class RealSmbClientAdapter(SmbConnectionInfo info, ConnectSecret
 
         client = fresh;
 
-        // MaxReadSize / MaxWriteSize are negotiated during connect; use the smaller as the
-        // stream chunk size. Guard against a zero from an odd server.
         var negotiated = (int)Math.Min(fresh.MaxReadSize, fresh.MaxWriteSize);
         chunkSize = negotiated > 0 ? negotiated : 65536;
     }
@@ -64,7 +59,6 @@ internal sealed class RealSmbClientAdapter(SmbConnectionInfo info, ConnectSecret
             }
             catch (Exception)
             {
-                // A dead peer must not block teardown of the other trees / the socket.
             }
         }
 
@@ -120,8 +114,6 @@ internal sealed class RealSmbClientAdapter(SmbConnectionInfo info, ConnectSecret
             if (query != NTStatus.STATUS_SUCCESS && query != NTStatus.STATUS_NO_MORE_FILES)
                 throw Translate(query, $"list directory '{path}'");
 
-            // "." and ".." are returned raw here (mirroring the real server); the provider
-            // filters them, matching SftpFileSystemProvider.
             var result = new List<SmbEntry>(list.Count);
             foreach (var item in list)
                 result.Add(MapListing(path, (FileDirectoryInformation)item));
@@ -139,7 +131,6 @@ internal sealed class RealSmbClientAdapter(SmbConnectionInfo info, ConnectSecret
         var (share, rel) = Split(path);
         var store = Tree(share);
 
-        // A share root always exists as a directory once the tree connects.
         if (rel.Length == 0)
             return new SmbEntry(share, "/" + share, IsDirectory: true, IsReadOnly: false, Length: -1, LastWriteTimeUtc: default);
 
@@ -262,7 +253,6 @@ internal sealed class RealSmbClientAdapter(SmbConnectionInfo info, ConnectSecret
         if (status != NTStatus.STATUS_SUCCESS)
             throw Translate(status, $"delete '{path}'");
 
-        // FILE_DELETE_ON_CLOSE removes on close; also flag disposition for servers that need it.
         store.SetFileInformation(handle, new FileDispositionInformation { DeletePending = true });
         store.CloseFile(handle);
     }
@@ -330,8 +320,6 @@ internal sealed class RealSmbClientAdapter(SmbConnectionInfo info, ConnectSecret
 
         try
         {
-            // Only LastWriteTime is changed; the other time fields are marked "must not change"
-            // and FileAttributes=0 means "leave attributes untouched" (MS-FSCC).
             var basic = new FileBasicInformation
             {
                 CreationTime = new SetFileTime(mustNotChange: true),
@@ -372,9 +360,6 @@ internal sealed class RealSmbClientAdapter(SmbConnectionInfo info, ConnectSecret
         object? dstHandle = null;
         try
         {
-            // Any non-success (unsupported FSCTL, or this build returning null output) -> stream.
-            // A dropped socket throws InvalidOperationException, surfaced as SmbConnectionException
-            // by the Run wrapper, so reconnect still works.
             var rk = store.DeviceIOControl(srcHandle, SmbCopyChunk.FsctlRequestResumeKey, [], out var rkOut, 64);
             if (rk != NTStatus.STATUS_SUCCESS || rkOut is not { Length: >= SmbCopyChunk.ResumeKeyLength })
                 return false;
@@ -387,11 +372,6 @@ internal sealed class RealSmbClientAdapter(SmbConnectionInfo info, ConnectSecret
             if (openDst != NTStatus.STATUS_SUCCESS)
                 throw Translate(openDst, $"open '{dest}' for server-side copy");
 
-            // One 1 MiB chunk per call fits the MS-SMB2 default server limits (MaxChunkSize 1 MiB,
-            // MaxChunks 16, MaxDataSize 16 MiB), so a well-formed request is not rejected for
-            // sizing. This SMBLibrary build discards the FSCTL output on any non-success status, so
-            // we cannot read a server's advertised maxima: any non-success copychunk falls back to
-            // streaming (return false). A dropped socket still surfaces via the Run wrapper.
             const int chunk = 1024 * 1024;
             long offset = 0;
             while (offset < length)
@@ -403,7 +383,7 @@ internal sealed class RealSmbClientAdapter(SmbConnectionInfo info, ConnectSecret
 
                 var cc = store.DeviceIOControl(dstHandle, SmbCopyChunk.FsctlSrvCopyChunk, request, out var ccOut, 12);
                 if (cc != NTStatus.STATUS_SUCCESS || ccOut is not { Length: >= 12 })
-                    return false;   // unsupported / rejected -> caller streams
+                    return false;
 
                 var result = SmbCopyChunk.ParseCopyChunkResponse(ccOut);
                 var written = result.TotalBytesWritten > 0 ? (long)result.TotalBytesWritten : thisLen;
@@ -434,8 +414,6 @@ internal sealed class RealSmbClientAdapter(SmbConnectionInfo info, ConnectSecret
         return store;
     }
 
-    // A pre-op !IsConnected, or SMBLibrary's InvalidOperationException on a dropped socket, is
-    // surfaced as SmbConnectionException so SmbConnection.WithReconnect reconnects once.
     private T Run<T>(Func<T> op)
     {
         if (!IsConnected)
@@ -465,7 +443,6 @@ internal sealed class RealSmbClientAdapter(SmbConnectionInfo info, ConnectSecret
         }
         catch (Exception)
         {
-            // The stream is already being torn down; a late close failure is not actionable.
         }
     }
 
