@@ -3,6 +3,16 @@
 All notable changes to Duetto are documented here. This project adheres to
 [Semantic Versioning](https://semver.org).
 
+## 1.6.0 — 2026-08-14
+
+### Features
+- **Drag and drop** — move or copy files by dragging between the two panes (all
+  backends), from Finder/Explorer into a pane (including upload to a remote pane),
+  and from a pane out to the OS (local files, export-only). Copy is the default;
+  hold Shift to move. A drag-out never deletes the source.
+- **Copy path** — double-click a pane's path bar to copy its current path to the
+  clipboard.
+
 ## 1.5.1 — 2026-08-07
 
 ### Fixed
