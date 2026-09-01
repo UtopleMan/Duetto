@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -24,6 +25,7 @@ public partial class PaneView : UserControl
     private const double DragThreshold = 4;
 
     private Point? _dragOrigin;
+    private PointerPressedEventArgs? _dragTrigger;
 
     public PaneView()
     {
@@ -93,16 +95,17 @@ public partial class PaneView : UserControl
         else if (!row.IsParentNav && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
             _dragOrigin = e.GetPosition(this);
+            _dragTrigger = e;
         }
     }
 
     private void OnRowPointerMoved(object? sender, PointerEventArgs e)
     {
-        if (_dragOrigin is not { } origin)
+        if (_dragOrigin is not { } origin || _dragTrigger is not { } trigger)
             return;
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
-            _dragOrigin = null;
+            ClearDragStart();
             return;
         }
 
@@ -110,13 +113,19 @@ public partial class PaneView : UserControl
         if (Math.Abs(moved.X) < DragThreshold && Math.Abs(moved.Y) < DragThreshold)
             return;
 
-        _dragOrigin = null;
-        _ = StartPaneDragAsync(e);
+        ClearDragStart();
+        _ = StartPaneDragAsync(trigger);
     }
 
-    private void OnRowPointerReleased(object? sender, PointerReleasedEventArgs e) => _dragOrigin = null;
+    private void OnRowPointerReleased(object? sender, PointerReleasedEventArgs e) => ClearDragStart();
 
-    private async Task StartPaneDragAsync(PointerEventArgs e)
+    private void ClearDragStart()
+    {
+        _dragOrigin = null;
+        _dragTrigger = null;
+    }
+
+    private async Task StartPaneDragAsync(PointerPressedEventArgs e)
     {
         if (Vm is not { } vm || MainVm is not { } mainVm)
             return;
@@ -245,7 +254,7 @@ public partial class PaneView : UserControl
         Interacted?.Invoke(this);
     }
 
-    private void OnListFocused(object? sender, GotFocusEventArgs e) => Interacted?.Invoke(this);
+    private void OnListFocused(object? sender, FocusChangedEventArgs e) => Interacted?.Invoke(this);
 
     private void OnRowDoubleTapped(object? sender, TappedEventArgs e)
     {

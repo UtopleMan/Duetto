@@ -63,8 +63,8 @@ public partial class MainWindow : Window
         {
             case ChromeKind.Win:
             case ChromeKind.Gnome:
+                WindowDecorations = WindowDecorations.None;
                 ExtendClientAreaToDecorationsHint = true;
-                ExtendClientAreaChromeHints = ExtendClientAreaChromeHints.NoChrome;
                 ExtendClientAreaTitleBarHeightHint = -1;
                 break;
 

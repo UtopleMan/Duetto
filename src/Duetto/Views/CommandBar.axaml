@@ -80,7 +80,7 @@
           <TextBlock Text="Tab switch pane" Classes="hint" />
         </StackPanel>
         <TextBox x:Name="InputBox" Text="{Binding CommandBar.Input}"
-                 Watermark="Type a shell command…"
+                 PlaceholderText="Type a shell command…"
                  Margin="10,0" MinHeight="0" Padding="0" VerticalContentAlignment="Center"
                  FontFamily="{StaticResource MonoFont}" FontSize="12"
                  Foreground="{StaticResource TextMid}"

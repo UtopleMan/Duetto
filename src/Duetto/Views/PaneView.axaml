@@ -97,7 +97,7 @@
                   <StackPanel Margin="6,7,6,6">
 
                     <TextBox x:Name="DriveFilterBox" Text="{Binding FilterText}"
-                             Watermark="Filter drives…"
+                             PlaceholderText="Filter drives…"
                              Background="Transparent" BorderThickness="0" MinHeight="32"
                              Padding="10,7" FontSize="12.5" CaretBrush="{StaticResource Accent}"
                              KeyDown="OnDriveFilterKeyDown" />

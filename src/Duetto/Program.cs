@@ -20,7 +20,7 @@ internal static class Program
     {
         var builder = AppBuilder.Configure<App>();
         return Options.Headless
-            ? builder.UseSkia().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
+            ? builder.UseSkia().UseHarfBuzz().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
             : builder.UsePlatformDetect().LogToTrace();
     }
 }
