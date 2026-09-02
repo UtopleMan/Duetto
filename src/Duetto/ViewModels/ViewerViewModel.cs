@@ -1,0 +1,332 @@
+using System.Collections.ObjectModel;
+using System.Net.Sockets;
+using Avalonia.Media.Imaging;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Duetto.Core.FileSystem;
+using Duetto.Core.Preview;
+using Duetto.Core.Remote;
+using Renci.SshNet.Common;
+
+namespace Duetto.ViewModels;
+
+public partial class ViewerViewModel : ObservableObject
+{
+    private readonly PreviewLoader _loader;
+    private readonly PreviewLimits _limits;
+    private readonly List<int> _matches = [];
+    private CancellationTokenSource? _cts;
+
+    public ViewerViewModel(FileSystemRegistry registry, PreviewLimits? limits = null)
+    {
+        _loader = new PreviewLoader(registry);
+        _limits = limits ?? PreviewLimits.Default;
+    }
+
+    public Func<Action<CancellationToken>, CancellationToken, Task> LoadScheduler { get; set; }
+        = static (work, ct) => Task.Run(() => work(ct), ct);
+
+    public Task LoadCompletion { get; private set; } = Task.CompletedTask;
+
+    public event Action<string>? OpenInDefaultAppRequested;
+
+    public event Action<int>? ScrollToLineRequested;
+
+    public ObservableCollection<PreviewLineViewModel> Lines { get; } = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HeaderText))]
+    private string _fileName = "";
+
+    [ObservableProperty]
+    private string _addressText = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HeaderText))]
+    private string _encodingLabel = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HeaderText))]
+    private string _sizeText = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasTruncation))]
+    private string _truncationText = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsTextMode), nameof(IsImageMode), nameof(IsEmptyFile), nameof(IsFindVisible))]
+    private bool _isLoading;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasError), nameof(IsTextMode), nameof(IsImageMode),
+        nameof(IsEmptyFile), nameof(IsFindVisible))]
+    private string _errorText = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HeaderText), nameof(IsTextMode), nameof(IsImageMode),
+        nameof(IsEmptyFile), nameof(ShowLineNumbers), nameof(IsFindVisible))]
+    private PreviewKind _kind;
+
+    [ObservableProperty]
+    private bool _isWrapped;
+
+    [ObservableProperty]
+    private Bitmap? _image;
+
+    [ObservableProperty]
+    private string _imageDimensionsText = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFindVisible))]
+    private bool _isFindOpen;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MatchPositionText))]
+    private int _matchCount;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MatchPositionText))]
+    private int _currentMatchIndex = -1;
+
+    [ObservableProperty]
+    private string _findQuery = "";
+
+    public string HeaderText => SizeText.Length == 0
+        ? FileName
+        : $"{FileName}  ·  {SizeText}  ·  {DetailLabel}";
+
+    public bool HasError => ErrorText.Length > 0;
+
+    public bool HasTruncation => TruncationText.Length > 0;
+
+    public bool IsTextMode => IsContentVisible && Kind is PreviewKind.Text or PreviewKind.Hex;
+
+    public bool IsImageMode => IsContentVisible && Kind == PreviewKind.Image;
+
+    public bool IsEmptyFile => IsContentVisible && Kind == PreviewKind.Empty;
+
+    public bool ShowLineNumbers => Kind == PreviewKind.Text;
+
+    public bool IsFindVisible => IsFindOpen && IsTextMode;
+
+    private bool IsContentVisible => !IsLoading && !HasError;
+
+    private string DetailLabel => EncodingLabel.Length > 0 ? EncodingLabel : KindLabel;
+
+    private string KindLabel => Kind switch
+    {
+        PreviewKind.Image => "Image",
+        PreviewKind.Hex => "Binary",
+        PreviewKind.Empty => "Empty",
+        _ => "Text",
+    };
+
+    public void Show(string fullAddress, string displayName)
+    {
+        CancelLoad();
+
+        var cts = new CancellationTokenSource();
+        _cts = cts;
+
+        FileName = displayName;
+        AddressText = fullAddress;
+        ErrorText = "";
+        TruncationText = "";
+        EncodingLabel = "";
+        SizeText = "";
+        ImageDimensionsText = "";
+        Image = null;
+        Kind = PreviewKind.Empty;
+        Lines.Clear();
+        ClearFind();
+        IsLoading = true;
+
+        LoadCompletion = RunLoadAsync(fullAddress, cts);
+    }
+
+    public void Cancel()
+    {
+        CancelLoad();
+        IsLoading = false;
+    }
+
+    public string MatchPositionText => MatchCount == 0
+        ? FindQuery.Length == 0 ? "" : "no matches"
+        : $"{CurrentMatchIndex + 1} of {MatchCount}";
+
+    [RelayCommand]
+    public void ToggleWrap() => IsWrapped = !IsWrapped;
+
+    public void OpenFind()
+    {
+        if (IsTextMode)
+            IsFindOpen = true;
+    }
+
+    [RelayCommand]
+    public void CloseFind()
+    {
+        IsFindOpen = false;
+        FindQuery = "";
+    }
+
+    [RelayCommand]
+    public void FindNext() => StepMatch(1);
+
+    [RelayCommand]
+    public void FindPrevious() => StepMatch(-1);
+
+    partial void OnFindQueryChanged(string value) => Rematch(value);
+
+    private void StepMatch(int direction)
+    {
+        if (_matches.Count == 0)
+            return;
+
+        CurrentMatchIndex = (CurrentMatchIndex + direction + _matches.Count) % _matches.Count;
+        ScrollToLineRequested?.Invoke(_matches[CurrentMatchIndex]);
+    }
+
+    private void Rematch(string query)
+    {
+        _matches.Clear();
+        foreach (var line in Lines)
+            line.IsMatch = false;
+
+        if (query.Length > 0)
+        {
+            for (var index = 0; index < Lines.Count; index++)
+            {
+                if (!Lines[index].Text.Contains(query, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                Lines[index].IsMatch = true;
+                _matches.Add(index);
+            }
+        }
+
+        MatchCount = _matches.Count;
+        CurrentMatchIndex = _matches.Count == 0 ? -1 : 0;
+        OnPropertyChanged(nameof(MatchPositionText));
+
+        if (_matches.Count > 0)
+            ScrollToLineRequested?.Invoke(_matches[0]);
+    }
+
+    private void ClearFind()
+    {
+        _matches.Clear();
+        FindQuery = "";
+        MatchCount = 0;
+        CurrentMatchIndex = -1;
+        OnPropertyChanged(nameof(MatchPositionText));
+    }
+
+    [RelayCommand]
+    private void OpenInDefaultApp()
+    {
+        if (AddressText.Length > 0)
+            OpenInDefaultAppRequested?.Invoke(AddressText);
+    }
+
+    private void CancelLoad()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = null;
+    }
+
+    private async Task RunLoadAsync(string fullAddress, CancellationTokenSource cts)
+    {
+        PreviewContent? content = null;
+        string? failure = null;
+
+        try
+        {
+            await LoadScheduler(ct => content = _loader.Load(fullAddress, ct, _limits), cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception e) when (e is IOException
+            or UnauthorizedAccessException
+            or NotSupportedException
+            or InvalidOperationException
+            or SshException
+            or SocketException
+            or HostKeyChangedException)
+        {
+            failure = e.Message;
+        }
+
+        if (!ReferenceEquals(_cts, cts) || cts.IsCancellationRequested)
+            return;
+
+        if (failure is not null)
+        {
+            IsLoading = false;
+            ErrorText = failure;
+            return;
+        }
+
+        Apply(content!);
+    }
+
+    private void Apply(PreviewContent content)
+    {
+        Kind = content.Kind;
+        EncodingLabel = content.EncodingLabel;
+        SizeText = FormatUtil.HumanSize(content.TotalBytes);
+        TruncationText = content.IsTruncated
+            ? $"first {FormatUtil.HumanSize(content.LoadedBytes)} of {FormatUtil.HumanSize(content.TotalBytes)}"
+            : "";
+
+        if (content.Kind == PreviewKind.Image && content.ImageBytes is { } bytes)
+        {
+            ApplyImage(bytes);
+            return;
+        }
+
+        FillLines(content.Lines, numbered: content.Kind == PreviewKind.Text);
+        IsLoading = false;
+    }
+
+    private void ApplyImage(byte[] bytes)
+    {
+        if (TryDecode(bytes) is { } bitmap)
+        {
+            Image = bitmap;
+            ImageDimensionsText = $"{bitmap.PixelSize.Width} × {bitmap.PixelSize.Height}";
+            IsLoading = false;
+            return;
+        }
+
+        var shown = (int)Math.Min(_limits.TextBudgetBytes, bytes.Length);
+        Kind = PreviewKind.Hex;
+        FillLines(HexDump.Format(bytes.AsSpan(0, shown), 0), numbered: false);
+        if (shown < bytes.Length)
+            TruncationText = $"first {FormatUtil.HumanSize(shown)} of {FormatUtil.HumanSize(bytes.Length)}";
+        IsLoading = false;
+    }
+
+    private static Bitmap? TryDecode(byte[] bytes)
+    {
+        try
+        {
+            using var stream = new MemoryStream(bytes, writable: false);
+            return new Bitmap(stream);
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    private void FillLines(IReadOnlyList<string> lines, bool numbered)
+    {
+        Lines.Clear();
+        for (var index = 0; index < lines.Count; index++)
+            Lines.Add(new PreviewLineViewModel(numbered ? index + 1 : null, lines[index]));
+    }
+}

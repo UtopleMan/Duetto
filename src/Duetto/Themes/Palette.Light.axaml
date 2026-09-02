@@ -43,6 +43,7 @@
   <SolidColorBrush x:Key="SuccessBg">#e7f3ec</SolidColorBrush>
   <SolidColorBrush x:Key="SuccessBorder">#cfe6d9</SolidColorBrush>
   <SolidColorBrush x:Key="DangerBorder">#eed7d4</SolidColorBrush>
+  <SolidColorBrush x:Key="MatchHighlight">#f6e6a8</SolidColorBrush>
 
   <SolidColorBrush x:Key="DeskBg">#e8e6e1</SolidColorBrush>
 

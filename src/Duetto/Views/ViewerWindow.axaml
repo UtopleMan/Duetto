@@ -1,0 +1,144 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Duetto.ViewModels"
+        x:Class="Duetto.Views.ViewerWindow"
+        x:DataType="vm:ViewerViewModel"
+        Title="{Binding FileName}"
+        Icon="/Assets/AppIcon.png"
+        Width="900" Height="640"
+        CanResize="True"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource WindowBg}"
+        KeyDown="OnKeyDown">
+  <Grid RowDefinitions="34,*,Auto,28">
+
+    <Border Grid.Row="0" Background="{StaticResource ToolbarBg}"
+            BorderBrush="{StaticResource Hairline}" BorderThickness="0,0,0,1">
+      <DockPanel Margin="12,0">
+        <TextBlock DockPanel.Dock="Right" Text="{Binding ImageDimensionsText}"
+                   FontFamily="{StaticResource MonoFont}" FontSize="11"
+                   Foreground="{StaticResource TextFaint}" VerticalAlignment="Center" />
+        <TextBlock Text="{Binding HeaderText}" FontSize="12"
+                   Foreground="{StaticResource TextBody}"
+                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+      </DockPanel>
+    </Border>
+
+    <Panel Grid.Row="1" Background="{StaticResource PaneBg}">
+
+      <ListBox x:Name="LineList"
+               IsVisible="{Binding IsTextMode}"
+               Background="{StaticResource PaneBg}"
+               ItemsSource="{Binding Lines}"
+               SelectionMode="Single"
+               ScrollViewer.HorizontalScrollBarVisibility="Auto">
+        <ListBox.ItemContainerTheme>
+          <ControlTheme TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+              <ControlTemplate>
+                <ContentPresenter Name="PART_ContentPresenter"
+                                  Background="{TemplateBinding Background}"
+                                  Content="{TemplateBinding Content}"
+                                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                                  Padding="{TemplateBinding Padding}"
+                                  VerticalContentAlignment="Center"
+                                  HorizontalContentAlignment="Stretch" />
+              </ControlTemplate>
+            </Setter>
+            <Style Selector="^:pointerover">
+              <Setter Property="Background" Value="{StaticResource RowHover}" />
+            </Style>
+            <Style Selector="^:selected">
+              <Setter Property="Background" Value="{StaticResource SelectionBg}" />
+            </Style>
+          </ControlTheme>
+        </ListBox.ItemContainerTheme>
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:PreviewLineViewModel">
+            <DockPanel Background="{Binding IsMatch, Converter={x:Static vm:ViewerConverters.MatchBackground}}">
+              <TextBlock DockPanel.Dock="Left" Text="{Binding NumberText}"
+                         Width="52" Margin="0,0,10,0"
+                         IsVisible="{Binding $parent[ListBox].((vm:ViewerViewModel)DataContext).ShowLineNumbers}"
+                         FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                         Foreground="{StaticResource TextHint}"
+                         TextAlignment="Right" VerticalAlignment="Top" />
+              <TextBlock Text="{Binding Text}"
+                         FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                         Foreground="{StaticResource TextBody}"
+                         TextWrapping="{Binding $parent[ListBox].((vm:ViewerViewModel)DataContext).IsWrapped, Converter={x:Static vm:ViewerConverters.Wrapping}}" />
+            </DockPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <ScrollViewer IsVisible="{Binding IsImageMode}"
+                    HorizontalScrollBarVisibility="Auto"
+                    VerticalScrollBarVisibility="Auto">
+        <Image Source="{Binding Image}" Stretch="Uniform" StretchDirection="DownOnly"
+               Margin="16" />
+      </ScrollViewer>
+
+      <TextBlock Text="Loading …" IsVisible="{Binding IsLoading}"
+                 FontSize="12.5" Foreground="{StaticResource TextDim}"
+                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+      <TextBlock Text="Empty file" IsVisible="{Binding IsEmptyFile}"
+                 FontSize="12.5" Foreground="{StaticResource TextGhost}"
+                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+      <TextBlock Text="{Binding ErrorText}" IsVisible="{Binding HasError}"
+                 FontSize="12.5" Foreground="{StaticResource DangerText}"
+                 TextWrapping="Wrap" MaxWidth="520" TextAlignment="Center"
+                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+    </Panel>
+
+    <Border Grid.Row="2" Height="32" IsVisible="{Binding IsFindVisible}"
+            Background="{StaticResource WindowBg}"
+            BorderBrush="{StaticResource HairlineLight}" BorderThickness="0,1,0,0">
+      <StackPanel Orientation="Horizontal" Spacing="8" Margin="12,0" VerticalAlignment="Center">
+        <TextBlock Text="Find" FontSize="11" Foreground="{StaticResource HeaderText}"
+                   VerticalAlignment="Center" />
+        <TextBox x:Name="FindBox" Width="260" Height="24" Padding="6,2"
+                 FontSize="11.5"
+                 PlaceholderText="Text to find"
+                 Text="{Binding FindQuery}"
+                 KeyDown="OnFindBoxKeyDown" />
+        <TextBlock Text="{Binding MatchPositionText}"
+                   FontFamily="{StaticResource MonoFont}" FontSize="11"
+                   Foreground="{StaticResource TextDim}" VerticalAlignment="Center" />
+        <Button Content="Previous" Command="{Binding FindPreviousCommand}"
+                Background="Transparent" BorderThickness="0" Padding="0" MinHeight="0"
+                FontSize="11" Foreground="{StaticResource Accent}" VerticalAlignment="Center" />
+        <Button Content="Next" Command="{Binding FindNextCommand}"
+                Background="Transparent" BorderThickness="0" Padding="0" MinHeight="0"
+                FontSize="11" Foreground="{StaticResource Accent}" VerticalAlignment="Center" />
+        <Button Content="Close" Command="{Binding CloseFindCommand}"
+                Background="Transparent" BorderThickness="0" Padding="0" MinHeight="0"
+                FontSize="11" Foreground="{StaticResource TextGhost}" VerticalAlignment="Center" />
+      </StackPanel>
+    </Border>
+
+    <Border Grid.Row="3" Background="{StaticResource ToolbarBg}"
+            BorderBrush="{StaticResource HairlineLight}" BorderThickness="0,1,0,0">
+      <DockPanel Margin="12,0">
+        <TextBlock DockPanel.Dock="Right" Text="Esc close · W wrap · n / N next / previous match"
+                   FontSize="11" Foreground="{StaticResource TextGhost}" VerticalAlignment="Center" />
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <TextBlock Text="{Binding TruncationText}" IsVisible="{Binding HasTruncation}"
+                     FontSize="11" Foreground="{StaticResource SkipAmber}" VerticalAlignment="Center" />
+          <Button Content="Open in default app"
+                  Command="{Binding OpenInDefaultAppCommand}"
+                  Background="Transparent" BorderThickness="0" Padding="0" MinHeight="0"
+                  FontSize="11" Foreground="{StaticResource Accent}" VerticalAlignment="Center" />
+          <Button Content="Wrap" Command="{Binding ToggleWrapCommand}"
+                  IsVisible="{Binding IsTextMode}"
+                  Background="Transparent" BorderThickness="0" Padding="0" MinHeight="0"
+                  FontSize="11" Foreground="{StaticResource Accent}" VerticalAlignment="Center" />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+  </Grid>
+</Window>
