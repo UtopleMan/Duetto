@@ -207,4 +207,34 @@ public class PreviewLoaderTests
 
         Assert.Throws<NotSupportedException>(() => LocalLoader().Load(dir, CancellationToken.None));
     }
+
+    [Fact]
+    public void Svg_within_the_budget_keeps_both_markup_and_bytes()
+    {
+        using var tmp = new TempDir();
+        var markup = "<svg xmlns=\"http://www.w3.org/2000/svg\" />\n";
+        var path = tmp.File("logo.svg", markup);
+
+        var content = LocalLoader().Load(path, CancellationToken.None);
+
+        Assert.Equal(PreviewKind.Vector, content.Kind);
+        Assert.Equal(Encoding.UTF8.GetBytes(markup), content.ImageBytes);
+        Assert.Equal([markup.TrimEnd('\n')], content.Lines);
+        Assert.Equal("", content.EncodingLabel);
+        Assert.False(content.IsTruncated);
+    }
+
+    [Fact]
+    public void Svg_over_the_budget_is_truncated_text_rather_than_partial_markup()
+    {
+        using var tmp = new TempDir();
+        var path = tmp.File("big.svg", $"<svg>{new string('x', 200)}</svg>");
+
+        var content = LocalLoader().Load(path, CancellationToken.None, TinyLimits);
+
+        Assert.Equal(PreviewKind.Text, content.Kind);
+        Assert.True(content.IsTruncated);
+        Assert.Null(content.ImageBytes);
+        Assert.Equal(TinyLimits.TextBudgetBytes, content.LoadedBytes);
+    }
 }

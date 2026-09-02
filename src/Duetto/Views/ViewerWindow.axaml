@@ -81,6 +81,9 @@
                Margin="16" />
       </ScrollViewer>
 
+      <Image IsVisible="{Binding IsVectorMode}"
+             Source="{Binding Image}" Stretch="Uniform" Margin="16" />
+
       <TextBlock Text="Loading …" IsVisible="{Binding IsLoading}"
                  FontSize="12.5" Foreground="{StaticResource TextDim}"
                  HorizontalAlignment="Center" VerticalAlignment="Center" />

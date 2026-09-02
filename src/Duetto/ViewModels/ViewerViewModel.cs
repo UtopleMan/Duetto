@@ -1,6 +1,9 @@
 using System.Collections.ObjectModel;
 using System.Net.Sockets;
+using System.Xml;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Svg;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Duetto.Core.FileSystem;
@@ -54,24 +57,25 @@ public partial class ViewerViewModel : ObservableObject
     private string _truncationText = "";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsTextMode), nameof(IsImageMode), nameof(IsEmptyFile), nameof(IsFindVisible))]
+    [NotifyPropertyChangedFor(nameof(IsTextMode), nameof(IsImageMode), nameof(IsVectorMode),
+        nameof(IsEmptyFile), nameof(IsFindVisible))]
     private bool _isLoading;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasError), nameof(IsTextMode), nameof(IsImageMode),
-        nameof(IsEmptyFile), nameof(IsFindVisible))]
+        nameof(IsVectorMode), nameof(IsEmptyFile), nameof(IsFindVisible))]
     private string _errorText = "";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HeaderText), nameof(IsTextMode), nameof(IsImageMode),
-        nameof(IsEmptyFile), nameof(ShowLineNumbers), nameof(IsFindVisible))]
+        nameof(IsVectorMode), nameof(IsEmptyFile), nameof(ShowLineNumbers), nameof(IsFindVisible))]
     private PreviewKind _kind;
 
     [ObservableProperty]
     private bool _isWrapped;
 
     [ObservableProperty]
-    private Bitmap? _image;
+    private IImage? _image;
 
     [ObservableProperty]
     private string _imageDimensionsText = "";
@@ -103,6 +107,8 @@ public partial class ViewerViewModel : ObservableObject
 
     public bool IsImageMode => IsContentVisible && Kind == PreviewKind.Image;
 
+    public bool IsVectorMode => IsContentVisible && Kind == PreviewKind.Vector;
+
     public bool IsEmptyFile => IsContentVisible && Kind == PreviewKind.Empty;
 
     public bool ShowLineNumbers => Kind == PreviewKind.Text;
@@ -116,6 +122,7 @@ public partial class ViewerViewModel : ObservableObject
     private string KindLabel => Kind switch
     {
         PreviewKind.Image => "Image",
+        PreviewKind.Vector => "SVG",
         PreviewKind.Hex => "Binary",
         PreviewKind.Empty => "Empty",
         _ => "Text",
@@ -282,13 +289,34 @@ public partial class ViewerViewModel : ObservableObject
             ? $"first {FormatUtil.HumanSize(content.LoadedBytes)} of {FormatUtil.HumanSize(content.TotalBytes)}"
             : "";
 
-        if (content.Kind == PreviewKind.Image && content.ImageBytes is { } bytes)
+        if (content.Kind == PreviewKind.Image && content.ImageBytes is { } rasterBytes)
         {
-            ApplyImage(bytes);
+            ApplyImage(rasterBytes);
+            return;
+        }
+
+        if (content.Kind == PreviewKind.Vector && content.ImageBytes is { } markupBytes)
+        {
+            ApplyVector(markupBytes, content.Lines);
             return;
         }
 
         FillLines(content.Lines, numbered: content.Kind == PreviewKind.Text);
+        IsLoading = false;
+    }
+
+    private void ApplyVector(byte[] bytes, IReadOnlyList<string> markupLines)
+    {
+        if (TryDecodeSvg(bytes) is { } vector)
+        {
+            Image = vector;
+            ImageDimensionsText = $"{vector.Size.Width:0.##} × {vector.Size.Height:0.##}";
+            IsLoading = false;
+            return;
+        }
+
+        Kind = PreviewKind.Text;
+        FillLines(markupLines, numbered: true);
         IsLoading = false;
     }
 
@@ -318,6 +346,27 @@ public partial class ViewerViewModel : ObservableObject
             return new Bitmap(stream);
         }
         catch (ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    private static SvgImage? TryDecodeSvg(byte[] bytes)
+    {
+        try
+        {
+            using var stream = new MemoryStream(bytes, writable: false);
+            return SvgSource.Load(stream) is { Picture: not null } source
+                ? new SvgImage { Source = source }
+                : null;
+        }
+        catch (Exception e) when (e is XmlException
+            or NullReferenceException
+            or ArgumentException
+            or InvalidOperationException
+            or NotSupportedException
+            or FormatException
+            or OverflowException)
         {
             return null;
         }

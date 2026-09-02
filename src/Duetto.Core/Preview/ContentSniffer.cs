@@ -22,7 +22,12 @@ public static class ContentSniffer
         if (LooksLikeImage(head, totalBytes))
             return totalBytes <= limits.ImageMaxBytes ? PreviewKind.Image : PreviewKind.Hex;
 
-        if (TextEncodingDetector.Detect(head).BomLength > 0)
+        var bomLength = TextEncodingDetector.Detect(head).BomLength;
+
+        if (SvgMarkupDetector.LooksLikeSvg(head[bomLength..]))
+            return PreviewKind.Vector;
+
+        if (bomLength > 0)
             return PreviewKind.Text;
 
         if (head.IndexOf((byte)0) >= 0)

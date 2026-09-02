@@ -1,7 +1,9 @@
+using System.Runtime.InteropServices;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Duetto.Core.FileSystem;
 using Duetto.Core.Preview;
@@ -38,6 +40,15 @@ public class ViewerTests
         var path = tmp.File(name);
         File.WriteAllBytes(path, bytes);
         return path;
+    }
+
+    private static IEnumerable<byte> CentrePixelChannelsAscending(WriteableBitmap frame)
+    {
+        using var buffer = frame.Lock();
+        var offset = (buffer.RowBytes * (frame.PixelSize.Height / 2)) + (frame.PixelSize.Width / 2 * 4);
+        var pixel = new byte[4];
+        Marshal.Copy(buffer.Address + offset, pixel, 0, pixel.Length);
+        return pixel[..3].Order();
     }
 
     [AvaloniaFact]
@@ -107,6 +118,42 @@ public class ViewerTests
         Assert.False(vm.HasError);
         Assert.Null(vm.Image);
         Assert.NotEmpty(vm.Lines);
+    }
+
+    [AvaloniaFact]
+    public void Svg_sets_the_image_and_its_viewbox_dimensions()
+    {
+        using var tmp = new TempDir();
+        var path = tmp.File("logo.svg", """
+            <svg xmlns="http://www.w3.org/2000/svg" width="120" height="60" viewBox="0 0 120 60">
+              <rect width="120" height="60" fill="#3060c0" />
+            </svg>
+            """);
+        var vm = Viewer();
+
+        vm.Show(path, "logo.svg");
+
+        Assert.Equal(PreviewKind.Vector, vm.Kind);
+        Assert.NotNull(vm.Image);
+        Assert.Equal("120 × 60", vm.ImageDimensionsText);
+        Assert.True(vm.IsVectorMode);
+        Assert.False(vm.IsTextMode);
+        Assert.Contains("SVG", vm.HeaderText);
+    }
+
+    [AvaloniaFact]
+    public void Malformed_svg_falls_back_to_text_rather_than_an_error()
+    {
+        using var tmp = new TempDir();
+        var path = tmp.File("broken.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\"><rect ");
+        var vm = Viewer();
+
+        vm.Show(path, "broken.svg");
+
+        Assert.Equal(PreviewKind.Text, vm.Kind);
+        Assert.False(vm.HasError);
+        Assert.Null(vm.Image);
+        Assert.Equal(["<svg xmlns=\"http://www.w3.org/2000/svg\"><rect "], vm.Lines.Select(l => l.Text));
     }
 
     [AvaloniaFact]
@@ -231,6 +278,29 @@ public class ViewerTests
         Assert.Equal("note.txt", window.Title);
         Assert.True(window.FindControl<ListBox>("LineList")!.IsVisible);
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public void Svg_actually_paints_into_the_window()
+    {
+        using var tmp = new TempDir();
+        var path = tmp.File("fill.svg", """
+            <svg xmlns="http://www.w3.org/2000/svg" width="120" height="60" viewBox="0 0 120 60">
+              <rect width="120" height="60" fill="#3060c0" />
+            </svg>
+            """);
+        var vm = Viewer();
+        var window = new ViewerWindow(vm);
+        window.Show();
+        vm.Show(path, "fill.svg");
+        Dispatcher.UIThread.RunJobs();
+
+        using var frame = window.CaptureRenderedFrame();
+        Assert.NotNull(frame);
+        var channels = CentrePixelChannelsAscending(frame);
+        window.Close();
+
+        Assert.Equal<byte>([0x30, 0x60, 0xC0], channels);
     }
 
     [AvaloniaFact]

@@ -82,4 +82,41 @@ public class ContentSnifferTests
     [Fact]
     public void Text_starting_with_bm_is_not_mistaken_for_bmp() =>
         Assert.Equal(PreviewKind.Text, ContentSniffer.Detect("BMW is a car\n"u8, 13, Limits));
+
+    [Fact]
+    public void Svg_root_element_is_vector() =>
+        Assert.Equal(PreviewKind.Vector, ContentSniffer.Detect("<svg width=\"4\"></svg>"u8, 21, Limits));
+
+    [Fact]
+    public void Svg_after_an_xml_prologue_is_vector()
+    {
+        var head = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!-- drawn by hand -->
+            <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+            <svg xmlns="http://www.w3.org/2000/svg" />
+            """u8;
+
+        Assert.Equal(PreviewKind.Vector, ContentSniffer.Detect(head, head.Length, Limits));
+    }
+
+    [Fact]
+    public void Svg_behind_a_utf8_bom_is_vector()
+    {
+        byte[] head = [0xEF, 0xBB, 0xBF, .. "<svg></svg>"u8];
+
+        Assert.Equal(PreviewKind.Vector, ContentSniffer.Detect(head, head.Length, Limits));
+    }
+
+    [Fact]
+    public void Html_content_is_not_detected_as_vector() =>
+        Assert.Equal(PreviewKind.Text, ContentSniffer.Detect("<html><body>svg</body></html>"u8, 29, Limits));
+
+    [Fact]
+    public void Element_merely_starting_with_svg_is_not_vector() =>
+        Assert.Equal(PreviewKind.Text, ContentSniffer.Detect("<svgish>no</svgish>"u8, 19, Limits));
+
+    [Fact]
+    public void Unterminated_prologue_is_not_vector() =>
+        Assert.Equal(PreviewKind.Text, ContentSniffer.Detect("<?xml version=\"1.0\""u8, 19, Limits));
 }

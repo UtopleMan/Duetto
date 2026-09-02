@@ -31,9 +31,12 @@ public sealed class PreviewLoader(FileSystemRegistry registry)
             return ImageContent(stream, head, entry.SizeBytes, budgets, ct);
 
         var body = ReadBody(stream, head, budgets.TextBudgetBytes, ct);
-        return kind == PreviewKind.Text
-            ? TextContent(body, entry.SizeBytes)
-            : HexContent(body, entry.SizeBytes);
+        return kind switch
+        {
+            PreviewKind.Text => TextContent(body, entry.SizeBytes),
+            PreviewKind.Vector => VectorContent(body, entry.SizeBytes),
+            _ => HexContent(body, entry.SizeBytes),
+        };
     }
 
     private static LoadedBody ReadBody(Stream stream, byte[] head, long budgetBytes, CancellationToken ct)
@@ -84,6 +87,14 @@ public sealed class PreviewLoader(FileSystemRegistry registry)
             LoadedBytes = body.Bytes.LongLength,
             IsTruncated = body.IsTruncated,
         };
+    }
+
+    private static PreviewContent VectorContent(LoadedBody body, long totalBytes)
+    {
+        var markup = TextContent(body, totalBytes);
+        return body.IsTruncated
+            ? markup
+            : markup with { Kind = PreviewKind.Vector, ImageBytes = body.Bytes, EncodingLabel = "" };
     }
 
     private static PreviewContent HexContent(LoadedBody body, long totalBytes) => new()

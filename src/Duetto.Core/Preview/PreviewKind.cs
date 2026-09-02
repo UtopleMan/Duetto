@@ -6,4 +6,5 @@ public enum PreviewKind
     Text,
     Hex,
     Image,
+    Vector,
 }
