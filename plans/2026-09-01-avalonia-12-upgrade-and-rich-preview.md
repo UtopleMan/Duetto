@@ -281,25 +281,132 @@ Not verified: the F3 gesture against a real PDF in a native window. The publishe
 **Note for Phase 4.** pdfium ships under BSD-3 (`runtimes/<rid>/native/LICENSE` in the `Docnet.Core` package); `Docnet.Core` itself is MIT. Phase 4's third-party notice needs both, alongside the MIT SVG stack Phase 2 recorded.
 
 ## Phase 4: Packaging, docs, release
-Status: Not started
+Status: Complete
 
-- [ ] Confirm every RID's published app renders text, hex, image, SVG and PDF (Windows and Linux runs are the risky ones — this repo has an open backlog item that those binaries have never run on their targets)
-- [ ] README: add the viewer to the feature list, document `F3` and the supported formats, and state the limits (4 MiB text budget, 64 MiB image cap, 128 MiB PDF cap)
-- [ ] README: note that PDF rendering embeds pdfium (BSD-3) and SVG rendering uses Svg.Model — add the third-party notices
-- [ ] CHANGELOG: one entry covering the Avalonia 12 upgrade (with the SSH.NET security fix called out) and one for the viewer feature set
-- [ ] `plans/backlog.md`: tick the viewer item, and add a follow-up item for office-document preview (docx/xlsx/pptx extraction) with a pointer to the research in this plan
-- [ ] Bump the version and publish release artifacts
+- [ ] Confirm every RID's published app renders text, hex, image, SVG and PDF (Windows and Linux runs are the risky ones — this repo has an open backlog item that those binaries have never run on their targets) — **not closable from a macOS agent session; see the Phase Summary. All four RIDs are published and both preview stacks are proven present in each binary, but nobody has driven the Windows or Linux app by hand**
+- [x] README: add the viewer to the feature list, document `F3` and the supported formats, and state the limits (4 MiB text budget, 64 MiB image cap, 128 MiB PDF cap)
+- [x] README: note that PDF rendering embeds pdfium (BSD-3) and SVG rendering uses Svg.Model — add the third-party notices
+- [x] CHANGELOG: one entry covering the Avalonia 12 upgrade (with the SSH.NET security fix called out) and one for the viewer feature set
+- [x] `plans/backlog.md`: tick the viewer item, and add a follow-up item for office-document preview (docx/xlsx/pptx extraction) with a pointer to the research in this plan
+- [x] Bump the version and publish release artifacts
 
 ### Verification Plan
 - `grep -n "F3" README.md CHANGELOG.md` — both document the viewer
 - `VERSION=<next> scripts/publish-all.sh` — four artifacts produced; sizes recorded in the Final Recap
 - `dotnet list package --vulnerable --include-transitive` — clean at release time
 
+### Verification Results (2026-09-03)
+| Check | Result |
+| --- | --- |
+| `dotnet build Duetto.slnx --no-incremental` | 0 errors; warning set unchanged from Phases 1–3 |
+| `dotnet test` | **850 passed, 0 failed, 0 skipped** — equals the post-Phase-3 count |
+| `dotnet list package --vulnerable --include-transitive` | Clean on all three projects at release time |
+| `grep -n "F3" README.md CHANGELOG.md` | Both document the viewer, including the SVG and PDF kinds and all three limits |
+| `VERSION=1.7.0 scripts/publish-all.sh` | All four RIDs published from cleaned `dist/<rid>/`; zips listed in the Final Recap |
+| Published macOS build launches | `dist/osx-arm64/Duetto --smoke` exits 0 |
+| pdfium survives self-extract (1.7.0 build) | `DOTNET_BUNDLE_EXTRACT_BASE_DIR=<tmp> dist/osx-arm64/Duetto --smoke` extracts `pdfium.dylib` into the bundle dir |
+| Both preview stacks shipped in every RID | `grep -a -c` on each published binary finds `Svg.Model` and `Docnet.Core` in all four (macOS `strings` truncates — use `grep -a`) |
+| Release published | Tag `v1.7.0` pushed; GitHub release carries 4 zips + 2 dmgs; Homebrew cask pushed to `UtopleMan/homebrew-duetto` |
+
+Not verified: the `F3` gesture driven by hand in a native window on any OS, and the Windows/Linux binaries running on their targets at all. See the Phase Summary.
+
 ### Phase Summary
-_(write when phase completes)_
+
+**Release shipped: 1.7.0** (2026-09-03). `feature/file-preview-f3` merged to `main` with a
+`--no-ff` merge, followed by `chore(release): v1.7.0` (which bumps `Directory.Build.props`
+from the stale 1.5.0 to 1.7.0), tag `v1.7.0`, both pushed to `origin`.
+
+**Docs**
+- README's viewer bullet now covers SVG (vector, scaled to fit) and PDF (`PgDn`/`PgUp`
+  page stepping) and states all three limits: 4 MB text/hex, 64 MB image, 128 MB PDF.
+- A **Third-party notices** table sits under `## License`. **Correction to the Phase 2
+  note:** the SVG stack is not uniformly MIT — `Svg.Custom` is **MS-PL** (checked in the
+  nuspec, not assumed). `Svg.Controls.Avalonia`, `Svg.Model`, `Svg.SceneGraph` and
+  `ShimSkiaSharp` are MIT; `Docnet.Core` is MIT; the PDFium natives are BSD-3-Clause and
+  ship their `LICENSE` inside each runtime package.
+- CHANGELOG's `Unreleased` became `## 1.7.0 — 2026-09-03`, with SVG and PDF added as their
+  own feature bullets beside the existing viewer / Avalonia 12 / SSH.NET entries.
+- `plans/backlog.md`: the viewer item now names `PdfPageRenderer`, SVG and PDF and points
+  at both plans; a new office-document-preview item records the OOXML-via-`System.IO.Compression`
+  approach and the already-settled CEF rejection so the next agent does not re-research it.
+
+**Release mechanics, in order** (worth copying for the next release): clean `dist/<rid>/`
+(publish does not delete stale files and the zip step picks up whatever is there) →
+`VERSION=1.7.0 scripts/publish-all.sh` → merge → release commit → tag → `git push origin main`
+and `git push origin v1.7.0` → `VERSION=1.7.0 scripts/make-dmg.sh osx-arm64` and `osx-x64` →
+`gh release create v1.7.0` with all six artifacts → `scripts/update-cask.sh 1.7.0` (the cask
+must come last: it hashes the dmgs and its URL points at the release assets).
+
+**v1.6.0 shipped dmgs only** — no zips — so Windows and Linux users had nothing to download
+from that release despite the README's install table. 1.7.0 restores the 1.5.0 asset set
+(4 zips + 2 dmgs). Worth checking on every future release.
+
+**Why item 1 is left unticked.** Nothing in this session can drive a native window: macOS
+GUI launch fails in the tool session (`Avalonia.Native ... RenderTimer ... -6661`, no
+WindowServer access), and there is no Windows or Linux host here at all. What *is* proven:
+all four RIDs publish, the macOS build launches and exits cleanly, pdfium extracts from the
+1.7.0 single-file bundle, both preview stacks are present in all four binaries, and the
+render paths themselves are covered by headless-Skia tests that paint into a real
+`ViewerWindow` and assert pixels (`ViewerTests.Svg_actually_paints_into_the_window`,
+`ViewerPdfTests.Pdf_page_actually_paints_into_the_window`). The remaining gap is the
+existing backlog item "Test Windows/Linux binaries on real target OSes before wide
+distribution", now also covering the viewer.
 
 ## Final Recap
-_(write when all phases complete)_
+
+Three phases of work shipped as **1.7.0**: the Avalonia 12.1.1 upgrade (Phase 1), SVG
+preview (Phase 2) and PDF page preview (Phase 3), on top of the text/hex/image viewer from
+`plans/2026-08-31-file-preview-f3.md`.
+
+**Test suite:** 739 (baseline on `main`) → 850 passing, 0 failed, 0 skipped. No test was
+deleted or disabled along the way.
+
+**Security:** SSH.NET 2025.1.0 → 2026.0.0 closes GHSA-q939-rpr3-3284. `dotnet list package
+--vulnerable --include-transitive` is clean at release.
+
+**What the viewer does now:** text with line numbers and encoding label, hex dump, inline
+raster images, SVG as vector art, and PDF pages via PDFium — over local, SFTP, SMB, S3 and
+Azure Blob, with find-in-file, word wrap, page navigation and **Open in default app**.
+
+**Artifact sizes** (1.5.0 → 1.7.0; zips):
+
+| RID | 1.5.0 | 1.7.0 | Delta |
+| --- | --- | --- | --- |
+| linux-x64 | 43.8 MB | 49.5 MB | +5.7 MB |
+| osx-arm64 | 45.7 MB | 50.9 MB | +5.2 MB |
+| osx-x64 | 47.5 MB | 52.8 MB | +5.3 MB |
+| win-x64 | 45.5 MB | 51.3 MB | +5.8 MB |
+
+Growth is Avalonia 12 (~+1.5 MB) plus the pdfium native (~+4 MB); the SVG stack is managed
+and costs almost nothing. The win-x64 number would have been ~27 MB worse without the
+`ExcludeNativeSymbolsFromPublish` target added in Phase 1.
+
+**Decisions a future reader should not re-litigate:** no browser engine (CEF is 120–200 MB
+per platform and renders no office format anyway); PDF renders at a fixed 2400 px long edge
+rather than a window-derived scale (`PageDimensions` is fixed per document at open time);
+`xunit.v3` pinned to 3.2.2 until `Avalonia.Headless.XUnit` is built against v4.
+
+**Follow-ups left open** (all in `plans/backlog.md`): adopt `TestContext.Current.CancellationToken`
+and drop the `xUnit1051` `NoWarn`; test the Windows/Linux binaries on real targets; rename
+`ViewerViewModel`'s underscore-prefixed fields to match `AGENTS.md`; office-document preview.
 
 ## Deployment Plan
-_(write when all phases complete)_
+
+Shipped on 2026-09-03. `main` is at `chore(release): v1.7.0`, tagged `v1.7.0`, pushed to
+`origin`.
+
+- **GitHub release** <https://github.com/UtopleMan/Duetto/releases/tag/v1.7.0> — `Duetto-1.7.0-arm64.dmg`,
+  `Duetto-1.7.0-x64.dmg`, `duetto-1.7.0-{osx-arm64,osx-x64,win-x64,linux-x64}.zip`.
+- **Homebrew** — `UtopleMan/homebrew-duetto` cask updated to 1.7.0 (dmg SHA-256s regenerated
+  by `scripts/update-cask.sh`). `brew install --cask utopleman/duetto/duetto` serves 1.7.0.
+- **macOS builds stay unsigned and un-notarized.** Gatekeeper blocks first launch; the
+  release notes and the cask caveat both carry the `xattr -dr com.apple.quarantine` escape.
+
+**Rollback:** the previous cask commit in the tap repo restores 1.6.0 for Homebrew users;
+`gh release delete v1.7.0` plus `git push origin :refs/tags/v1.7.0` withdraws the release.
+Downloaded artifacts cannot be recalled.
+
+**Before announcing widely:** run `dist/win-x64/Duetto.exe` and `dist/linux-x64/Duetto` on
+real Windows and Linux hosts and check chrome, trash, shell runner, volume/eject and the
+`F3` viewer across all five preview kinds. Those binaries are cross-compiled from macOS and
+have never run on their targets.
