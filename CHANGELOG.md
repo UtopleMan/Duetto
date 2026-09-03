@@ -3,7 +3,7 @@
 All notable changes to Duetto are documented here. This project adheres to
 [Semantic Versioning](https://semver.org).
 
-## Unreleased
+## 1.7.0 — 2026-09-03
 
 ### Features
 - **File viewer (`F3`)** — press `F3` on the pane cursor or a focused search
@@ -17,6 +17,15 @@ All notable changes to Duetto are documented here. This project adheres to
   an **Open in default app** action alongside; images are decoded up to 64 MB and
   fall back to a hex dump above that. Previewing is not blocked by a running copy
   or delete, and the viewer remembers its own size and position.
+- **SVG preview** — SVG documents render as vector art, scaled to fit, with the
+  viewBox dimensions in the header. Detection is by content, not extension: an
+  `.svg` holding HTML is shown as text, and a malformed SVG falls back to its
+  source markup instead of an error.
+- **PDF preview** — PDF pages render one at a time via PDFium, with
+  **Previous page** / **Next page** in the footer and `PgDn`/`PgUp` (or the arrow
+  keys) stepping pages. Every page renders with its long edge at 2400 px, so the
+  view stays crisp at any window size. PDFs up to 128 MB are rendered; damaged or
+  password-protected files show a one-line reason next to **Open in default app**.
 
 ### Changed
 - **Avalonia 12.1.1** — upgraded from 11.3.18. Window chrome moved from the
