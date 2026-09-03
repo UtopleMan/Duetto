@@ -13,11 +13,15 @@ public static class ContentSniffer
     private static ReadOnlySpan<byte> BmpMagic => "BM"u8;
     private static ReadOnlySpan<byte> RiffMagic => "RIFF"u8;
     private static ReadOnlySpan<byte> WebpMagic => "WEBP"u8;
+    private static ReadOnlySpan<byte> PdfMagic => "%PDF-"u8;
 
     public static PreviewKind Detect(ReadOnlySpan<byte> head, long totalBytes, PreviewLimits limits)
     {
         if (head.IsEmpty)
             return PreviewKind.Empty;
+
+        if (head.StartsWith(PdfMagic))
+            return PreviewKind.Pdf;
 
         if (LooksLikeImage(head, totalBytes))
             return totalBytes <= limits.ImageMaxBytes ? PreviewKind.Image : PreviewKind.Hex;

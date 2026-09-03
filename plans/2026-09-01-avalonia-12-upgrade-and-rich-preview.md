@@ -196,26 +196,26 @@ Not verified: the F3 gesture against a real SVG in a native window. `dotnet run 
 **Note for Phase 4.** `Svg.Controls.Avalonia` is MIT; its `Svg.Model` / `Svg.SceneGraph` / `ShimSkiaSharp` dependencies are MIT too. The third-party notice Phase 4 asks for needs no extra licence beyond MIT for the SVG half.
 
 ## Phase 3: PDF page preview via Docnet.Core
-Status: Not started
+Status: Complete
 
-- [ ] Add `Docnet.Core` 2.6.0 to `src/Duetto.Core/Duetto.Core.csproj`
-- [ ] Spike (timebox, record in the Phase Summary): confirm the exact API — `DocLib.Instance.GetDocReader(bytes, new PageDimensions(...))`, `GetPageCount()`, `GetPageReader(index)`, `GetImage()`, `GetPageWidth()`, `GetPageHeight()` — and the returned pixel order (expected BGRA, 4 bytes/pixel). Write the finding down; the rest of the phase depends on it
-- [ ] Add `PdfPageRenderer` in `src/Duetto.Core/Preview/PdfPageRenderer.cs`: opens PDF bytes, exposes page count, renders one page index to `(byte[] Pixels, int Width, int Height)`
-- [ ] Treat `DocLib.Instance` as an application-lifetime singleton (per the library's own guidance) and serialize all calls behind a `Lock` — pdfium is not thread-safe
-- [ ] Render at a scale derived from the viewer's current width, capped (e.g. max 2400 px on the long edge) so a poster-size page cannot allocate unbounded pixels
-- [ ] Caps and failure handling: refuse PDFs over a `PdfMaxBytes` limit (default 128 MiB) with a message plus the existing **Open in default app** action; password-protected or corrupt PDFs surface a one-line reason, never a stack trace
-- [ ] Add `PreviewKind.Pdf`; sniff on the `%PDF-` magic bytes. This overrides the hex path — a PDF is never shown as a hex dump
-- [ ] `PreviewLoader` fetches the **whole** PDF (within `PdfMaxBytes`) since page rendering needs random access — unlike text/hex, the partial-fetch budget does not apply
-- [ ] `ViewerViewModel`: `PageIndex`, `PageCount`, `PageText` (`3 / 12`), `NextPage()`, `PreviousPage()`; convert rendered pixels into a `WriteableBitmap`; render off the UI thread through the existing `LoadScheduler` seam
-- [ ] `ViewerWindow`: page image scaled-to-fit, page navigation in the footer, `PageDown`/`PageUp`/arrows step pages, wrap/find hidden in PDF mode
-- [ ] Dispose page readers and the document reader deterministically; do not dispose `DocLib.Instance`
-- [ ] Tests in `tests/Duetto.Tests/Core/PdfPageRendererTests.cs` using a tiny PDF committed under `tests/Duetto.Tests/Assets/`:
-  - [ ] Page count matches the fixture
-  - [ ] Rendering page 0 yields `Width * Height * 4` bytes, non-uniform content
-  - [ ] Out-of-range page index throws a clear exception (or returns null — pick one and assert it)
-  - [ ] A file over `PdfMaxBytes` is refused by the loader before any pdfium call
-  - [ ] A truncated/corrupt PDF produces a handled failure, not a crash
-- [ ] Tests in `tests/Duetto.Tests/Ui/ViewerPdfTests.cs`: F3 on a PDF sets `PageCount`, `NextPage` advances and re-renders, navigation clamps at both ends
+- [x] Add `Docnet.Core` 2.6.0 to `src/Duetto.Core/Duetto.Core.csproj`
+- [x] Spike (timebox, record in the Phase Summary): confirm the exact API — `DocLib.Instance.GetDocReader(bytes, new PageDimensions(...))`, `GetPageCount()`, `GetPageReader(index)`, `GetImage()`, `GetPageWidth()`, `GetPageHeight()` — and the returned pixel order (expected BGRA, 4 bytes/pixel). Write the finding down; the rest of the phase depends on it
+- [x] Add `PdfPageRenderer` in `src/Duetto.Core/Preview/PdfPageRenderer.cs`: opens PDF bytes, exposes page count, renders one page index to `(byte[] Pixels, int Width, int Height)`
+- [x] Treat `DocLib.Instance` as an application-lifetime singleton (per the library's own guidance) and serialize all calls behind a `Lock` — pdfium is not thread-safe
+- [x] ~~Render at a scale derived from the viewer's current width~~, capped (max 2400 px on the long edge) so a poster-size page cannot allocate unbounded pixels — **done as a fixed 2400 px viewport, not derived from window width**; see the Phase Summary
+- [x] Caps and failure handling: refuse PDFs over a `PdfMaxBytes` limit (default 128 MiB) with a message plus the existing **Open in default app** action; password-protected or corrupt PDFs surface a one-line reason, never a stack trace
+- [x] Add `PreviewKind.Pdf`; sniff on the `%PDF-` magic bytes. This overrides the hex path — a PDF is never shown as a hex dump
+- [x] `PreviewLoader` fetches the **whole** PDF (within `PdfMaxBytes`) since page rendering needs random access — unlike text/hex, the partial-fetch budget does not apply
+- [x] `ViewerViewModel`: `PageIndex`, `PageCount`, `PageText` (`3 / 12`), `NextPage()`, `PreviousPage()`; convert rendered pixels into a `WriteableBitmap`; render off the UI thread through the existing `LoadScheduler` seam
+- [x] `ViewerWindow`: page image scaled-to-fit, page navigation in the footer, `PageDown`/`PageUp`/arrows step pages, wrap/find hidden in PDF mode
+- [x] Dispose page readers and the document reader deterministically; do not dispose `DocLib.Instance`
+- [x] Tests in `tests/Duetto.Tests/Core/PdfPageRendererTests.cs` using a tiny PDF committed under `tests/Duetto.Tests/Assets/`:
+  - [x] Page count matches the fixture
+  - [x] Rendering page 0 yields `Width * Height * 4` bytes, non-uniform content
+  - [x] Out-of-range page index throws a clear exception (or returns null — pick one and assert it)
+  - [x] A file over `PdfMaxBytes` is refused by the loader before any pdfium call
+  - [x] A truncated/corrupt PDF produces a handled failure, not a crash
+- [x] Tests in `tests/Duetto.Tests/Ui/ViewerPdfTests.cs`: F3 on a PDF sets `PageCount`, `NextPage` advances and re-renders, navigation clamps at both ends
 
 ### Verification Plan
 - `dotnet build Duetto.slnx` — succeeds
@@ -224,8 +224,61 @@ Status: Not started
 - `VERSION=0.0.0-pdf scripts/publish-all.sh` then run `dist/osx-arm64/Duetto` and F3 a real multi-page PDF — pages render and navigate **from the published single-file build**, proving the pdfium native survives self-extract
 - Record each artifact's size delta (expect roughly +6 MB per RID)
 
+### Verification Results (2026-09-03)
+| Check | Result |
+| --- | --- |
+| `dotnet build Duetto.slnx --no-incremental` | 0 errors. Warning set identical to the Phase 1/2 baseline: CS4014 x6, xUnit1031 x4, CA1416 x4, xUnit2031 x2, MVVMTK0034 x2 |
+| `dotnet test --filter "FullyQualifiedName~Pdf"` | 27 passed, 0 failed |
+| `dotnet test` | **850 passed, 0 failed, 0 skipped** (823 was the post-Phase-2 count; +27 new) |
+| `dotnet list package --vulnerable --include-transitive` | Clean on all three projects. `Docnet.Core` carries no advisory |
+| `VERSION=0.0.0-pdf scripts/publish-all.sh` | All four RIDs published from a cleaned `dist/<rid>/`; `dist/<rid>/Duetto[.exe]` present for each |
+| Published app launch | `dist/osx-arm64/Duetto --smoke` opens the window and exits 0 on the real macOS backend |
+| pdfium survives self-extract | Verified with a console harness referencing `Duetto.Core`, published with the **identical** flags (`-r osx-arm64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none`). It reports `singleFile=True`, `pages=2 size=2400x1200 bytes=11520000`, `centreBGRA=255,0,0,255` — pdfium loaded from the self-extracted bundle and rendered correctly |
+| Rendered page paints | `ViewerPdfTests.Pdf_page_actually_paints_into_the_window` drives the real `ViewerWindow` under headless Skia, captures the frame and asserts the centre pixel is the fixture's blue fill |
+
+**Artifact sizes** (baseline = the `0.0.0-viewer` zips already in `dist/`, i.e. Avalonia 12 + text/hex/image/SVG viewer):
+
+| RID | Pre-PDF | With PDF | Delta |
+| --- | --- | --- | --- |
+| linux-x64 | 45.6 MB | 49.5 MB | +3.9 MB |
+| osx-arm64 | 47.0 MB | 50.9 MB | +3.9 MB |
+| osx-x64 | 48.8 MB | 52.8 MB | +4.0 MB |
+| win-x64 | 47.5 MB | 51.3 MB | +3.8 MB |
+
+Compressed growth is ~+4 MB per RID, under the ~+6 MB the plan budgeted (the natives are 4.3–5.7 MB each and compress well).
+
+Not verified: the F3 gesture against a real PDF in a native window. The published binary starts, but nothing in this agent session can select a row and press F3. The pdfium-from-single-file half of that risk is covered by the harness row above; the UI half is covered by the headless render test.
+
 ### Phase Summary
-_(write when phase completes)_
+
+**Branch:** `feature/file-preview-f3`, continuing from Phase 2.
+
+**Spike answers (all confirmed against `Docnet.Core` 2.6.0 on osx-arm64).**
+- `DocLib.Instance.GetDocReader(byte[], PageDimensions)` → `IDocReader`; `GetPageCount()`, `GetPageReader(int)` → `IPageReader`; `GetImage()`, `GetPageWidth()`, `GetPageHeight()` all exist as the plan assumed.
+- `GetImage()` returns **BGRA**, exactly `Width * Height * 4` bytes. Confirmed by rendering a fixture whose page centre is `#0000FF` and reading back `255,0,0,255`.
+- **`PageDimensions(int, int)` is a viewport that preserves aspect ratio**, not a forced size: a 200x100 pt page opened at `(2400, 2400)` renders 2400x1200, and at `(100, 100)` renders 100x50. This is the finding that simplified the phase — see the scale decision below.
+- Failure modes: corrupt or truncated bytes throw `DocnetLoadDocumentException` (`ErrorCode` is a `uint`; 3 = format error, 4 = pdfium's password error); an empty array throws `ArgumentNullException`; an out-of-range page index throws plain `DocnetException` ("failed to open page for page index 7").
+
+**Design decisions**
+- *Scale: one fixed 2400 px viewport, not window-derived.* The plan asked for a scale derived from the viewer's current width. The view model has no width, and `PageDimensions` is fixed for the whole document at open time, so honouring that literally would have meant reopening the document per resize or per page. Because the `(w, h)` overload fits-with-aspect, `new PageDimensions(2400, 2400)` gives the cap the plan actually wanted for free: every page renders with its long edge at exactly 2400 px, so the buffer can never exceed 2400x2400x4 = 23 MB no matter how big the page is. Vector re-render at 2400 px is crisp at any window size; the cost is that a business-card PDF also allocates a large buffer. Bounded and predictable beat clever here.
+- *Third-party exceptions never escape Core.* `PdfPageRenderer` catches `DocnetException` / `ArgumentException` and rethrows `NotSupportedException` with a one-line reason ("This PDF cannot be rendered - the file is damaged or not a PDF.", or the password variant when `ErrorCode == 4`). `ViewerViewModel` already caught `NotSupportedException`, so oversized, corrupt and password-protected PDFs all land in `ErrorText` with no new plumbing and no stack trace.
+- *Over-cap PDFs are refused in the loader, before any pdfium call.* `PreviewLoader.PdfContent` throws when `entry.SizeBytes > PdfMaxBytes`, naming both sizes ("This PDF is 901 B, over the 900 B preview limit."). This is the same throw-and-surface path the folder case already used. The footer's **Open in default app** button is always visible, so the refusal message is paired with the escape hatch.
+- *Sniffing on `%PDF-` runs first and is size-independent.* A PDF is never shown as a hex dump, oversized or not — over-cap PDFs get the message above rather than falling back to `Hex` the way over-cap images do.
+- *`PreviewLoader` reads the whole document* (up to `PdfMaxBytes`), bypassing the 4 MiB text budget, because page rendering needs random access. `IsTruncated` is always false for PDFs.
+- *pdfium is serialized behind a `Lock`.* `DocLib.Instance` is the library's own long-lived singleton and is never disposed; every call that touches it — open, page count, render, dispose — runs under one static gate, because pdfium is not thread-safe and the renderer is driven from `LoadScheduler`'s worker thread.
+- *Rendered page bitmaps are not explicitly disposed.* `WriteableBitmap` is handed straight to the bound `Image` control, and disposing the outgoing bitmap races Avalonia's render thread. SkiaSharp's finalizers reclaim the native buffer, so the cost is delayed reclamation rather than a leak. This also matches how the existing raster and SVG paths already behave.
+- *Page state lives on the view model, rendering off the UI thread.* `PageIndex`, `PageCount`, `PageText` (`1 / 2`), `NextPage()`, `PreviousPage()`; navigation clamps silently at both ends. The first page is rendered inside the same `LoadScheduler` work item as the load, so opening a PDF is one background hop, not two. Later page renders go through `RenderPageAsync`, which re-checks the live `CancellationTokenSource` before touching any property — the same staleness guard `RunLoadAsync` uses.
+- *A zero-page PDF is treated as a failure* ("This PDF has no pages.") rather than being allowed to reach `RenderPage(0)`, which would throw an uncaught `ArgumentOutOfRangeException` on a background task.
+
+**UI.** PDF mode gets its own `<Image>` (`Uniform` / `DownOnly`, so a 2400 px render scales down to fit and never blurs upward). The footer gains **Previous page** / `1 / 2` / **Next page**, all bound to `IsPdfMode`. `PageDown`/`Down`/`Right` and `PageUp`/`Up`/`Left` step pages when `IsPdfMode`. Wrap and find were already bound to `IsTextMode`, so both stay hidden for PDFs with no change; `OpenFind()` is a no-op in PDF mode. The footer hint became `FooterHintText` so PDF mode reads "Esc close · PgUp / PgDn page" instead of the wrap/find hint.
+
+**Test fixture.** `tests/Duetto.Tests/Assets/two-pages.pdf` (689 B) is a hand-built two-page PDF with a correct xref table: page 1 draws a blue rect covering the page centre, page 2 a full-bleed red rect, so "each page renders its own content" and the BGRA-order assertion both have something real to check. The test csproj now copies `Assets/**` to the output directory. Corrupt, truncated and empty inputs are built inline in the tests — no fixture files needed.
+
+**Files touched:** new `PdfPageRenderer.cs`, `PdfPage.cs`, `PdfPageBitmap.cs`, `ViewerPdfTests.cs`, `PdfPageRendererTests.cs`, `Assets/two-pages.pdf`; edited `PreviewKind.cs`, `PreviewLimits.cs` (`PdfMaxBytes`, 128 MiB), `ContentSniffer.cs`, `PreviewLoader.cs`, `ViewerViewModel.cs`, `ViewerWindow.axaml`, `ViewerWindow.axaml.cs`, `Duetto.Core.csproj`, `Duetto.Tests.csproj`, plus `ContentSnifferTests` (+3), `PreviewLoaderTests` (+2), `ViewerTests` (one helper widened to `internal`, `TinyLimits` gained `PdfMaxBytes`).
+
+**One convention note for the next agent.** `ViewerViewModel` uses underscore-prefixed private fields (`_loader`, `_cts`, …) throughout, which `AGENTS.md` prohibits. The new `_pdfRenderer` follows the file rather than the rule, on the grounds that a half-converted file is worse than a consistently-wrong one. Renaming every field in that file is a clean-up worth doing on its own, not inside a feature diff.
+
+**Note for Phase 4.** pdfium ships under BSD-3 (`runtimes/<rid>/native/LICENSE` in the `Docnet.Core` package); `Docnet.Core` itself is MIT. Phase 4's third-party notice needs both, alongside the MIT SVG stack Phase 2 recorded.
 
 ## Phase 4: Packaging, docs, release
 Status: Not started

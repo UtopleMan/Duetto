@@ -7,4 +7,5 @@ public enum PreviewKind
     Hex,
     Image,
     Vector,
+    Pdf,
 }

@@ -23,6 +23,7 @@ public class ViewerTests
     {
         TextBudgetBytes = 32,
         ImageMaxBytes = 64,
+        PdfMaxBytes = 512,
         SniffBytes = 8,
     };
 
@@ -42,7 +43,7 @@ public class ViewerTests
         return path;
     }
 
-    private static IEnumerable<byte> CentrePixelChannelsAscending(WriteableBitmap frame)
+    internal static IEnumerable<byte> CentrePixelChannelsAscending(WriteableBitmap frame)
     {
         using var buffer = frame.Lock();
         var offset = (buffer.RowBytes * (frame.PixelSize.Height / 2)) + (frame.PixelSize.Width / 2 * 4);

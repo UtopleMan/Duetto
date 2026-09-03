@@ -30,6 +30,9 @@ public sealed class PreviewLoader(FileSystemRegistry registry)
         if (kind == PreviewKind.Image)
             return ImageContent(stream, head, entry.SizeBytes, budgets, ct);
 
+        if (kind == PreviewKind.Pdf)
+            return PdfContent(stream, head, entry.SizeBytes, budgets, ct);
+
         var body = ReadBody(stream, head, budgets.TextBudgetBytes, ct);
         return kind switch
         {
@@ -64,6 +67,32 @@ public sealed class PreviewLoader(FileSystemRegistry registry)
         return new PreviewContent
         {
             Kind = PreviewKind.Image,
+            Lines = [],
+            ImageBytes = bytes,
+            EncodingLabel = "",
+            TotalBytes = totalBytes,
+            LoadedBytes = bytes.LongLength,
+            IsTruncated = false,
+        };
+    }
+
+    private static PreviewContent PdfContent(
+        Stream stream,
+        byte[] head,
+        long totalBytes,
+        PreviewLimits budgets,
+        CancellationToken ct)
+    {
+        if (totalBytes > budgets.PdfMaxBytes)
+            throw new NotSupportedException(
+                $"This PDF is {FormatUtil.HumanSize(totalBytes)}, over the "
+                + $"{FormatUtil.HumanSize(budgets.PdfMaxBytes)} preview limit.");
+
+        var cap = (int)Math.Min(budgets.PdfMaxBytes, int.MaxValue);
+        var bytes = Concat(head, Read(stream, cap - head.Length, ct));
+        return new PreviewContent
+        {
+            Kind = PreviewKind.Pdf,
             Lines = [],
             ImageBytes = bytes,
             EncodingLabel = "",

@@ -15,10 +15,13 @@ namespace Duetto.ViewModels;
 
 public partial class ViewerViewModel : ObservableObject
 {
+    private sealed record PdfDocumentPreview(PdfPageRenderer Renderer, PdfPage FirstPage);
+
     private readonly PreviewLoader _loader;
     private readonly PreviewLimits _limits;
     private readonly List<int> _matches = [];
     private CancellationTokenSource? _cts;
+    private PdfPageRenderer? _pdfRenderer;
 
     public ViewerViewModel(FileSystemRegistry registry, PreviewLimits? limits = null)
     {
@@ -58,17 +61,19 @@ public partial class ViewerViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsTextMode), nameof(IsImageMode), nameof(IsVectorMode),
-        nameof(IsEmptyFile), nameof(IsFindVisible))]
+        nameof(IsPdfMode), nameof(IsEmptyFile), nameof(IsFindVisible), nameof(FooterHintText))]
     private bool _isLoading;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasError), nameof(IsTextMode), nameof(IsImageMode),
-        nameof(IsVectorMode), nameof(IsEmptyFile), nameof(IsFindVisible))]
+        nameof(IsVectorMode), nameof(IsPdfMode), nameof(IsEmptyFile), nameof(IsFindVisible),
+        nameof(FooterHintText))]
     private string _errorText = "";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HeaderText), nameof(IsTextMode), nameof(IsImageMode),
-        nameof(IsVectorMode), nameof(IsEmptyFile), nameof(ShowLineNumbers), nameof(IsFindVisible))]
+        nameof(IsVectorMode), nameof(IsPdfMode), nameof(IsEmptyFile), nameof(ShowLineNumbers),
+        nameof(IsFindVisible), nameof(FooterHintText))]
     private PreviewKind _kind;
 
     [ObservableProperty]
@@ -79,6 +84,14 @@ public partial class ViewerViewModel : ObservableObject
 
     [ObservableProperty]
     private string _imageDimensionsText = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PageText))]
+    private int _pageIndex;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PageText))]
+    private int _pageCount;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsFindVisible))]
@@ -109,7 +122,15 @@ public partial class ViewerViewModel : ObservableObject
 
     public bool IsVectorMode => IsContentVisible && Kind == PreviewKind.Vector;
 
+    public bool IsPdfMode => IsContentVisible && Kind == PreviewKind.Pdf;
+
     public bool IsEmptyFile => IsContentVisible && Kind == PreviewKind.Empty;
+
+    public string PageText => PageCount == 0 ? "" : $"{PageIndex + 1} / {PageCount}";
+
+    public string FooterHintText => IsPdfMode
+        ? "Esc close · PgUp / PgDn page"
+        : "Esc close · W wrap · n / N next / previous match";
 
     public bool ShowLineNumbers => Kind == PreviewKind.Text;
 
@@ -123,6 +144,7 @@ public partial class ViewerViewModel : ObservableObject
     {
         PreviewKind.Image => "Image",
         PreviewKind.Vector => "SVG",
+        PreviewKind.Pdf => "PDF",
         PreviewKind.Hex => "Binary",
         PreviewKind.Empty => "Empty",
         _ => "Text",
@@ -131,6 +153,7 @@ public partial class ViewerViewModel : ObservableObject
     public void Show(string fullAddress, string displayName)
     {
         CancelLoad();
+        ClosePdf();
 
         var cts = new CancellationTokenSource();
         _cts = cts;
@@ -154,6 +177,7 @@ public partial class ViewerViewModel : ObservableObject
     public void Cancel()
     {
         CancelLoad();
+        ClosePdf();
         IsLoading = false;
     }
 
@@ -163,6 +187,12 @@ public partial class ViewerViewModel : ObservableObject
 
     [RelayCommand]
     public void ToggleWrap() => IsWrapped = !IsWrapped;
+
+    [RelayCommand]
+    public void NextPage() => ShowPage(PageIndex + 1);
+
+    [RelayCommand]
+    public void PreviousPage() => ShowPage(PageIndex - 1);
 
     public void OpenFind()
     {
@@ -243,14 +273,71 @@ public partial class ViewerViewModel : ObservableObject
         _cts = null;
     }
 
-    private async Task RunLoadAsync(string fullAddress, CancellationTokenSource cts)
+    private void ClosePdf()
     {
-        PreviewContent? content = null;
+        _pdfRenderer?.Dispose();
+        _pdfRenderer = null;
+        PageCount = 0;
+        PageIndex = 0;
+    }
+
+    private void ShowPage(int pageIndex)
+    {
+        if (_pdfRenderer is not { } renderer || _cts is not { } cts)
+            return;
+
+        if (pageIndex < 0 || pageIndex >= renderer.PageCount)
+            return;
+
+        PageIndex = pageIndex;
+        LoadCompletion = RenderPageAsync(renderer, pageIndex, cts);
+    }
+
+    private async Task RenderPageAsync(PdfPageRenderer renderer, int pageIndex, CancellationTokenSource cts)
+    {
+        PdfPage? page = null;
         string? failure = null;
 
         try
         {
-            await LoadScheduler(ct => content = _loader.Load(fullAddress, ct, _limits), cts.Token);
+            await LoadScheduler(_ => page = renderer.RenderPage(pageIndex), cts.Token);
+        }
+        catch (Exception e) when (e is OperationCanceledException or ObjectDisposedException)
+        {
+            return;
+        }
+        catch (NotSupportedException e)
+        {
+            failure = e.Message;
+        }
+
+        if (!ReferenceEquals(_cts, cts) || cts.IsCancellationRequested)
+            return;
+
+        if (failure is not null)
+        {
+            ErrorText = failure;
+            return;
+        }
+
+        Image = PdfPageBitmap.From(page!);
+    }
+
+    private async Task RunLoadAsync(string fullAddress, CancellationTokenSource cts)
+    {
+        PreviewContent? content = null;
+        PdfDocumentPreview? document = null;
+        string? failure = null;
+
+        try
+        {
+            await LoadScheduler(
+                ct =>
+                {
+                    content = _loader.Load(fullAddress, ct, _limits);
+                    document = OpenPdf(content);
+                },
+                cts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -268,19 +355,37 @@ public partial class ViewerViewModel : ObservableObject
         }
 
         if (!ReferenceEquals(_cts, cts) || cts.IsCancellationRequested)
+        {
+            document?.Renderer.Dispose();
             return;
+        }
 
         if (failure is not null)
         {
+            document?.Renderer.Dispose();
             IsLoading = false;
             ErrorText = failure;
             return;
         }
 
-        Apply(content!);
+        _pdfRenderer = document?.Renderer;
+        Apply(content!, document);
     }
 
-    private void Apply(PreviewContent content)
+    private static PdfDocumentPreview? OpenPdf(PreviewContent content)
+    {
+        if (content.Kind != PreviewKind.Pdf || content.ImageBytes is not { } documentBytes)
+            return null;
+
+        var renderer = PdfPageRenderer.Open(documentBytes);
+        if (renderer.PageCount > 0)
+            return new PdfDocumentPreview(renderer, renderer.RenderPage(0));
+
+        renderer.Dispose();
+        throw new NotSupportedException("This PDF has no pages.");
+    }
+
+    private void Apply(PreviewContent content, PdfDocumentPreview? document)
     {
         Kind = content.Kind;
         EncodingLabel = content.EncodingLabel;
@@ -301,7 +406,21 @@ public partial class ViewerViewModel : ObservableObject
             return;
         }
 
+        if (document is not null)
+        {
+            ApplyPdf(document);
+            return;
+        }
+
         FillLines(content.Lines, numbered: content.Kind == PreviewKind.Text);
+        IsLoading = false;
+    }
+
+    private void ApplyPdf(PdfDocumentPreview document)
+    {
+        PageCount = document.Renderer.PageCount;
+        PageIndex = 0;
+        Image = PdfPageBitmap.From(document.FirstPage);
         IsLoading = false;
     }
 

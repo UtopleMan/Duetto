@@ -118,6 +118,12 @@ public partial class ViewerWindow : Window
             case Key.W when e.KeyModifiers == KeyModifiers.None:
                 Vm.ToggleWrap();
                 break;
+            case Key.PageDown or Key.Down or Key.Right when Vm.IsPdfMode:
+                Vm.NextPage();
+                break;
+            case Key.PageUp or Key.Up or Key.Left when Vm.IsPdfMode:
+                Vm.PreviousPage();
+                break;
             default:
                 return;
         }

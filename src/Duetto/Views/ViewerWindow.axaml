@@ -84,6 +84,9 @@
       <Image IsVisible="{Binding IsVectorMode}"
              Source="{Binding Image}" Stretch="Uniform" Margin="16" />
 
+      <Image IsVisible="{Binding IsPdfMode}"
+             Source="{Binding Image}" Stretch="Uniform" StretchDirection="DownOnly" Margin="16" />
+
       <TextBlock Text="Loading …" IsVisible="{Binding IsLoading}"
                  FontSize="12.5" Foreground="{StaticResource TextDim}"
                  HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -127,11 +130,22 @@
     <Border Grid.Row="3" Background="{StaticResource ToolbarBg}"
             BorderBrush="{StaticResource HairlineLight}" BorderThickness="0,1,0,0">
       <DockPanel Margin="12,0">
-        <TextBlock DockPanel.Dock="Right" Text="Esc close · W wrap · n / N next / previous match"
+        <TextBlock DockPanel.Dock="Right" Text="{Binding FooterHintText}"
                    FontSize="11" Foreground="{StaticResource TextGhost}" VerticalAlignment="Center" />
         <StackPanel Orientation="Horizontal" Spacing="10">
           <TextBlock Text="{Binding TruncationText}" IsVisible="{Binding HasTruncation}"
                      FontSize="11" Foreground="{StaticResource SkipAmber}" VerticalAlignment="Center" />
+          <Button Content="Previous page" Command="{Binding PreviousPageCommand}"
+                  IsVisible="{Binding IsPdfMode}"
+                  Background="Transparent" BorderThickness="0" Padding="0" MinHeight="0"
+                  FontSize="11" Foreground="{StaticResource Accent}" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding PageText}" IsVisible="{Binding IsPdfMode}"
+                     FontFamily="{StaticResource MonoFont}" FontSize="11"
+                     Foreground="{StaticResource TextDim}" VerticalAlignment="Center" />
+          <Button Content="Next page" Command="{Binding NextPageCommand}"
+                  IsVisible="{Binding IsPdfMode}"
+                  Background="Transparent" BorderThickness="0" Padding="0" MinHeight="0"
+                  FontSize="11" Foreground="{StaticResource Accent}" VerticalAlignment="Center" />
           <Button Content="Open in default app"
                   Command="{Binding OpenInDefaultAppCommand}"
                   Background="Transparent" BorderThickness="0" Padding="0" MinHeight="0"

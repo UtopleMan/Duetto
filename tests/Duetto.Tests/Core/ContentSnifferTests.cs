@@ -119,4 +119,16 @@ public class ContentSnifferTests
     [Fact]
     public void Unterminated_prologue_is_not_vector() =>
         Assert.Equal(PreviewKind.Text, ContentSniffer.Detect("<?xml version=\"1.0\""u8, 19, Limits));
+
+    [Fact]
+    public void Pdf_magic_is_pdf() =>
+        Assert.Equal(PreviewKind.Pdf, ContentSniffer.Detect("%PDF-1.7\n%\xe2\xe3\xcf\xd3"u8, 900, Limits));
+
+    [Fact]
+    public void Pdf_over_the_cap_is_still_pdf_rather_than_hex() =>
+        Assert.Equal(PreviewKind.Pdf, ContentSniffer.Detect("%PDF-1.7\n"u8, Limits.PdfMaxBytes + 1, Limits));
+
+    [Fact]
+    public void Text_merely_mentioning_pdf_is_not_pdf() =>
+        Assert.Equal(PreviewKind.Text, ContentSniffer.Detect("a %PDF- header lives elsewhere\n"u8, 30, Limits));
 }

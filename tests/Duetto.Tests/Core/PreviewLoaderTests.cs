@@ -11,6 +11,7 @@ public class PreviewLoaderTests
     {
         TextBudgetBytes = 32,
         ImageMaxBytes = 64,
+        PdfMaxBytes = 900,
         SniffBytes = 8,
     };
 
@@ -222,6 +223,37 @@ public class PreviewLoaderTests
         Assert.Equal([markup.TrimEnd('\n')], content.Lines);
         Assert.Equal("", content.EncodingLabel);
         Assert.False(content.IsTruncated);
+    }
+
+    [Fact]
+    public void Pdf_is_loaded_whole_rather_than_within_the_text_budget()
+    {
+        using var tmp = new TempDir();
+        var document = PdfPageRendererTests.TwoPageDocument();
+        var path = WriteBytes(tmp, "pages.pdf", document);
+
+        var content = LocalLoader().Load(path, CancellationToken.None, TinyLimits);
+
+        Assert.Equal(PreviewKind.Pdf, content.Kind);
+        Assert.Equal(document, content.ImageBytes);
+        Assert.Empty(content.Lines);
+        Assert.False(content.IsTruncated);
+        Assert.Equal(document.Length, content.LoadedBytes);
+    }
+
+    [Fact]
+    public void Pdf_over_the_cap_is_refused_with_a_readable_reason()
+    {
+        using var tmp = new TempDir();
+        var oversized = new byte[TinyLimits.PdfMaxBytes + 1];
+        "%PDF-1.4\n"u8.CopyTo(oversized);
+        var path = WriteBytes(tmp, "huge.pdf", oversized);
+
+        var refusal = Assert.Throws<NotSupportedException>(
+            () => LocalLoader().Load(path, CancellationToken.None, TinyLimits));
+
+        Assert.Contains("901 B", refusal.Message);
+        Assert.Contains("900 B", refusal.Message);
     }
 
     [Fact]
