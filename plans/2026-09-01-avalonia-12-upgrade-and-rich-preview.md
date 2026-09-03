@@ -307,6 +307,7 @@ Status: Complete
 | pdfium survives self-extract (1.7.0 build) | `DOTNET_BUNDLE_EXTRACT_BASE_DIR=<tmp> dist/osx-arm64/Duetto --smoke` extracts `pdfium.dylib` into the bundle dir |
 | Both preview stacks shipped in every RID | `grep -a -c` on each published binary finds `Svg.Model` and `Docnet.Core` in all four (macOS `strings` truncates — use `grep -a`) |
 | Release published | Tag `v1.7.0` pushed; GitHub release carries 4 zips + 2 dmgs; Homebrew cask pushed to `UtopleMan/homebrew-duetto` |
+| `scripts/smoke.sh` | **15 passed, 0 failed** (SMB + SFTP + S3 + Azure) against the docker backends, run on the released `main`. No compose override needed this time — host port 9000 was free |
 
 Not verified: the `F3` gesture driven by hand in a native window on any OS, and the Windows/Linux binaries running on their targets at all. See the Phase Summary.
 
