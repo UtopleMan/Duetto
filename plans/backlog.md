@@ -51,6 +51,29 @@ Unscheduled ideas. Promote an item by writing a design spec + implementation pla
   (`dk.truecon.duetto`), `DUETTO_LOG`/`DUETTO_FOCUS_LOG` env vars, publish
   scripts, and docs. Dir history preserved via `git mv`; build + all 131 tests
   green after the rename.
+- [x] File preview / viewer (`F3`). Reusable modeless `ViewerWindow` over a
+  provider-agnostic Core engine (`src/Duetto.Core/Preview/`: `ContentSniffer`,
+  `TextEncodingDetector`, `HexDump`, `PreviewLoader`, `PdfPageRenderer`). Text
+  with line numbers and a detected encoding label, hex dump for binaries, inline
+  images, SVG as vector art, and PDF pages via PDFium; find-in-file, word wrap,
+  page navigation, truncation notice with **Open in default app**; own persisted
+  window placement. Works over local, SFTP, SMB, S3 and Azure through
+  `IFileSystemProvider`. See `plans/2026-08-31-file-preview-f3.md` (text/hex/image)
+  and `plans/2026-09-01-avalonia-12-upgrade-and-rich-preview.md` (SVG, PDF).
+- [ ] Office-document preview in the viewer (`.docx` / `.xlsx` / `.pptx`). These
+  are ZIP containers of OOXML, so a text-extraction preview needs no native
+  dependency and no browser engine — walk the package with
+  `System.IO.Compression` and render the extracted flow as a new `PreviewKind`.
+  Research already done and not to be re-litigated: an embedded browser engine
+  (CEF) was rejected at 120–200 MB per platform, and it renders no office format
+  on its own anyway. Faithful layout-accurate rendering is out of scope; the
+  target is readable text, not fidelity. See the research table in
+  `plans/2026-09-01-avalonia-12-upgrade-and-rich-preview.md`.
+- [ ] Adopt `TestContext.Current.CancellationToken` across the test suite and drop
+  the `xUnit1051` `NoWarn` from `tests/Duetto.Tests/Duetto.Tests.csproj`. The
+  analyzer arrived with the xunit.v3 migration and fires at 36 call sites in 7
+  files; it was suppressed so the Avalonia 12 upgrade diff stayed attributable.
+  See the Phase 1 summary in `plans/2026-09-01-avalonia-12-upgrade-and-rich-preview.md`.
 - [ ] Test Windows/Linux binaries on real target OSes before wide distribution.
   `dist/win-x64/Duetto.exe` and `dist/linux-x64/Duetto` are cross-compiled from
   macOS and never ran on their targets; verify chrome, trash, shell runner and

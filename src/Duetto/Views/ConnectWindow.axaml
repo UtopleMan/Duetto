@@ -25,18 +25,18 @@
 
     <TextBlock Text="CONNECTION NAME (optional)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                Foreground="{StaticResource HeaderText}" Margin="0,0,0,4"/>
-    <TextBox Text="{Binding Name}" Watermark="My Server" Margin="0,0,0,14"/>
+    <TextBox Text="{Binding Name}" PlaceholderText="My Server" Margin="0,0,0,14"/>
 
     <Grid ColumnDefinitions="*,8,80" Margin="0,0,0,14" IsVisible="{Binding HostPortVisible}">
       <StackPanel Grid.Column="0" Spacing="4">
         <TextBlock Text="HOST" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                    Foreground="{StaticResource HeaderText}"/>
-        <TextBox Text="{Binding Host}" Watermark="example.com or 192.168.1.1"/>
+        <TextBox Text="{Binding Host}" PlaceholderText="example.com or 192.168.1.1"/>
       </StackPanel>
       <StackPanel Grid.Column="2" Spacing="4">
         <TextBlock Text="PORT" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                    Foreground="{StaticResource HeaderText}"/>
-        <TextBox Text="{Binding PortText}" Watermark="22"/>
+        <TextBox Text="{Binding PortText}" PlaceholderText="22"/>
       </StackPanel>
     </Grid>
 
@@ -44,12 +44,12 @@
       <StackPanel Grid.Column="0" Spacing="4">
         <TextBlock Text="ENDPOINT (blank = AWS)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                    Foreground="{StaticResource HeaderText}"/>
-        <TextBox Text="{Binding Endpoint}" Watermark="https://s3.example.com"/>
+        <TextBox Text="{Binding Endpoint}" PlaceholderText="https://s3.example.com"/>
       </StackPanel>
       <StackPanel Grid.Column="2" Spacing="4">
         <TextBlock Text="REGION" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                    Foreground="{StaticResource HeaderText}"/>
-        <TextBox Text="{Binding Region}" Watermark="us-east-1"/>
+        <TextBox Text="{Binding Region}" PlaceholderText="us-east-1"/>
       </StackPanel>
     </Grid>
 
@@ -73,37 +73,37 @@
     <StackPanel IsVisible="{Binding S3KeysVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="ACCESS KEY ID" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
-      <TextBox Text="{Binding AccessKeyId}" Watermark="AKIA…"/>
+      <TextBox Text="{Binding AccessKeyId}" PlaceholderText="AKIA…"/>
       <TextBlock Text="SECRET ACCESS KEY" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}" Margin="0,8,0,0"/>
-      <TextBox Text="{Binding SecretKey}" PasswordChar="•" Watermark="(not stored unless checked below)"/>
+      <TextBox Text="{Binding SecretKey}" PasswordChar="•" PlaceholderText="(not stored unless checked below)"/>
       <TextBlock Text="SESSION TOKEN (optional)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}" Margin="0,8,0,0"/>
-      <TextBox Text="{Binding SessionToken}" PasswordChar="•" Watermark="(temporary / STS credentials)"/>
+      <TextBox Text="{Binding SessionToken}" PasswordChar="•" PlaceholderText="(temporary / STS credentials)"/>
     </StackPanel>
 
     <StackPanel IsVisible="{Binding S3ProfileVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="AWS PROFILE" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
-      <TextBox Text="{Binding Profile}" Watermark="default"/>
+      <TextBox Text="{Binding Profile}" PlaceholderText="default"/>
     </StackPanel>
 
     <StackPanel IsVisible="{Binding S3FieldsVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="BUCKET (blank = list all buckets)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
-      <TextBox Text="{Binding Bucket}" Watermark="my-bucket"/>
+      <TextBox Text="{Binding Bucket}" PlaceholderText="my-bucket"/>
     </StackPanel>
 
     <StackPanel IsVisible="{Binding AzureFieldsVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="ENDPOINT (blank = {account}.blob.core.windows.net)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
-      <TextBox Text="{Binding Endpoint}" Watermark="http://127.0.0.1:10000/devstoreaccount1"/>
+      <TextBox Text="{Binding Endpoint}" PlaceholderText="http://127.0.0.1:10000/devstoreaccount1"/>
     </StackPanel>
 
     <StackPanel IsVisible="{Binding AzureAccountVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="STORAGE ACCOUNT" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
-      <TextBox Text="{Binding AzureAccount}" Watermark="mystorageaccount"/>
+      <TextBox Text="{Binding AzureAccount}" PlaceholderText="mystorageaccount"/>
     </StackPanel>
 
     <StackPanel IsVisible="{Binding AzureFieldsVisible}" Spacing="0">
@@ -124,25 +124,25 @@
     <StackPanel IsVisible="{Binding AzureKeyVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="ACCOUNT KEY" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
-      <TextBox Text="{Binding AzureAccountKey}" PasswordChar="•" Watermark="(not stored unless checked below)"/>
+      <TextBox Text="{Binding AzureAccountKey}" PasswordChar="•" PlaceholderText="(not stored unless checked below)"/>
     </StackPanel>
 
     <StackPanel IsVisible="{Binding AzureConnStringVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="CONNECTION STRING" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
-      <TextBox Text="{Binding AzureConnectionString}" PasswordChar="•" Watermark="DefaultEndpointsProtocol=…;AccountName=…;AccountKey=…"/>
+      <TextBox Text="{Binding AzureConnectionString}" PasswordChar="•" PlaceholderText="DefaultEndpointsProtocol=…;AccountName=…;AccountKey=…"/>
     </StackPanel>
 
     <StackPanel IsVisible="{Binding AzureSasVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="SAS TOKEN OR URL" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
-      <TextBox Text="{Binding AzureSasToken}" PasswordChar="•" Watermark="?sv=…&amp;sig=…  or  https://…?sv=…"/>
+      <TextBox Text="{Binding AzureSasToken}" PasswordChar="•" PlaceholderText="?sv=…&amp;sig=…  or  https://…?sv=…"/>
     </StackPanel>
 
     <StackPanel IsVisible="{Binding AzureContainerVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="CONTAINER (blank = list all containers)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
-      <TextBox Text="{Binding AzureContainer}" Watermark="my-container"/>
+      <TextBox Text="{Binding AzureContainer}" PlaceholderText="my-container"/>
     </StackPanel>
 
     <CheckBox IsVisible="{Binding SmbFieldsVisible}" IsChecked="{Binding Guest}"
@@ -152,7 +152,7 @@
     <StackPanel IsVisible="{Binding UsernameVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="USERNAME" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
-      <TextBox Text="{Binding Username}" Watermark="user"/>
+      <TextBox Text="{Binding Username}" PlaceholderText="user"/>
     </StackPanel>
 
     <StackPanel IsVisible="{Binding SftpAuthVisible}" Spacing="0">
@@ -169,31 +169,31 @@
     <StackPanel IsVisible="{Binding PasswordVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="PASSWORD" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
-      <TextBox Text="{Binding Password}" PasswordChar="•" Watermark="(not stored unless checked below)"/>
+      <TextBox Text="{Binding Password}" PasswordChar="•" PlaceholderText="(not stored unless checked below)"/>
     </StackPanel>
 
     <StackPanel IsVisible="{Binding SmbFieldsVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="DOMAIN / WORKGROUP (optional)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
-      <TextBox Text="{Binding Domain}" Watermark="WORKGROUP"/>
+      <TextBox Text="{Binding Domain}" PlaceholderText="WORKGROUP"/>
     </StackPanel>
 
     <StackPanel IsVisible="{Binding KeySectionVisible}" Spacing="4" Margin="0,0,0,14">
       <TextBlock Text="PRIVATE KEY FILE" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}"/>
       <Grid ColumnDefinitions="*,6,Auto">
-        <TextBox Grid.Column="0" Text="{Binding KeyPath}" Watermark="~/.ssh/id_ed25519"/>
+        <TextBox Grid.Column="0" Text="{Binding KeyPath}" PlaceholderText="~/.ssh/id_ed25519"/>
         <Button Grid.Column="2" Content="Browse…" Click="OnBrowseKeyFile"
                 Padding="10,5" CornerRadius="6"/>
       </Grid>
       <TextBlock Text="PASSPHRASE (if key is encrypted)" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                  Foreground="{StaticResource HeaderText}" Margin="0,8,0,0"/>
-      <TextBox Text="{Binding KeyPassphrase}" PasswordChar="•" Watermark="(leave blank for unencrypted key)"/>
+      <TextBox Text="{Binding KeyPassphrase}" PasswordChar="•" PlaceholderText="(leave blank for unencrypted key)"/>
     </StackPanel>
 
     <TextBlock Text="INITIAL PATH" FontSize="10" FontWeight="SemiBold" LetterSpacing="1"
                Foreground="{StaticResource HeaderText}" Margin="0,0,0,4"/>
-    <TextBox Text="{Binding InitialRemotePath}" Watermark="/" Margin="0,0,0,14"/>
+    <TextBox Text="{Binding InitialRemotePath}" PlaceholderText="/" Margin="0,0,0,14"/>
 
     <CheckBox IsVisible="{Binding SaveSecretVisible}" IsChecked="{Binding SavePassword}"
               Content="Save password / secret"

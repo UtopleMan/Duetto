@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Markup.Xaml.Styling;
+using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using Duetto.Core.Remote;
@@ -54,7 +55,7 @@ public class App : Application
                 window.Opened += (_, _) => DispatcherTimer.RunOnce(() =>
                 {
                     var frame = Avalonia.Headless.HeadlessWindowExtensions.CaptureRenderedFrame(window);
-                    frame?.Save(path);
+                    frame?.Save(path, PngBitmapEncoderOptions.Default);
                     desktop.Shutdown(frame is null ? 1 : 0);
                 }, TimeSpan.FromMilliseconds(600));
             }

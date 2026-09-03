@@ -28,6 +28,8 @@ public static class AppPaths
 
     public static string WindowJsonPath => Path.Combine(ConfigDir, "window.json");
 
+    public static string ViewerWindowJsonPath => Path.Combine(ConfigDir, "viewer-window.json");
+
     public static string SessionJsonPath => Path.Combine(ConfigDir, "session.json");
 
     public static string SettingsJsonPath => Path.Combine(ConfigDir, "settings.json");

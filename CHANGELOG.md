@@ -3,6 +3,42 @@
 All notable changes to Duetto are documented here. This project adheres to
 [Semantic Versioning](https://semver.org).
 
+## 1.7.0 — 2026-09-03
+
+### Features
+- **File viewer (`F3`)** — press `F3` on the pane cursor or a focused search
+  result to open a reusable viewer window. Text files show with line numbers and
+  a detected encoding label (UTF-8, UTF-8 BOM, UTF-16 LE/BE); binaries show a
+  hex dump; images render inline with their pixel dimensions. Every backend is
+  supported — local, SFTP, SMB, S3 and Azure Blob — through the existing
+  file-system providers. `Ctrl`/`Cmd+F` opens find-in-file (`Enter`/`n` next,
+  `Shift+Enter`/`N` previous), `W` toggles word wrap, `Esc` closes the find box
+  and then the window. Text and hex previews load the first 4 MB and say so, with
+  an **Open in default app** action alongside; images are decoded up to 64 MB and
+  fall back to a hex dump above that. Previewing is not blocked by a running copy
+  or delete, and the viewer remembers its own size and position.
+- **SVG preview** — SVG documents render as vector art, scaled to fit, with the
+  viewBox dimensions in the header. Detection is by content, not extension: an
+  `.svg` holding HTML is shown as text, and a malformed SVG falls back to its
+  source markup instead of an error.
+- **PDF preview** — PDF pages render one at a time via PDFium, with
+  **Previous page** / **Next page** in the footer and `PgDn`/`PgUp` (or the arrow
+  keys) stepping pages. Every page renders with its long edge at 2400 px, so the
+  view stays crisp at any window size. PDFs up to 128 MB are rendered; damaged or
+  password-protected files show a one-line reason next to **Open in default app**.
+
+### Changed
+- **Avalonia 12.1.1** — upgraded from 11.3.18. Window chrome moved from the
+  removed `ExtendClientAreaChromeHints`/`SystemDecorations` to the new
+  `WindowDecorations` API, and the test suite moved to xunit.v3.
+- Windows builds shrank by about 27 MB: Avalonia 12's native packages ship Skia
+  and HarfBuzz debug symbols, which are now excluded from published output.
+
+### Security
+- **SSH.NET 2026.0.0** — fixes the high-severity advisory
+  [GHSA-q939-rpr3-3284](https://github.com/advisories/GHSA-q939-rpr3-3284)
+  present in 2025.1.0.
+
 ## 1.6.0 — 2026-08-14
 
 ### Features

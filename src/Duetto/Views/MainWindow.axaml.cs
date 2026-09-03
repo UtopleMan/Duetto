@@ -19,17 +19,19 @@ public partial class MainWindow : Window
     private Func<IReadOnlyList<ScreenBounds>>? _screensProvider;
     private PixelPoint _normalPosition;
     private Size _normalSize;
+    private ViewerWindow? _viewer;
 
     public MainWindow()
         : this(new MainViewModel())
     {
         if (!Program.Options.Headless)
-            WirePlacement(
-                new WindowPlacementStore(AppPaths.WindowJsonPath),
-                () => Screens.All
-                    .Select(s => new ScreenBounds(s.Bounds.X, s.Bounds.Y, s.Bounds.Width, s.Bounds.Height))
-                    .ToList());
+            WirePlacement(new WindowPlacementStore(AppPaths.WindowJsonPath), ScreenBoundsProvider);
     }
+
+    private IReadOnlyList<ScreenBounds> ScreenBoundsProvider() =>
+        Screens.All
+            .Select(s => new ScreenBounds(s.Bounds.X, s.Bounds.Y, s.Bounds.Width, s.Bounds.Height))
+            .ToList();
 
     internal MainWindow(MainViewModel vm, WindowPlacementStore placement,
         Func<IReadOnlyList<ScreenBounds>> screens)
@@ -48,6 +50,9 @@ public partial class MainWindow : Window
         LeftPane.Interacted += _ => vm.Activate(vm.Left);
         RightPane.Interacted += _ => vm.Activate(vm.Right);
 
+        vm.OpenViewer = ShowViewer;
+        vm.SearchResultsFocused = ResultsHaveFocus;
+
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
 
         Activated += (_, _) =>
@@ -63,8 +68,8 @@ public partial class MainWindow : Window
         {
             case ChromeKind.Win:
             case ChromeKind.Gnome:
+                WindowDecorations = WindowDecorations.None;
                 ExtendClientAreaToDecorationsHint = true;
-                ExtendClientAreaChromeHints = ExtendClientAreaChromeHints.NoChrome;
                 ExtendClientAreaTitleBarHeightHint = -1;
                 break;
 
@@ -179,8 +184,33 @@ public partial class MainWindow : Window
         new ConnectWindow(dialogVm).ShowDialog(owner);
     }
 
+    internal ViewerWindow? Viewer => _viewer;
+
+    private void ShowViewer(PreviewRequest request)
+    {
+        _viewer ??= CreateViewer();
+        _viewer.Vm.Show(request.Address, request.DisplayName);
+        _viewer.Activate();
+    }
+
+    private ViewerWindow CreateViewer()
+    {
+        var viewerVm = new ViewerViewModel(Vm.Registry);
+        viewerVm.OpenInDefaultAppRequested += Vm.OpenAddressInDefaultApp;
+
+        var viewer = new ViewerWindow(viewerVm);
+        if (!Program.Options.Headless)
+            viewer.WirePlacement(
+                new WindowPlacementStore(AppPaths.ViewerWindowJsonPath), ScreenBoundsProvider);
+
+        viewer.Closed += (_, _) => _viewer = null;
+        viewer.Show(this);
+        return viewer;
+    }
+
     protected override void OnClosed(EventArgs e)
     {
+        _viewer?.Close();
         if (DataContext is MainViewModel vm)
             vm.Dispose();
         base.OnClosed(e);
@@ -313,6 +343,10 @@ public partial class MainWindow : Window
                 return;
             case Key.F2:
                 pane.StartRename();
+                e.Handled = true;
+                return;
+            case Key.F3:
+                Vm.PreviewCursor();
                 e.Handled = true;
                 return;
             case Key.F5:

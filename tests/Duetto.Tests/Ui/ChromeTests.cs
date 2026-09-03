@@ -27,7 +27,7 @@ public class ChromeTests
         Assert.True(window.FindControl<Border>("WinTitleBar")!.IsVisible);
         Assert.False(window.FindControl<Border>("GnomeHeader")!.IsVisible);
         Assert.False(window.FindControl<Border>("PlacesRail")!.IsVisible);
-        Assert.True(window.ExtendClientAreaToDecorationsHint);
+        Assert.Equal(WindowDecorations.None, window.WindowDecorations);
         window.Close();
     }
 
@@ -39,7 +39,7 @@ public class ChromeTests
 
         Assert.False(window.FindControl<Border>("WinTitleBar")!.IsVisible);
         Assert.False(window.FindControl<Border>("PlacesRail")!.IsVisible);
-        Assert.False(window.ExtendClientAreaToDecorationsHint);
+        Assert.Equal(WindowDecorations.Full, window.WindowDecorations);
         var card = window.FindControl<Border>("LeftCard")!;
         Assert.Equal(9, card.CornerRadius.TopLeft);
         Assert.Contains("·", window.Title);

@@ -13,6 +13,8 @@ public sealed record Place(string Name, string Path, string Color);
 
 public sealed record RemotePlace(string Name, string Id, string InitialRemotePath, StoredConnection Stored);
 
+public sealed record PreviewRequest(string Address, string DisplayName);
+
 public partial class MainViewModel : ObservableObject, IDisposable
 {
     public PaneViewModel Left { get; }
@@ -224,6 +226,29 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     public Action<StoredConnection?, PaneViewModel> OpenConnectDialog { get; set; } = (_, _) => { };
+
+    public Action<PreviewRequest> OpenViewer { get; set; } = _ => { };
+
+    public Func<bool> SearchResultsFocused { get; set; } = static () => false;
+
+    public void PreviewCursor()
+    {
+        if (PreviewTarget() is { } request)
+            OpenViewer(request);
+    }
+
+    private PreviewRequest? PreviewTarget()
+    {
+        if (Search.IsActive && SearchResultsFocused())
+            return Search.Selection.SelectedItem is { Entry.IsDirectory: false } hit
+                ? new PreviewRequest(ToAddress(Search.ScopeDir, hit.Entry.FullPath), hit.Entry.Name)
+                : null;
+
+        if (ActivePane.CursorRow is not { IsParentNav: false, Entry.IsDirectory: false } row)
+            return null;
+
+        return new PreviewRequest(ToAddress(ActivePane.CurrentPath, row.Entry.FullPath), row.Entry.Name);
+    }
 
     public Func<Action, Task> ConnectScheduler { get; set; } =
         static work => Task.Run(work);
@@ -684,14 +709,24 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return $"{done}, {failed} failed";
     }
 
-    private void StartRemoteFileOpen(PaneViewModel pane, FileRowViewModel row)
+    private void StartRemoteFileOpen(PaneViewModel pane, FileRowViewModel row) =>
+        StartRemoteOpen(ToAddress(pane.CurrentPath, row.Entry.FullPath), row.Name);
+
+    public void OpenAddressInDefaultApp(string address)
+    {
+        if (PathUtil.IsRemote(address))
+            StartRemoteOpen(address, PathUtil.Leaf(address));
+        else
+            ActivePane.LaunchFile(address);
+    }
+
+    private void StartRemoteOpen(string address, string name)
     {
         if (ActiveOperation is { IsFinished: false })
             return;
 
-        var address = ToAddress(pane.CurrentPath, row.Entry.FullPath);
         var cts = new CancellationTokenSource();
-        var op = new SimpleOperationViewModel($"Opening {row.Name}…", cts);
+        var op = new SimpleOperationViewModel($"Opening {name}…", cts);
         op.Dismissed += () =>
         {
             if (ReferenceEquals(ActiveOperation, op))
@@ -700,7 +735,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         };
         ActiveOperation = op;
 
-        OpenCompletion = RunOpenAsync(address, row.Name, op, cts.Token);
+        OpenCompletion = RunOpenAsync(address, name, op, cts.Token);
     }
 
     private async Task RunOpenAsync(

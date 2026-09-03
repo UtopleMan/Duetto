@@ -47,9 +47,18 @@ See [Install](#install) below for all download options.
 
 ## Features
 
-- **Dual-pane, keyboard-first** - copy (`F5`), move (`F6`), delete (`F8`), rename
-  (`F2`), new file/folder (`F7`); `Tab` switches panes, `Enter` opens, `Backspace`
-  goes up.
+- **Dual-pane, keyboard-first** - view (`F3`), copy (`F5`), move (`F6`), delete
+  (`F8`), rename (`F2`), new file/folder (`F7`); `Tab` switches panes, `Enter`
+  opens, `Backspace` goes up.
+- **Built-in file viewer** - `F3` on the cursor file (or a search result) opens a
+  reusable viewer window: text with line numbers, a hex dump for binaries, images
+  rendered inline, SVG drawn as vector art, and PDF pages rendered page by page
+  (`PgDn`/`PgUp` or the arrow keys step pages). Works over every backend, local
+  and remote. `Ctrl`/`Cmd+F` finds within the file, `n`/`N` step through matches,
+  `W` toggles word wrap, `Esc` closes. Limits: the first 4 MB of a text or binary
+  file is shown (with a footer notice and an **Open in default app** action),
+  images up to 64 MB are decoded - anything larger falls back to a hex dump - and
+  PDFs up to 128 MB are rendered.
 - **Native on every OS** - the window chrome adapts to Windows, macOS, and GNOME.
 - **Remote over SFTP** - save connections and browse or transfer files over SSH,
   with trust-on-first-use host-key verification.
@@ -118,3 +127,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for more, and
 ## License
 
 [MIT](LICENSE) © 2026 UtopleMan
+
+### Third-party notices
+
+The viewer embeds two rendering stacks whose licenses ship with every build:
+
+| Component | Used for | License |
+| --- | --- | --- |
+| [PDFium](https://pdfium.googlesource.com/pdfium/) (via [Docnet.Core](https://github.com/GowenGit/docnet)) | PDF page rendering | BSD-3-Clause (PDFium), MIT (Docnet.Core) |
+| [Svg.Controls.Avalonia](https://github.com/wieslawsoltes/Svg.Skia) with `Svg.Model`, `Svg.SceneGraph`, `ShimSkiaSharp` | SVG rendering | MIT |
+| `Svg.Custom` (transitive, from the same stack) | SVG document model | MS-PL |
+
+The PDFium native libraries are redistributed unmodified; their BSD-3-Clause
+notice is the `LICENSE` file inside each `Docnet.Core` runtime package.
