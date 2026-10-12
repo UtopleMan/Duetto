@@ -21,6 +21,16 @@ internal static class Program
         var builder = AppBuilder.Configure<App>();
         return Options.Headless
             ? builder.UseSkia().UseHarfBuzz().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
-            : builder.UsePlatformDetect().LogToTrace();
+            : builder.UsePlatformDetect().With(MacRenderingOptions).LogToTrace();
     }
+
+    private static AvaloniaNativePlatformOptions MacRenderingOptions => new()
+    {
+        RenderingMode =
+        [
+            AvaloniaNativeRenderingMode.OpenGl,
+            AvaloniaNativeRenderingMode.Metal,
+            AvaloniaNativeRenderingMode.Software
+        ]
+    };
 }
