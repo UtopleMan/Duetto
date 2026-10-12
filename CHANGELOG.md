@@ -3,6 +3,14 @@
 All notable changes to Duetto are documented here. This project adheres to
 [Semantic Versioning](https://semver.org).
 
+## 1.7.1 — 2026-10-12
+
+### Fixed
+- **Screen flicker on macOS** — moving the cursor with the arrow keys or hovering
+  over controls made the window flicker. Avalonia 12 switched the default macOS
+  renderer to Metal, which flickers on partial redraws; Duetto now prefers OpenGL
+  again (falling back to Metal, then software), as it did before 1.7.0.
+
 ## 1.7.0 — 2026-09-03
 
 ### Features
